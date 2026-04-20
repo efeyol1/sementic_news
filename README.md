@@ -1,29 +1,27 @@
 # Semantic News TR
 
-Türkiye'nin 10 büyük haber kaynağından RSS ile gerçek zamanlı veri toplayıp semantik meta-analiz yapan açık kaynak platform.
-
-## Ne Yapar?
-
-- 10 Türk haber kaynağından RSS feed çeker (Habertürk, Hürriyet, NTV, CNN Türk, Sözcü, Milliyet, Sabah, TRT Haber, Cumhuriyet, Yeni Şafak)
-- Toplanan haberleri temizler, normalleştirir ve dil tespiti yapar
-- BERT tabanlı Türkçe duygu analizi modeli ile haberleri sınıflandırır (pozitif / negatif / nötr)
-- REST API üzerinden tahmin servisi sunar
-- Vektör veritabanı ile semantik benzer haber arama yapar
+Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sentiment analizi, NER ve konu kümeleme yapan tam MLOps projesi.
 
 ## Mevcut Durum
 
-**Phase 1 — ML Pipeline (devam ediyor)**
+| Blok | İçerik | Durum |
+|------|--------|-------|
+| **A — ML Pipeline** | RSS collector, preprocessor, sentiment, NER, clustering | ✅ |
+| **B — MLOps** | pipeline.py, DVC, model registry (MLflow) | ✅ |
+| **C — DevOps** | FastAPI, Dockerfile, GitHub Actions CI/CD | ✅ |
+| **C — Deploy** | Render deploy, Grafana monitoring | 🔄 |
+| **D — Birleştirme** | Cron job, React dashboard, fine-tune | ⬜ |
 
-| Adım | Durum |
-|------|-------|
-| Proje iskeleti (DVC, MLflow) | ✅ Tamamlandı |
-| Training pipeline (BERT fine-tune) | ✅ Tamamlandı |
-| RSS collector (10/10 kaynak) | ✅ Tamamlandı |
-| Preprocessor (temizleme, dil tespiti) | ✅ Tamamlandı |
-| Full training run + model değerlendirme | ⬜ Devam ediyor |
-| **Phase 2** — FastAPI servisi | ⬜ Planlandı |
-| **Phase 3** — CI/CD (GitHub Actions) | ⬜ Planlandı |
-| **Phase 4** — Monitoring + Vector DB | ⬜ Planlandı |
+## Özellikler
+
+- 10 Türk haber kaynağından RSS çeker (Habertürk, Hürriyet, NTV, CNN Türk, Sözcü, Milliyet, Sabah, TRT Haber, Cumhuriyet, Yeni Şafak)
+- BERT tabanlı Türkçe sentiment analizi (`savasy/bert-base-turkish-sentiment-cased`)
+- Named Entity Recognition — PER / ORG / LOC (`savasy/bert-base-turkish-ner-cased`)
+- TF-IDF + KMeans ile 15 konu kümesi
+- MLflow experiment tracking + model registry
+- DVC ile pipeline versiyonlama
+- FastAPI REST servisi
+- GitHub Actions CI (lint + test) + Render CD
 
 ## Kurulum
 
@@ -31,60 +29,97 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile gerçek zamanlı veri toplay
 git clone https://github.com/<kullanici>/semantic-news-tr.git
 cd semantic-news-tr
 
-python -m venv .venv
-# Windows:
-.venv\Scripts\activate
-# Linux/macOS:
-source .venv/bin/activate
+python3.12 -m venv .venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
 pip install -e ".[dev]"
 ```
 
-## Kullanım
-
-### Veri Toplama
+## Pipeline Kullanımı
 
 ```bash
-# 10 kaynaktan RSS çek → data/raw/YYYY-MM-DD.json
+# Tek komutla tam zincir (bugün)
+python -m src.pipeline
+
+# Belirli tarih
+python -m src.pipeline --date 2026-04-20
+
+# RSS zaten çekildiyse
+python -m src.pipeline --skip-collect
+
+# Adım adım
 python -m src.data.rss_collector
-```
-
-### Ön İşleme
-
-```bash
-# Bugünün verisini işle → data/processed/YYYY-MM-DD.json
 python -m src.data.preprocessor
+python -m src.analysis.sentiment
+python -m src.analysis.ner
+python -m src.analysis.clustering
 
-# Belirli bir tarih için
-python -m src.data.preprocessor --date 2026-04-17
+# DVC ile
+dvc repro
 ```
 
-### Model Eğitimi (dry-run)
+## Model Registry
 
 ```bash
-# 5 adımlık smoke test
-python -m src.training.train --dry-run
+python -m src.training.train --dry-run        # smoke test
+python -m src.training.registry --register    # en iyi run'ı kaydet
+python -m src.training.registry --register --promote staging
+python -m src.training.registry --list
+```
+
+## API
+
+```bash
+uvicorn src.api.main:app --reload
+```
+
+| Endpoint | Açıklama |
+|----------|----------|
+| `GET /health` | Liveness probe |
+| `GET /api/today` | Günlük analiz özeti |
+| `GET /api/topic/{id}` | Cluster haberleri |
+| `GET /api/source-comparison` | Kaynak bazlı sentiment |
+| `GET /metrics` | Prometheus metrikleri |
+
+## Testler
+
+```bash
+pytest tests/ -v
 ```
 
 ## Proje Yapısı
 
 ```
-semantic-news-tr/
+sementic_news/
 ├── src/
 │   ├── data/
-│   │   ├── rss_collector.py   # RSS veri toplama
-│   │   ├── preprocessor.py    # Metin temizleme ve normalizasyon
-│   │   └── dataset.py         # HuggingFace dataset yükleyici
+│   │   ├── rss_collector.py    # RSS veri toplama
+│   │   ├── preprocessor.py     # Temizleme, dil tespiti
+│   │   └── dataset.py          # HuggingFace dataset
+│   ├── analysis/
+│   │   ├── sentiment.py        # Sentiment analizi
+│   │   ├── ner.py              # Named entity recognition
+│   │   └── clustering.py       # Konu kümeleme
 │   ├── training/
-│   │   ├── train.py           # BERT fine-tuning
-│   │   └── evaluate.py        # Model değerlendirme
-│   ├── api/                   # FastAPI servisi (Phase 2)
-│   └── vector_db/             # Semantik arama (Phase 4)
+│   │   ├── train.py            # BERT fine-tuning
+│   │   ├── evaluate.py         # Metrik hesaplama
+│   │   └── registry.py         # MLflow model registry
+│   ├── api/
+│   │   └── main.py             # FastAPI uygulaması
+│   └── pipeline.py             # Tam zincir orkestratörü
 ├── data/
-│   ├── raw/                   # Ham RSS verisi (DVC ile takip edilir)
-│   └── processed/             # İşlenmiş veri (DVC ile takip edilir)
-├── models/                    # Eğitilmiş model ağırlıkları
-├── tests/                     # pytest test suite
+│   ├── raw/                    # Ham RSS verisi (DVC)
+│   ├── processed/              # İşlenmiş veri (DVC)
+│   └── analyzed/               # Analiz sonuçları (DVC)
+├── notebooks/
+│   └── eda.ipynb               # Keşifsel veri analizi
+├── tests/
+│   └── test_api.py             # API smoke testleri
+├── .github/workflows/
+│   ├── ci.yml                  # Lint + test
+│   └── deploy.yml              # Render deploy
+├── dvc.yaml                    # DVC pipeline
+├── Dockerfile
 └── pyproject.toml
 ```
 
