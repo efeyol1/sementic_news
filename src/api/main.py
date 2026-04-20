@@ -15,7 +15,6 @@ from typing import Any
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
-from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 
 # ---------------------------------------------------------------------------
@@ -83,7 +82,11 @@ def health():
 
 
 @app.get("/api/today")
-def today(date_str: str = Query(default=None, alias="date", description="YYYY-MM-DD, default: bugün")):
+def today(
+    date_str: str = Query(
+        default=None, alias="date", description="YYYY-MM-DD, default: bugün"
+    ),
+):
     """Bir günün analiz özetini döndürür.
 
     - Sentiment dağılımı (positive / neutral / negative yüzdeleri)
@@ -99,16 +102,25 @@ def today(date_str: str = Query(default=None, alias="date", description="YYYY-MM
     n = len(turkish)
 
     # Sentiment dağılımı
-    sentiment_counts = Counter(i.get("sentiment_label") for i in turkish if i.get("sentiment_label"))
-    sentiment_pct = {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()} if n else {}
+    sentiment_counts = Counter(
+        i.get("sentiment_label") for i in turkish if i.get("sentiment_label")
+    )
+    sentiment_pct = (
+        {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()} if n else {}
+    )
 
     # Top entity'ler
-    entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
+    entity_agg: dict[str, Counter] = {
+        "PER": Counter(), "ORG": Counter(), "LOC": Counter()
+    }
     for item in turkish:
         for label, words in (item.get("entities") or {}).items():
             if label in entity_agg:
                 entity_agg[label].update(words)
-    top_entities = {label: [w for w, _ in ctr.most_common(10)] for label, ctr in entity_agg.items()}
+    top_entities = {
+        label: [w for w, _ in ctr.most_common(10)]
+        for label, ctr in entity_agg.items()
+    }
 
     # Kaynak dağılımı
     source_counts = Counter(i["source_name"] for i in items)
@@ -125,7 +137,11 @@ def today(date_str: str = Query(default=None, alias="date", description="YYYY-MM
         "top_entities": top_entities,
         "cluster_count": len(clusters),
         "top_clusters": [
-            {"cluster_id": c["cluster_id"], "size": c["size"], "keywords": c["keywords"][:5]}
+            {
+                "cluster_id": c["cluster_id"],
+                "size": c["size"],
+                "keywords": c["keywords"][:5],
+            }
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
         "available_dates": _available_dates(),
@@ -145,7 +161,9 @@ def topic(cluster_id: int, date_str: str = Query(default=None, alias="date")):
 
     cluster_meta = next((c for c in clusters if c["cluster_id"] == cluster_id), None)
     if cluster_meta is None:
-        raise HTTPException(status_code=404, detail=f"cluster_id={cluster_id} bulunamadı.")
+        raise HTTPException(
+            status_code=404, detail=f"cluster_id={cluster_id} bulunamadı."
+        )
 
     news = [
         {
@@ -203,8 +221,14 @@ def source_comparison(date_str: str = Query(default=None, alias="date")):
         result[src] = {
             "total": n,
             "sentiment_counts": counts,
-            "sentiment_percentages": {k: round(v / n * 100, 1) for k, v in counts.items()} if n else {},
-            "avg_confidence": round(sum(data["scores"]) / len(data["scores"]), 4) if data["scores"] else None,
+            "sentiment_percentages": (
+                {k: round(v / n * 100, 1) for k, v in counts.items()} if n else {}
+            ),
+            "avg_confidence": (
+                round(sum(data["scores"]) / len(data["scores"]), 4)
+                if data["scores"]
+                else None
+            ),
         }
 
     return {"date": target, "sources": result}

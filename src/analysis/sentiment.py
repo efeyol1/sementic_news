@@ -182,7 +182,8 @@ def analyze(
     label_counts: dict[str, int] = {"negative": 0, "neutral": 0, "positive": 0}
     scores_sum = 0.0
     for a in turkish_items:
-        label_counts[a["sentiment_label"]] = label_counts.get(a["sentiment_label"], 0) + 1
+        lbl = a["sentiment_label"]
+        label_counts[lbl] = label_counts.get(lbl, 0) + 1
         scores_sum += a["sentiment_score"]
 
     n_tr = len(turkish_items)

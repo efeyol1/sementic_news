@@ -15,8 +15,8 @@ import sys
 from pathlib import Path
 
 import mlflow
-from mlflow import MlflowClient
 from loguru import logger
+from mlflow import MlflowClient
 
 # ---------------------------------------------------------------------------
 # Config
@@ -178,7 +178,10 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--version",
-        help="Yükseltilecek versiyon (--promote ile kullanılır, default: son kaydedilen)",
+        help=(
+            "Yükseltilecek versiyon "
+            "(--promote ile kullanılır, default: son kaydedilen)"
+        ),
     )
     return parser.parse_args(argv)
 
@@ -201,7 +204,10 @@ if __name__ == "__main__":
         if args.promote:
             version = args.version or registered_version
             if version is None:
-                logger.error("--promote için --version belirtin veya --register ile birlikte kullanın.")
+                logger.error(
+                    "--promote için --version belirtin "
+                    "veya --register ile birlikte kullanın."
+                )
                 sys.exit(1)
             promote(version, args.promote)
 

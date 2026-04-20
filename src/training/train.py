@@ -1,5 +1,4 @@
 import argparse
-import os
 from pathlib import Path
 
 import mlflow
@@ -62,7 +61,7 @@ def main():
         per_device_eval_batch_size=args.batch_size,
         learning_rate=args.lr,
         weight_decay=0.01,
-        eval_strategy="epoch",       # renamed from evaluation_strategy in transformers>=4.45
+        eval_strategy="epoch",
         save_strategy="epoch",
         load_best_model_at_end=True,
         metric_for_best_model="f1_macro",
@@ -108,7 +107,9 @@ def main():
         logger.info(f"Final F1 macro: {f1:.4f}")
 
         if not args.dry_run and f1 < 0.75:
-            raise ValueError(f"F1 macro {f1:.4f} below threshold 0.75 — model not saved")
+            raise ValueError(
+                f"F1 macro {f1:.4f} below threshold 0.75 — model not saved"
+            )
 
 
 if __name__ == "__main__":

@@ -198,7 +198,9 @@ def extract_entities(
             "per_count": per_count,
             "org_count": org_count,
             "loc_count": loc_count,
-            "avg_entities_per_item": total_entities / len(turkish_items) if turkish_items else 0,
+            "avg_entities_per_item": (
+                total_entities / len(turkish_items) if turkish_items else 0
+            ),
             "duration_sec": duration,
         })
 

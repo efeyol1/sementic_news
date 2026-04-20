@@ -129,7 +129,9 @@ def _build_cluster_summaries(
 
     for cid in range(n_clusters):
         item_idxs = cluster_indices.get(cid, [])
-        keywords = _top_keywords(cid, labels, vectorizer, matrix, TOP_KEYWORDS_PER_CLUSTER)
+        keywords = _top_keywords(
+            cid, labels, vectorizer, matrix, TOP_KEYWORDS_PER_CLUSTER
+        )
         sources = Counter(items[i]["source_name"] for i in item_idxs)
         sentiments = Counter(
             items[i].get("sentiment_label") for i in item_idxs
@@ -165,7 +167,9 @@ def _load_analyzed(date_str: str, analyzed_dir: Path) -> list[dict[str, Any]]:
     return data
 
 
-def _save_analyzed(items: list[dict[str, Any]], date_str: str, analyzed_dir: Path) -> Path:
+def _save_analyzed(
+    items: list[dict[str, Any]], date_str: str, analyzed_dir: Path
+) -> Path:
     path = analyzed_dir / f"{date_str}.json"
     with path.open("w", encoding="utf-8") as fh:
         json.dump(items, fh, ensure_ascii=False, indent=2)
@@ -245,7 +249,9 @@ def cluster_topics(
         result["cluster_keywords"] = item_keywords.get(i, [])
         enriched.append(result)
 
-    summaries = _build_cluster_summaries(items, indices, labels, vectorizer, matrix, n_clusters)
+    summaries = _build_cluster_summaries(
+        items, indices, labels, vectorizer, matrix, n_clusters
+    )
     _save_cluster_summaries(summaries, date_str, analyzed_dir)
     out_path = _save_analyzed(enriched, date_str, analyzed_dir)
 
@@ -265,7 +271,8 @@ def cluster_topics(
     logger.info("Top clusters:")
     for s in summaries[:5]:
         logger.info(
-            f"  Cluster {s['cluster_id']} ({s['size']} items): {', '.join(s['keywords'][:4])}"
+            f"  Cluster {s['cluster_id']} ({s['size']} items): "
+            f"{', '.join(s['keywords'][:4])}"
         )
 
     return out_path
