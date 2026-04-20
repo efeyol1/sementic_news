@@ -1,0 +1,67 @@
+{
+  "title": "Semantic News TR — API Dashboard",
+  "uid": "semantic-news",
+  "timezone": "browser",
+  "panels": [
+    {
+      "id": 1,
+      "title": "İstek / Dakika",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(http_requests_total[1m]) * 60",
+          "legendFormat": "{{method}} {{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "title": "Ortalama Yanıt Süresi (ms)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "expr": "rate(http_request_duration_seconds_sum[5m]) / rate(http_request_duration_seconds_count[5m]) * 1000",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "title": "HTTP Hata Oranı (%)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(rate(http_requests_total{status=~\"5..\"}[5m])) / sum(rate(http_requests_total[5m])) * 100"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "title": "Toplam İstek Sayısı",
+      "type": "stat",
+      "gridPos": { "x": 8, "y": 8, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum(http_requests_total)"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "title": "Endpoint Bazlı İstek Dağılımı",
+      "type": "piechart",
+      "gridPos": { "x": 16, "y": 8, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "sum by (handler) (http_requests_total)",
+          "legendFormat": "{{handler}}"
+        }
+      ]
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1
+}
