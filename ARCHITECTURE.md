@@ -271,9 +271,18 @@ docker compose up
 
 ---
 
-## CI/CD Akışı
+## CI/CD ve Otomasyon Akışı
 
 ```
+Her gün 07:00 (UTC 04:00)
+        │
+        ▼
+GitHub Actions — daily_pipeline.yml
+        │
+        ├── pip install + HF model cache
+        ├── python -m src.pipeline
+        └── git commit data/analyzed/ + push
+
 git push origin main
         │
         ├──► CI (ci.yml)
@@ -286,6 +295,32 @@ git push origin main
                       ▼
                  Render.com
                  docker build + deploy
+
+Yerel çalıştırma:
+        │
+        ▼
+crontab: 0 7 * * * scripts/run_daily.sh
+        │
+        └── log: logs/pipeline_YYYY-MM-DD.log
+```
+
+### Cron Kurulumu (yerel)
+
+```bash
+# crontab'a ekle
+crontab -e
+# Şu satırı ekle:
+0 7 * * * /Users/efeyol11/sementic_news/scripts/run_daily.sh
+
+# Manuel test
+bash scripts/run_daily.sh
+tail -f logs/pipeline_$(date +%Y-%m-%d).log
+```
+
+### GitHub Actions Manuel Tetikleme
+
+```
+GitHub → Actions → Daily Pipeline → Run workflow
 ```
 
 ---
