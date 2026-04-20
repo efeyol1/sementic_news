@@ -34,9 +34,9 @@
                                          ┌────────────┴──────────┐
                                          │                       │
                                    ┌─────▼─────┐         ┌──────▼──────┐
-                                   │  Grafana  │         │  React      │
+                                   │  Grafana  │         │  Next.js    │
                                    │ Dashboard │         │  Dashboard  │
-                                   │ (izleme)  │         │  (Blok D)   │
+                                   │ (izleme)  │         │  (:3000)    │
                                    └───────────┘         └─────────────┘
 ```
 
@@ -340,6 +340,7 @@ GitHub → Actions → Daily Pipeline → Run workflow
 | Monitoring | Prometheus + Grafana | Endüstri standardı |
 | CI/CD | GitHub Actions + Render | Ücretsiz tier |
 | Loglama | loguru | Renkli, yapılandırılmış |
+| Dashboard | Next.js 14 + Tailwind + Recharts | App Router, dark enterprise UI |
 
 ---
 
@@ -379,10 +380,56 @@ sementic_news/
 ├── .github/workflows/
 │   ├── ci.yml                  # Lint + test
 │   └── deploy.yml              # Render CD
+├── dashboard/                  # Next.js 14 enterprise dashboard
+│   ├── src/
+│   │   ├── app/
+│   │   │   ├── page.tsx        # Ana dashboard (istatistikler, sentiment, kümeler)
+│   │   │   ├── sources/        # Kaynak × sentiment karşılaştırması
+│   │   │   └── topic/[id]/     # Küme detay sayfası
+│   │   ├── components/
+│   │   │   ├── ui/             # StatCard, Navbar, EntityCloud, ClusterGrid...
+│   │   │   └── charts/         # SentimentPieChart, SourceHeatmap
+│   │   └── lib/                # api.ts (FastAPI client), utils.ts
+│   └── package.json
 ├── dvc.yaml                    # DVC pipeline tanımı
 ├── docker-compose.yml          # API + Prometheus + Grafana
 ├── Dockerfile                  # Production container
 └── pyproject.toml              # Bağımlılıklar + araç ayarları
+```
+
+---
+
+## Next.js Dashboard
+
+```
+dashboard/
+  src/app/
+    page.tsx          → /        Ana dashboard
+    sources/page.tsx  → /sources Kaynak analizi
+    topic/[id]/       → /topic/3 Küme detayı
+```
+
+**Özellikler:**
+- Glassmorphism kartlar + `#0A0F1E` dark background
+- Animated counters (Framer Motion)
+- Sentiment gauge (renk geçişli progress bar)
+- Kaynak × sentiment heatmap (yatay stacked bar)
+- Entity cloud (PER / ORG / LOC renk kodlu)
+- Cluster grid → tıklanabilir, küme detayına yönlendirir
+
+**Çalıştırma:**
+```bash
+cd dashboard
+npm install
+npm run dev          # http://localhost:3000
+# API'nin de açık olması gerekiyor:
+uvicorn src.api.main:app --port 8000
+```
+
+**Vercel Deploy:**
+```bash
+vercel --cwd dashboard   # dashboard/ klasörünü deploy eder
+# NEXT_PUBLIC_API_URL=https://your-api.onrender.com
 ```
 
 ---
