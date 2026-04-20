@@ -98,12 +98,11 @@ def main():
 
         logger.info(f"Metrics: {metrics}")
 
-        if not args.dry_run:
-            save_path = MODELS_DIR / "best"
-            trainer.save_model(str(save_path))
-            tokenizer.save_pretrained(str(save_path))
-            mlflow.log_artifact(str(save_path))
-            logger.success(f"Model saved to {save_path}")
+        save_path = MODELS_DIR / "best"
+        trainer.save_model(str(save_path))
+        tokenizer.save_pretrained(str(save_path))
+        mlflow.pytorch.log_model(trainer.model, artifact_path="best")
+        logger.success(f"Model saved to {save_path}")
 
         f1 = metrics.get("eval_f1_macro", 0)
         logger.info(f"Final F1 macro: {f1:.4f}")

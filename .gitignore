@@ -36,6 +36,7 @@ notebooks/*.png
 
 # Claude Code memory
 .claude/
+Claude.md
 
 # Docker
 *.log
