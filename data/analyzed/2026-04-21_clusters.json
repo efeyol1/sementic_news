@@ -1,413 +1,420 @@
 [
   {
-    "cluster_id": 8,
-    "size": 104,
-    "keywords": [
-      "türkiye",
-      "nin",
-      "ın",
-      "ilk",
-      "tarihi",
-      "başkanı",
-      "dikkat",
-      "ngiltere"
-    ],
-    "sources": {
-      "Hürriyet": 24,
-      "Cumhuriyet": 17,
-      "TRT Haber": 13,
-      "Habertürk": 11,
-      "Sözcü": 11,
-      "Milliyet": 11,
-      "Yeni Şafak": 7,
-      "CNN Türk": 6,
-      "NTV": 3,
-      "Sabah": 1
-    },
-    "sentiment_distribution": {
-      "positive": 63,
-      "negative": 41
-    }
-  },
-  {
-    "cluster_id": 14,
+    "cluster_id": 2,
+    "title": "Ran · ABD",
     "size": 51,
-    "keywords": [
-      "srail",
-      "in",
-      "nın",
-      "kaybetti",
-      "hayatını",
-      "hayatını kaybetti",
-      "yaşındaki",
-      "ünlü"
-    ],
-    "sources": {
-      "Cumhuriyet": 19,
-      "Habertürk": 6,
-      "Hürriyet": 6,
-      "Milliyet": 5,
-      "TRT Haber": 5,
-      "NTV": 4,
-      "Sözcü": 3,
-      "Yeni Şafak": 2,
-      "CNN Türk": 1
-    },
-    "sentiment_distribution": {
-      "negative": 38,
-      "positive": 13
-    }
-  },
-  {
-    "cluster_id": 3,
-    "size": 45,
-    "keywords": [
-      "zaman",
-      "peki",
-      "alan",
-      "2026",
-      "başladı",
-      "konusu",
-      "değişikliği",
-      "merak"
-    ],
-    "sources": {
-      "Habertürk": 22,
-      "Cumhuriyet": 11,
-      "CNN Türk": 4,
-      "Hürriyet": 2,
-      "NTV": 2,
-      "Sözcü": 1,
-      "Milliyet": 1,
-      "TRT Haber": 1,
-      "Yeni Şafak": 1
-    },
-    "sentiment_distribution": {
-      "positive": 26,
-      "negative": 19
-    }
-  },
-  {
-    "cluster_id": 4,
-    "size": 43,
-    "keywords": [
-      "nisan",
-      "21 nisan",
-      "21",
-      "2026",
-      "nisan 2026",
-      "şte",
-      "peki",
-      "salı"
-    ],
-    "sources": {
-      "Habertürk": 31,
-      "Cumhuriyet": 6,
-      "CNN Türk": 3,
-      "Hürriyet": 1,
-      "NTV": 1,
-      "Sözcü": 1
-    },
-    "sentiment_distribution": {
-      "positive": 34,
-      "negative": 9
-    }
-  },
-  {
-    "cluster_id": 13,
-    "size": 38,
-    "keywords": [
-      "ortaya çıktı",
-      "uyuşturucu",
-      "çıktı",
-      "ortaya",
-      "tutuklama",
-      "manisa",
-      "manavgat",
-      "gözaltına"
-    ],
-    "sources": {
-      "Sözcü": 14,
-      "CNN Türk": 9,
-      "Hürriyet": 5,
-      "Cumhuriyet": 4,
-      "Habertürk": 3,
-      "Milliyet": 1,
-      "Sabah": 1,
-      "TRT Haber": 1
-    },
-    "sentiment_distribution": {
-      "positive": 14,
-      "negative": 24
-    }
-  },
-  {
-    "cluster_id": 12,
-    "size": 29,
-    "keywords": [
-      "kahramanmaraş",
-      "şanlıurfa kahramanmaraş",
-      "okul",
-      "şanlıurfa",
-      "sosyal",
-      "taki",
-      "kahramanmaraş taki",
-      "göktaş"
-    ],
-    "sources": {
-      "Cumhuriyet": 10,
-      "CNN Türk": 4,
-      "Habertürk": 3,
-      "NTV": 3,
-      "TRT Haber": 3,
-      "Sözcü": 2,
-      "Sabah": 2,
-      "Hürriyet": 1,
-      "Milliyet": 1
-    },
-    "sentiment_distribution": {
-      "negative": 18,
-      "positive": 11
-    }
-  },
-  {
-    "cluster_id": 6,
-    "size": 27,
     "keywords": [
       "ran",
       "abd",
-      "trump",
-      "müzakere",
-      "ın",
-      "abd ran",
-      "pakistan",
-      "küresel"
-    ],
-    "sources": {
-      "TRT Haber": 8,
-      "Habertürk": 6,
-      "Hürriyet": 4,
-      "Cumhuriyet": 3,
-      "Sözcü": 2,
-      "Yeni Şafak": 2,
-      "CNN Türk": 1,
-      "Sabah": 1
-    },
-    "sentiment_distribution": {
-      "positive": 11,
-      "negative": 16
-    }
-  },
-  {
-    "cluster_id": 0,
-    "size": 26,
-    "keywords": [
+      "başkanı",
+      "srail",
       "genel",
-      "özel",
-      "özgür",
-      "geldi",
-      "chp",
-      "özgür özel",
-      "genel başkanı",
-      "örgütü"
+      "ab",
+      "müzakere",
+      "dedi"
     ],
     "sources": {
-      "TRT Haber": 6,
-      "Hürriyet": 5,
-      "Cumhuriyet": 4,
-      "Sabah": 3,
-      "Habertürk": 2,
-      "Sözcü": 2,
-      "NTV": 1,
-      "CNN Türk": 1,
-      "Milliyet": 1,
-      "Yeni Şafak": 1
-    },
-    "sentiment_distribution": {
-      "negative": 17,
-      "positive": 9
-    }
-  },
-  {
-    "cluster_id": 7,
-    "size": 20,
-    "keywords": [
-      "fenerbahçe",
-      "süper lig",
-      "süper",
-      "lig",
-      "kupası",
-      "final",
-      "çeyrek",
-      "saat"
-    ],
-    "sources": {
-      "Habertürk": 6,
+      "TRT Haber": 11,
+      "Milliyet": 10,
+      "Habertürk": 8,
+      "Cumhuriyet": 8,
+      "Yeni Şafak": 5,
       "Hürriyet": 4,
-      "Cumhuriyet": 4,
-      "Sözcü": 3,
-      "CNN Türk": 1,
-      "TRT Haber": 1,
-      "Yeni Şafak": 1
+      "CNN Türk": 2,
+      "Sabah": 2,
+      "NTV": 1
     },
     "sentiment_distribution": {
-      "positive": 17,
-      "negative": 3
-    }
-  },
-  {
-    "cluster_id": 10,
-    "size": 17,
-    "keywords": [
-      "çay",
-      "dev",
-      "çıktı",
-      "tarifi",
-      "tonluk",
-      "enfes",
-      "videolu",
-      "görülen"
-    ],
-    "sources": {
-      "Hürriyet": 5,
-      "Cumhuriyet": 5,
-      "Sözcü": 3,
-      "Habertürk": 2,
-      "CNN Türk": 1,
-      "TRT Haber": 1
-    },
-    "sentiment_distribution": {
-      "negative": 7,
-      "positive": 10
-    }
-  },
-  {
-    "cluster_id": 9,
-    "size": 16,
-    "keywords": [
-      "hapis",
-      "nisanda",
-      "te",
-      "cezası",
-      "hapis cezası",
-      "hakim",
-      "böcek",
-      "can"
-    ],
-    "sources": {
-      "TRT Haber": 6,
-      "Cumhuriyet": 6,
-      "Habertürk": 2,
-      "Hürriyet": 1,
-      "CNN Türk": 1
-    },
-    "sentiment_distribution": {
-      "negative": 13,
-      "positive": 3
-    }
-  },
-  {
-    "cluster_id": 5,
-    "size": 15,
-    "keywords": [
-      "şüpheli",
-      "73",
-      "kağıthane",
-      "çağrı",
-      "73 şüpheli",
-      "fırında",
-      "kadını",
-      "dünyanın güzel"
-    ],
-    "sources": {
-      "Hürriyet": 4,
-      "Sözcü": 4,
-      "Cumhuriyet": 3,
-      "NTV": 2,
-      "Sabah": 1,
-      "Yeni Şafak": 1
-    },
-    "sentiment_distribution": {
-      "positive": 6,
-      "negative": 9
-    }
-  },
-  {
-    "cluster_id": 2,
-    "size": 14,
-    "keywords": [
-      "doku",
-      "gülistan",
-      "gülistan doku",
-      "sonel",
-      "gürlek",
-      "sevk edildi",
-      "sevk",
-      "tuncay"
-    ],
-    "sources": {
-      "Hürriyet": 3,
-      "NTV": 3,
-      "Habertürk": 2,
-      "Cumhuriyet": 2,
-      "CNN Türk": 1,
-      "Sözcü": 1,
-      "Sabah": 1,
-      "TRT Haber": 1
-    },
-    "sentiment_distribution": {
-      "negative": 12,
-      "positive": 2
-    }
-  },
-  {
-    "cluster_id": 1,
-    "size": 11,
-    "keywords": [
-      "23",
-      "23 nisan",
-      "nisan",
-      "egemenlik",
-      "egemenlik çocuk",
-      "çocuk bayramı",
-      "ulusal egemenlik",
-      "ulusal"
-    ],
-    "sources": {
-      "Habertürk": 4,
-      "Cumhuriyet": 4,
-      "NTV": 1,
-      "CNN Türk": 1,
-      "TRT Haber": 1
-    },
-    "sentiment_distribution": {
-      "positive": 10,
-      "negative": 1
+      "positive": 25,
+      "negative": 26
     }
   },
   {
     "cluster_id": 11,
-    "size": 9,
+    "title": "Ünlü · Adana",
+    "size": 45,
     "keywords": [
-      "111",
-      "yüzüne",
-      "patlama",
-      "çıkan",
-      "yarattı",
-      "telefonu",
-      "araştırma",
-      "annesi"
+      "ünlü",
+      "aşk",
+      "oyuncu",
+      "olay",
+      "kadını",
+      "yaşındaki",
+      "yıldız",
+      "çıktı"
     ],
     "sources": {
-      "TRT Haber": 3,
-      "Sözcü": 2,
-      "Cumhuriyet": 2,
-      "Hürriyet": 1,
-      "CNN Türk": 1
+      "Hürriyet": 22,
+      "Habertürk": 9,
+      "Cumhuriyet": 8,
+      "Sözcü": 3,
+      "CNN Türk": 1,
+      "Milliyet": 1,
+      "Sabah": 1
     },
     "sentiment_distribution": {
-      "positive": 3,
-      "negative": 6
+      "negative": 26,
+      "positive": 19
+    }
+  },
+  {
+    "cluster_id": 14,
+    "title": "Doku · Gülistan Doku",
+    "size": 45,
+    "keywords": [
+      "doku",
+      "gülistan",
+      "gülistan doku",
+      "adalet",
+      "sonel",
+      "gürlek",
+      "tuncay",
+      "tuncay sonel"
+    ],
+    "sources": {
+      "Cumhuriyet": 12,
+      "TRT Haber": 7,
+      "Hürriyet": 5,
+      "NTV": 4,
+      "CNN Türk": 4,
+      "Sözcü": 4,
+      "Habertürk": 3,
+      "Sabah": 3,
+      "Yeni Şafak": 2,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 37,
+      "positive": 8
+    }
+  },
+  {
+    "cluster_id": 6,
+    "title": "Gözaltına · İstanbul",
+    "size": 41,
+    "keywords": [
+      "gözaltına",
+      "şüpheli",
+      "alındı",
+      "uyuşturucu",
+      "gözaltına alındı",
+      "tutuklama",
+      "ilde",
+      "operasyonu"
+    ],
+    "sources": {
+      "Cumhuriyet": 12,
+      "TRT Haber": 6,
+      "Habertürk": 5,
+      "CNN Türk": 5,
+      "Hürriyet": 4,
+      "NTV": 3,
+      "Milliyet": 3,
+      "Sözcü": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 7,
+      "negative": 34
+    }
+  },
+  {
+    "cluster_id": 10,
+    "title": "Nisan",
+    "size": 39,
+    "keywords": [
+      "nisan",
+      "2026",
+      "nisan 2026",
+      "23 nisan",
+      "şte",
+      "23",
+      "peki",
+      "merak"
+    ],
+    "sources": {
+      "Habertürk": 23,
+      "Cumhuriyet": 10,
+      "CNN Türk": 4,
+      "NTV": 2
+    },
+    "sentiment_distribution": {
+      "positive": 30,
+      "negative": 9
+    }
+  },
+  {
+    "cluster_id": 8,
+    "title": "Stanbul · İstanbul",
+    "size": 35,
+    "keywords": [
+      "stanbul",
+      "nisan",
+      "elektrik",
+      "toki",
+      "2026",
+      "kura",
+      "doluluk",
+      "ilk"
+    ],
+    "sources": {
+      "Habertürk": 10,
+      "TRT Haber": 8,
+      "Cumhuriyet": 5,
+      "Hürriyet": 4,
+      "Yeni Şafak": 3,
+      "CNN Türk": 2,
+      "Sözcü": 2,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "positive": 30,
+      "negative": 5
+    }
+  },
+  {
+    "cluster_id": 4,
+    "title": "Lig · Galatasaray",
+    "size": 32,
+    "keywords": [
+      "lig",
+      "galatasaray",
+      "süper",
+      "süper lig",
+      "takım",
+      "bursaspor",
+      "fenerbahçe",
+      "osimhen"
+    ],
+    "sources": {
+      "Cumhuriyet": 10,
+      "Habertürk": 5,
+      "Hürriyet": 5,
+      "CNN Türk": 4,
+      "Sözcü": 4,
+      "Yeni Şafak": 3,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 23,
+      "negative": 9
+    }
+  },
+  {
+    "cluster_id": 9,
+    "title": "Çay · Fenerbahçe",
+    "size": 31,
+    "keywords": [
+      "çay",
+      "çıktı",
+      "fk",
+      "dev",
+      "geri",
+      "nin",
+      "yine",
+      "fenerbahçe"
+    ],
+    "sources": {
+      "Sözcü": 24,
+      "CNN Türk": 5,
+      "Hürriyet": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 14,
+      "negative": 17
+    }
+  },
+  {
+    "cluster_id": 3,
+    "title": "Küresel · ABD",
+    "size": 30,
+    "keywords": [
+      "küresel",
+      "whatsapp",
+      "abd",
+      "yeni",
+      "sağlık",
+      "yapay",
+      "sürdürülebilir",
+      "sektörünün"
+    ],
+    "sources": {
+      "Habertürk": 7,
+      "Cumhuriyet": 7,
+      "Hürriyet": 5,
+      "TRT Haber": 4,
+      "Milliyet": 3,
+      "Sözcü": 2,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 12,
+      "positive": 18
+    }
+  },
+  {
+    "cluster_id": 13,
+    "title": "Eğitim · Kahramanmaraş",
+    "size": 29,
+    "keywords": [
+      "eğitim",
+      "zaman",
+      "alımı",
+      "özel",
+      "personel",
+      "bakanlığı",
+      "personel alımı",
+      "sınav"
+    ],
+    "sources": {
+      "Habertürk": 7,
+      "Cumhuriyet": 6,
+      "TRT Haber": 4,
+      "NTV": 3,
+      "CNN Türk": 3,
+      "Hürriyet": 2,
+      "Sözcü": 2,
+      "Milliyet": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 14,
+      "negative": 15
+    }
+  },
+  {
+    "cluster_id": 0,
+    "title": "Fiyatları · Nisan",
+    "size": 25,
+    "keywords": [
+      "fiyatları",
+      "altın",
+      "bankası",
+      "2026",
+      "nisan",
+      "merkez bankası",
+      "yüzde",
+      "merkez"
+    ],
+    "sources": {
+      "Habertürk": 13,
+      "Cumhuriyet": 6,
+      "TRT Haber": 4,
+      "CNN Türk": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 14,
+      "negative": 11
+    }
+  },
+  {
+    "cluster_id": 5,
+    "title": "Tarifi · Türkiye",
+    "size": 20,
+    "keywords": [
+      "tarifi",
+      "sağlıklı",
+      "lezzet",
+      "klasik",
+      "tatlı",
+      "pratik",
+      "sunuyor",
+      "tarif"
+    ],
+    "sources": {
+      "Hürriyet": 13,
+      "Cumhuriyet": 5,
+      "Habertürk": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 19,
+      "negative": 1
+    }
+  },
+  {
+    "cluster_id": 7,
+    "title": "Okul · Kahramanmaraş",
+    "size": 20,
+    "keywords": [
+      "okul",
+      "kahramanmaraş",
+      "medya",
+      "şanlıurfa kahramanmaraş",
+      "şanlıurfa",
+      "sosyal medya",
+      "sosyal",
+      "yönelik"
+    ],
+    "sources": {
+      "Cumhuriyet": 5,
+      "Habertürk": 4,
+      "NTV": 3,
+      "CNN Türk": 3,
+      "Sözcü": 2,
+      "Hürriyet": 1,
+      "Sabah": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 6,
+      "negative": 14
+    }
+  },
+  {
+    "cluster_id": 1,
+    "title": "Otomobil · Adana",
+    "size": 13,
+    "keywords": [
+      "otomobil",
+      "araç",
+      "sonucu",
+      "yaşındaki",
+      "cezası",
+      "bin",
+      "çarpması sonucu",
+      "çarpması"
+    ],
+    "sources": {
+      "Habertürk": 3,
+      "NTV": 3,
+      "Cumhuriyet": 3,
+      "TRT Haber": 2,
+      "CNN Türk": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 12,
+      "positive": 1
+    }
+  },
+  {
+    "cluster_id": 12,
+    "title": "Japonya",
+    "size": 9,
+    "keywords": [
+      "japonya",
+      "milyon",
+      "arçelik",
+      "satış",
+      "ten",
+      "arçelik ten",
+      "japon",
+      "tonluk"
+    ],
+    "sources": {
+      "Habertürk": 2,
+      "Sözcü": 2,
+      "TRT Haber": 2,
+      "Cumhuriyet": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 4,
+      "negative": 5
     }
   }
 ]
