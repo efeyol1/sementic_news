@@ -5,6 +5,9 @@ on:
     - cron: "0 4 * * *"   # Her gün 04:00 UTC (Türkiye 07:00)
   workflow_dispatch:        # Manuel tetikleme için
 
+permissions:
+  contents: write
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
