@@ -26,7 +26,7 @@ from transformers import pipeline
 # Constants
 # ---------------------------------------------------------------------------
 
-HF_MODEL_ID = "savasy/bert-base-turkish-sentiment-cased"
+HF_MODEL_ID = "efeyol11/bert-turkish-sentiment"
 
 # Normalize the model's raw label strings to canonical form
 _LABEL_MAP: dict[str, str] = {

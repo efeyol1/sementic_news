@@ -36,7 +36,7 @@ def run_baseline(max_samples: int | None = None) -> dict:
         output_dir=str(ROOT / "models" / "baseline_eval"),
         per_device_eval_batch_size=32,
         report_to="none",
-        no_cuda=True,
+        use_cpu=True,
     )
 
     trainer = Trainer(
