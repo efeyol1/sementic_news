@@ -16,9 +16,8 @@ import numpy as np
 from loguru import logger
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 
-from src.data.dataset import LABEL2ID, MODEL_NAME, get_tokenized_datasets
+from src.data.dataset import ID2LABEL, MODEL_NAME, get_tokenized_datasets
 from src.training.evaluate import compute_metrics, print_classification_report
-from src.data.dataset import ID2LABEL
 
 ROOT = Path(__file__).resolve().parents[2]
 mlflow.set_tracking_uri(f"sqlite:///{ROOT / 'mlflow.db'}")

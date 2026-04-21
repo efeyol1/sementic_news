@@ -243,7 +243,12 @@ def today(
         "top_entities": top_entities,
         "cluster_count": len(clusters),
         "top_clusters": [
-            {"cluster_id": c["cluster_id"], "title": c.get("title", c["keywords"][0] if c["keywords"] else ""), "size": c["size"], "keywords": c["keywords"][:5]}
+            {
+                "cluster_id": c["cluster_id"],
+                "title": c.get("title", c["keywords"][0] if c["keywords"] else ""),
+                "size": c["size"],
+                "keywords": c["keywords"][:5],
+            }
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
         "available_dates": _available_dates(),

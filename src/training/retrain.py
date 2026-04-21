@@ -18,7 +18,6 @@ from pathlib import Path
 import mlflow
 import mlflow.pytorch
 import numpy as np
-import torch
 from datasets import Dataset, concatenate_datasets
 from loguru import logger
 from transformers import (
@@ -28,7 +27,7 @@ from transformers import (
     TrainingArguments,
 )
 
-from src.data.dataset import LABEL2ID, ID2LABEL, get_tokenized_datasets
+from src.data.dataset import ID2LABEL, LABEL2ID, get_tokenized_datasets
 from src.training.evaluate import compute_metrics, print_classification_report
 
 # ---------------------------------------------------------------------------
