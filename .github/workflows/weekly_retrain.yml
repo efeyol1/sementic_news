@@ -1,0 +1,41 @@
+name: Weekly Retrain
+
+on:
+  schedule:
+    - cron: "0 2 * * 0"   # Her Pazar 02:00 UTC (Türkiye 05:00)
+  workflow_dispatch:        # Manuel tetikleme
+
+permissions:
+  contents: read
+
+jobs:
+  retrain:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Cache HuggingFace models
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ runner.os }}-v1
+
+      - name: Login to HuggingFace Hub
+        run: huggingface-cli login --token ${{ secrets.HF_TOKEN }} || hf auth login --token ${{ secrets.HF_TOKEN }}
+
+      - name: Run retraining
+        run: python -m src.training.retrain --epochs 2 --batch-size 32
+
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Weekly retrain failed — check logs above"

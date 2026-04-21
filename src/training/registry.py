@@ -17,6 +17,7 @@ from pathlib import Path
 import mlflow
 from loguru import logger
 from mlflow import MlflowClient
+from transformers import AutoModelForSequenceClassification, AutoTokenizer
 
 # ---------------------------------------------------------------------------
 # Config
@@ -117,6 +118,32 @@ def register_best() -> str:
         f"(run: {run.info.run_id[:8]}...)"
     )
     return mv.version
+
+
+def push_to_hub(model_path: str, hub_model_id: str) -> None:
+    """Push a trained model from *model_path* to HuggingFace Hub."""
+    logger.info(f"Pushing {model_path} → {hub_model_id}")
+    model = AutoModelForSequenceClassification.from_pretrained(model_path)
+    tokenizer = AutoTokenizer.from_pretrained(model_path)
+    model.push_to_hub(hub_model_id)
+    tokenizer.push_to_hub(hub_model_id)
+    logger.success(f"Model pushed to HuggingFace Hub: {hub_model_id}")
+
+
+def get_best_f1() -> float:
+    """Return the highest eval_f1_macro across all runs in the experiment."""
+    experiment = client.get_experiment_by_name(EXPERIMENT_NAME)
+    if experiment is None:
+        return 0.0
+    runs = client.search_runs(
+        experiment_ids=[experiment.experiment_id],
+        filter_string=f"metrics.{METRIC} > 0",
+        order_by=[f"metrics.{METRIC} DESC"],
+        max_results=1,
+    )
+    if not runs:
+        return 0.0
+    return runs[0].data.metrics.get(METRIC, 0.0)
 
 
 def promote(version: str, stage: str) -> None:

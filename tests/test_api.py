@@ -36,6 +36,7 @@ _FAKE_ITEM = {
 
 _FAKE_CLUSTER = {
     "cluster_id": 0,
+    "title": "Test · TBMM",
     "size": 1,
     "keywords": ["test", "haber"],
     "sources": {"Test Kaynak": 1},
