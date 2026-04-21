@@ -1,0 +1,414 @@
+[
+  {
+    "cluster_id": 1,
+    "size": 148,
+    "keywords": [
+      "tek",
+      "değil",
+      "el",
+      "in",
+      "büyük",
+      "eski",
+      "yıldır",
+      "ilk"
+    ],
+    "sources": {
+      "Sözcü": 29,
+      "Cumhuriyet": 28,
+      "Hürriyet": 23,
+      "Habertürk": 18,
+      "CNN Türk": 15,
+      "Milliyet": 10,
+      "TRT Haber": 9,
+      "Yeni Şafak": 9,
+      "Sabah": 5,
+      "NTV": 2
+    },
+    "sentiment_distribution": {
+      "positive": 78,
+      "negative": 70
+    }
+  },
+  {
+    "cluster_id": 9,
+    "size": 57,
+    "keywords": [
+      "beşiktaş",
+      "hayatını",
+      "kaybetti",
+      "hayatını kaybetti",
+      "belediye",
+      "ağır",
+      "ın",
+      "otomobil"
+    ],
+    "sources": {
+      "Habertürk": 18,
+      "Cumhuriyet": 12,
+      "Hürriyet": 11,
+      "Sözcü": 5,
+      "TRT Haber": 4,
+      "NTV": 3,
+      "CNN Türk": 2,
+      "Milliyet": 2
+    },
+    "sentiment_distribution": {
+      "negative": 44,
+      "positive": 13
+    }
+  },
+  {
+    "cluster_id": 10,
+    "size": 52,
+    "keywords": [
+      "stanbul",
+      "nisan",
+      "20",
+      "20 nisan",
+      "2026",
+      "nisan 2026",
+      "deprem",
+      "genel"
+    ],
+    "sources": {
+      "Habertürk": 15,
+      "Cumhuriyet": 15,
+      "CNN Türk": 9,
+      "TRT Haber": 4,
+      "NTV": 3,
+      "Hürriyet": 2,
+      "Sözcü": 2,
+      "Milliyet": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 30,
+      "negative": 22
+    }
+  },
+  {
+    "cluster_id": 12,
+    "size": 47,
+    "keywords": [
+      "ran",
+      "abd",
+      "srail",
+      "hürmüz",
+      "doku",
+      "gülistan",
+      "gülistan doku",
+      "ın"
+    ],
+    "sources": {
+      "TRT Haber": 12,
+      "Habertürk": 11,
+      "CNN Türk": 4,
+      "Milliyet": 4,
+      "Yeni Şafak": 4,
+      "Hürriyet": 3,
+      "Sözcü": 3,
+      "Cumhuriyet": 3,
+      "Sabah": 2,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "negative": 36,
+      "positive": 11
+    }
+  },
+  {
+    "cluster_id": 4,
+    "size": 46,
+    "keywords": [
+      "nisan",
+      "şte",
+      "altın",
+      "2026",
+      "tl",
+      "fiyatları",
+      "nisan 2026",
+      "küresel"
+    ],
+    "sources": {
+      "Habertürk": 17,
+      "CNN Türk": 11,
+      "Cumhuriyet": 7,
+      "Sözcü": 5,
+      "Hürriyet": 3,
+      "TRT Haber": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 33,
+      "negative": 13
+    }
+  },
+  {
+    "cluster_id": 3,
+    "size": 33,
+    "keywords": [
+      "türkiye",
+      "nin",
+      "türkiye nin",
+      "ye",
+      "kupası",
+      "türkiye ye",
+      "dünya",
+      "yeni"
+    ],
+    "sources": {
+      "Habertürk": 8,
+      "Hürriyet": 5,
+      "Cumhuriyet": 5,
+      "Yeni Şafak": 5,
+      "CNN Türk": 4,
+      "Sözcü": 3,
+      "NTV": 1,
+      "Milliyet": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 24,
+      "negative": 9
+    }
+  },
+  {
+    "cluster_id": 11,
+    "size": 28,
+    "keywords": [
+      "fenerbahçe",
+      "galatasaray",
+      "türk",
+      "ligi",
+      "mağlup",
+      "şampiyon",
+      "etti",
+      "fenerbahçe opet"
+    ],
+    "sources": {
+      "Sözcü": 7,
+      "Cumhuriyet": 7,
+      "Habertürk": 5,
+      "Hürriyet": 4,
+      "TRT Haber": 3,
+      "CNN Türk": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 21,
+      "negative": 7
+    }
+  },
+  {
+    "cluster_id": 14,
+    "size": 24,
+    "keywords": [
+      "okul",
+      "kahramanmaraş",
+      "milli",
+      "ta",
+      "eğitim",
+      "görevden",
+      "kahramanmaraş ta",
+      "eğitim müdürü"
+    ],
+    "sources": {
+      "Cumhuriyet": 7,
+      "Hürriyet": 5,
+      "Habertürk": 3,
+      "NTV": 3,
+      "Sözcü": 2,
+      "TRT Haber": 2,
+      "Milliyet": 1,
+      "CNN Türk": 1
+    },
+    "sentiment_distribution": {
+      "negative": 19,
+      "positive": 5
+    }
+  },
+  {
+    "cluster_id": 7,
+    "size": 23,
+    "keywords": [
+      "erdoğan",
+      "cumhurbaşkanı",
+      "antalya",
+      "diplomasi",
+      "forumu",
+      "antalya diplomasi",
+      "diplomasi forumu",
+      "tayyip"
+    ],
+    "sources": {
+      "TRT Haber": 12,
+      "Hürriyet": 4,
+      "Milliyet": 2,
+      "Sabah": 2,
+      "Cumhuriyet": 2,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "positive": 19,
+      "negative": 4
+    }
+  },
+  {
+    "cluster_id": 13,
+    "size": 18,
+    "keywords": [
+      "yeni",
+      "şeyi",
+      "bakan",
+      "küçük",
+      "tekin",
+      "bakanı",
+      "adalet",
+      "katıldı"
+    ],
+    "sources": {
+      "CNN Türk": 4,
+      "Sözcü": 3,
+      "Cumhuriyet": 3,
+      "Habertürk": 2,
+      "NTV": 2,
+      "TRT Haber": 2,
+      "Hürriyet": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 10,
+      "negative": 8
+    }
+  },
+  {
+    "cluster_id": 6,
+    "size": 17,
+    "keywords": [
+      "gözaltına",
+      "gözaltına alındı",
+      "uşak",
+      "alındı",
+      "dalga",
+      "uşak belediyesi",
+      "25",
+      "operasyon"
+    ],
+    "sources": {
+      "Cumhuriyet": 6,
+      "NTV": 4,
+      "TRT Haber": 2,
+      "Habertürk": 1,
+      "Hürriyet": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 10,
+      "positive": 7
+    }
+  },
+  {
+    "cluster_id": 0,
+    "size": 15,
+    "keywords": [
+      "kalan",
+      "mahsur",
+      "mahsur kalan",
+      "kişi",
+      "kurtardı",
+      "kurtarıldı",
+      "arasında",
+      "kendi"
+    ],
+    "sources": {
+      "Habertürk": 4,
+      "Cumhuriyet": 4,
+      "Hürriyet": 3,
+      "TRT Haber": 2,
+      "NTV": 1,
+      "CNN Türk": 1
+    },
+    "sentiment_distribution": {
+      "negative": 10,
+      "positive": 5
+    }
+  },
+  {
+    "cluster_id": 2,
+    "size": 14,
+    "keywords": [
+      "başakşehir",
+      "trabzonspor",
+      "berabere",
+      "trabzonspor un",
+      "maçının",
+      "lig",
+      "golle",
+      "son"
+    ],
+    "sources": {
+      "Cumhuriyet": 6,
+      "Habertürk": 4,
+      "CNN Türk": 2,
+      "Hürriyet": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 5,
+      "negative": 9
+    }
+  },
+  {
+    "cluster_id": 8,
+    "size": 12,
+    "keywords": [
+      "ankara",
+      "yangın",
+      "yangın çıktı",
+      "boya fabrikasında",
+      "fabrikasında",
+      "boya",
+      "sincan",
+      "ankara nın"
+    ],
+    "sources": {
+      "Cumhuriyet": 4,
+      "CNN Türk": 2,
+      "Habertürk": 1,
+      "Hürriyet": 1,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "TRT Haber": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 9,
+      "positive": 3
+    }
+  },
+  {
+    "cluster_id": 5,
+    "size": 6,
+    "keywords": [
+      "görüntülendi",
+      "erzincan",
+      "yüzünü",
+      "panik",
+      "erzincan refahiye",
+      "kızılgeyikler görüntülendi",
+      "kızılgeyikler",
+      "refahiye"
+    ],
+    "sources": {
+      "Hürriyet": 2,
+      "CNN Türk": 2,
+      "Habertürk": 1,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "negative": 6
+    }
+  }
+]
