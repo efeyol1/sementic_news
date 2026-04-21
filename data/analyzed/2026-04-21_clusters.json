@@ -1,0 +1,417 @@
+[
+  {
+    "cluster_id": 1,
+    "size": 68,
+    "keywords": [
+      "yeni",
+      "tutuklama",
+      "son",
+      "geldi",
+      "uyuşturucu",
+      "değişikliği",
+      "fk",
+      "manisa"
+    ],
+    "sources": {
+      "Sözcü": 22,
+      "Habertürk": 18,
+      "CNN Türk": 12,
+      "Hürriyet": 7,
+      "Cumhuriyet": 6,
+      "TRT Haber": 3
+    },
+    "sentiment_distribution": {
+      "positive": 36,
+      "negative": 32
+    }
+  },
+  {
+    "cluster_id": 3,
+    "size": 54,
+    "keywords": [
+      "nisan",
+      "21",
+      "2026",
+      "21 nisan",
+      "23",
+      "23 nisan",
+      "nisan 2026",
+      "peki"
+    ],
+    "sources": {
+      "Habertürk": 35,
+      "Cumhuriyet": 10,
+      "NTV": 3,
+      "Sözcü": 2,
+      "TRT Haber": 2,
+      "CNN Türk": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 46,
+      "negative": 8
+    }
+  },
+  {
+    "cluster_id": 9,
+    "size": 52,
+    "keywords": [
+      "türkiye",
+      "avrupa",
+      "ın",
+      "ab",
+      "güçlü",
+      "nin",
+      "ilk",
+      "dikkat"
+    ],
+    "sources": {
+      "Milliyet": 11,
+      "Cumhuriyet": 7,
+      "Yeni Şafak": 7,
+      "Hürriyet": 6,
+      "Sözcü": 6,
+      "TRT Haber": 6,
+      "Habertürk": 5,
+      "CNN Türk": 3,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 37,
+      "negative": 15
+    }
+  },
+  {
+    "cluster_id": 2,
+    "size": 35,
+    "keywords": [
+      "çıktı",
+      "ortaya çıktı",
+      "ortaya",
+      "hayatını",
+      "böcek",
+      "fatih",
+      "in",
+      "hayatını kaybetti"
+    ],
+    "sources": {
+      "Cumhuriyet": 10,
+      "Hürriyet": 7,
+      "Sözcü": 5,
+      "Habertürk": 4,
+      "CNN Türk": 3,
+      "TRT Haber": 3,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 30,
+      "positive": 5
+    }
+  },
+  {
+    "cluster_id": 0,
+    "size": 34,
+    "keywords": [
+      "edildi",
+      "doku",
+      "sonel",
+      "gülistan",
+      "tuncay sonel",
+      "tuncay",
+      "gürlek",
+      "gülistan doku"
+    ],
+    "sources": {
+      "Cumhuriyet": 8,
+      "Hürriyet": 7,
+      "TRT Haber": 5,
+      "Habertürk": 4,
+      "NTV": 3,
+      "CNN Türk": 3,
+      "Sözcü": 1,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 10,
+      "negative": 24
+    }
+  },
+  {
+    "cluster_id": 5,
+    "size": 32,
+    "keywords": [
+      "ran",
+      "abd",
+      "müzakere",
+      "abd ran",
+      "tehdit",
+      "trump",
+      "srail",
+      "pakistan"
+    ],
+    "sources": {
+      "TRT Haber": 10,
+      "Cumhuriyet": 7,
+      "Hürriyet": 4,
+      "Habertürk": 2,
+      "CNN Türk": 2,
+      "Sözcü": 2,
+      "Milliyet": 2,
+      "Yeni Şafak": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 11,
+      "negative": 21
+    }
+  },
+  {
+    "cluster_id": 11,
+    "size": 28,
+    "keywords": [
+      "alındı",
+      "gözaltına",
+      "şüpheli",
+      "gözaltına alındı",
+      "şüpheli gözaltına",
+      "kişi",
+      "operasyon",
+      "düzenlenen"
+    ],
+    "sources": {
+      "Cumhuriyet": 9,
+      "NTV": 4,
+      "TRT Haber": 4,
+      "CNN Türk": 3,
+      "Habertürk": 2,
+      "Hürriyet": 2,
+      "Milliyet": 2,
+      "Sözcü": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 8,
+      "negative": 20
+    }
+  },
+  {
+    "cluster_id": 10,
+    "size": 26,
+    "keywords": [
+      "yüzde",
+      "kararı",
+      "bankası",
+      "faiz",
+      "stanbul",
+      "merkez bankası",
+      "ayı",
+      "merkez"
+    ],
+    "sources": {
+      "Habertürk": 9,
+      "Cumhuriyet": 6,
+      "Hürriyet": 4,
+      "TRT Haber": 3,
+      "CNN Türk": 2,
+      "NTV": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 15,
+      "negative": 11
+    }
+  },
+  {
+    "cluster_id": 12,
+    "size": 26,
+    "keywords": [
+      "özel",
+      "başkanı",
+      "chp",
+      "genel",
+      "özgür",
+      "özgür özel",
+      "belediye",
+      "bahçeli"
+    ],
+    "sources": {
+      "Cumhuriyet": 7,
+      "TRT Haber": 6,
+      "Sabah": 4,
+      "Habertürk": 2,
+      "Hürriyet": 2,
+      "NTV": 2,
+      "CNN Türk": 1,
+      "Sözcü": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 18,
+      "positive": 8
+    }
+  },
+  {
+    "cluster_id": 13,
+    "size": 23,
+    "keywords": [
+      "kim",
+      "konusu",
+      "filminin",
+      "isim",
+      "20 nisan",
+      "nisan pazartesi",
+      "filminin konusu",
+      "survivor"
+    ],
+    "sources": {
+      "Habertürk": 9,
+      "Cumhuriyet": 6,
+      "Hürriyet": 5,
+      "NTV": 1,
+      "TRT Haber": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 11,
+      "negative": 12
+    }
+  },
+  {
+    "cluster_id": 4,
+    "size": 21,
+    "keywords": [
+      "fenerbahçe",
+      "saat",
+      "kupası",
+      "çeyrek",
+      "zaman saat",
+      "fenerbahçe nin",
+      "türkiye",
+      "maçı"
+    ],
+    "sources": {
+      "Habertürk": 6,
+      "Cumhuriyet": 4,
+      "Hürriyet": 3,
+      "CNN Türk": 2,
+      "Sözcü": 2,
+      "Yeni Şafak": 2,
+      "NTV": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 17,
+      "negative": 4
+    }
+  },
+  {
+    "cluster_id": 7,
+    "size": 21,
+    "keywords": [
+      "olabilir",
+      "nin",
+      "fatih",
+      "veri",
+      "üzerine",
+      "fatih erbakan",
+      "erbakan",
+      "sızıntısı"
+    ],
+    "sources": {
+      "Cumhuriyet": 8,
+      "Hürriyet": 4,
+      "NTV": 3,
+      "TRT Haber": 3,
+      "Habertürk": 1,
+      "Sözcü": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 18,
+      "positive": 3
+    }
+  },
+  {
+    "cluster_id": 8,
+    "size": 19,
+    "keywords": [
+      "tarifi",
+      "çay",
+      "sağlıklı",
+      "oluyor",
+      "tatlı",
+      "pratik",
+      "tarif",
+      "sunuyor"
+    ],
+    "sources": {
+      "Hürriyet": 9,
+      "Cumhuriyet": 5,
+      "Sözcü": 3,
+      "Habertürk": 1,
+      "CNN Türk": 1
+    },
+    "sentiment_distribution": {
+      "positive": 15,
+      "negative": 4
+    }
+  },
+  {
+    "cluster_id": 14,
+    "size": 17,
+    "keywords": [
+      "okul",
+      "şanlıurfa kahramanmaraş",
+      "kahramanmaraş",
+      "şanlıurfa",
+      "kez",
+      "suden",
+      "ilk",
+      "sonrası"
+    ],
+    "sources": {
+      "Cumhuriyet": 5,
+      "Hürriyet": 3,
+      "Sözcü": 3,
+      "Habertürk": 2,
+      "NTV": 1,
+      "CNN Türk": 1,
+      "Milliyet": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "negative": 12,
+      "positive": 5
+    }
+  },
+  {
+    "cluster_id": 6,
+    "size": 8,
+    "keywords": [
+      "göktaş",
+      "eylem planı",
+      "planı",
+      "eylem",
+      "aylık",
+      "aylık eylem",
+      "bakan",
+      "mahinur"
+    ],
+    "sources": {
+      "TRT Haber": 2,
+      "Cumhuriyet": 2,
+      "Hürriyet": 1,
+      "NTV": 1,
+      "CNN Türk": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 5,
+      "positive": 3
+    }
+  }
+]
