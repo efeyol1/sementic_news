@@ -6,6 +6,7 @@ import { ArrowRight, Layers } from "lucide-react";
 
 interface Cluster {
   cluster_id: number;
+  title: string;
   size: number;
   keywords: string[];
 }
@@ -35,8 +36,8 @@ export function ClusterGrid({ clusters, date }: Props) {
                       <Layers className="w-4 h-4 text-accent-glow" />
                     </div>
                     <div>
-                      <div className="text-xs text-text-muted">Küme #{cluster.cluster_id}</div>
-                      <div className="text-sm font-semibold text-text-primary">{cluster.size} haber</div>
+                      <div className="text-sm font-semibold text-text-primary">{cluster.title}</div>
+                      <div className="text-xs text-text-muted">{cluster.size} haber</div>
                     </div>
                   </div>
                   <ArrowRight className="w-4 h-4 text-text-muted group-hover:text-accent-glow group-hover:translate-x-0.5 transition-all" />
