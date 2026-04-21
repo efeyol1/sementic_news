@@ -215,11 +215,10 @@ def today(
     turkish = [i for i in items if i.get("is_turkish")]
     n = len(turkish)
 
-    sentiment_counts = Counter(
-        i.get("sentiment_label") for i in turkish if i.get("sentiment_label")
-    )
+    _counts = Counter(i.get("sentiment_label") for i in turkish if i.get("sentiment_label"))
+    sentiment_counts = {"positive": _counts.get("positive", 0), "negative": _counts.get("negative", 0)}
     sentiment_pct = (
-        {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()} if n else {}
+        {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()} if n else {"positive": 0.0, "negative": 0.0}
     )
 
     entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}

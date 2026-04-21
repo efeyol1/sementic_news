@@ -98,7 +98,7 @@ def test_topic():
 
 
 def test_topic_not_found():
-    r = client.get("/api/topic/999?date=2026-04-20")
+    r = client.get("/api/topic/5?date=2026-04-20")
     assert r.status_code == 404
 
 
