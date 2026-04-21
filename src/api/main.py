@@ -74,6 +74,7 @@ class SentimentSummary(BaseModel):
 
 class ClusterSummary(BaseModel):
     cluster_id: int = Field(..., example=3)
+    title: str = Field(..., description="Küme başlığı", example="Ekonomi · Merkez Bankası")
     size: int = Field(..., description="Kümedeki haber sayısı", example=47)
     keywords: list[str] = Field(..., description="En ayırt edici 5 kelime", example=["ekonomi", "dolar", "faiz"])
 
@@ -242,7 +243,7 @@ def today(
         "top_entities": top_entities,
         "cluster_count": len(clusters),
         "top_clusters": [
-            {"cluster_id": c["cluster_id"], "size": c["size"], "keywords": c["keywords"][:5]}
+            {"cluster_id": c["cluster_id"], "title": c.get("title", c["keywords"][0] if c["keywords"] else ""), "size": c["size"], "keywords": c["keywords"][:5]}
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
         "available_dates": _available_dates(),

@@ -21,7 +21,7 @@ export interface TodayResponse {
   };
   top_entities: { PER: string[]; ORG: string[]; LOC: string[] };
   cluster_count: number;
-  top_clusters: { cluster_id: number; size: number; keywords: string[] }[];
+  top_clusters: { cluster_id: number; title: string; size: number; keywords: string[] }[];
   available_dates: string[];
 }
 
