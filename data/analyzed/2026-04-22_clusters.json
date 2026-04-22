@@ -1,0 +1,416 @@
+[
+  {
+    "cluster_id": 12,
+    "title": "Tarifi · Müjdat Gezen",
+    "size": 56,
+    "keywords": [
+      "tarifi",
+      "sadece",
+      "kaldı",
+      "in",
+      "ayırdı",
+      "gidiyor",
+      "ekonomide",
+      "cengiz"
+    ],
+    "sources": {
+      "Sözcü": 27,
+      "Cumhuriyet": 12,
+      "Hürriyet": 9,
+      "CNN Türk": 4,
+      "TRT Haber": 2,
+      "Habertürk": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 54,
+      "negative": 2
+    }
+  },
+  {
+    "cluster_id": 8,
+    "title": "Fenerbahçe",
+    "size": 49,
+    "keywords": [
+      "fenerbahçe",
+      "konyaspor",
+      "kupası",
+      "milli",
+      "avrupa",
+      "kayaalp",
+      "mağlup",
+      "galatasaray"
+    ],
+    "sources": {
+      "Cumhuriyet": 19,
+      "Habertürk": 9,
+      "TRT Haber": 6,
+      "Hürriyet": 5,
+      "CNN Türk": 5,
+      "Sözcü": 5
+    },
+    "sentiment_distribution": {
+      "positive": 47,
+      "negative": 2
+    }
+  },
+  {
+    "cluster_id": 6,
+    "title": "Nisan",
+    "size": 44,
+    "keywords": [
+      "nisan",
+      "2026",
+      "23",
+      "23 nisan",
+      "zaman",
+      "şte",
+      "peki",
+      "nisan 2026"
+    ],
+    "sources": {
+      "Habertürk": 35,
+      "NTV": 4,
+      "Cumhuriyet": 3,
+      "Hürriyet": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 44
+    }
+  },
+  {
+    "cluster_id": 14,
+    "title": "Chp · ABD",
+    "size": 43,
+    "keywords": [
+      "chp",
+      "başkanı",
+      "ın",
+      "özel",
+      "eski",
+      "belediye",
+      "in",
+      "ran"
+    ],
+    "sources": {
+      "Cumhuriyet": 13,
+      "TRT Haber": 7,
+      "Hürriyet": 6,
+      "Sözcü": 5,
+      "Milliyet": 5,
+      "NTV": 3,
+      "Habertürk": 1,
+      "CNN Türk": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 42,
+      "negative": 1
+    }
+  },
+  {
+    "cluster_id": 1,
+    "title": "Ran · ABD",
+    "size": 36,
+    "keywords": [
+      "ran",
+      "abd",
+      "trump",
+      "kaza kırıma",
+      "kırıma",
+      "abd başkanı",
+      "ın",
+      "kaza"
+    ],
+    "sources": {
+      "TRT Haber": 13,
+      "Hürriyet": 5,
+      "CNN Türk": 4,
+      "Milliyet": 4,
+      "Cumhuriyet": 4,
+      "Sözcü": 2,
+      "Yeni Şafak": 2,
+      "Habertürk": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 36
+    }
+  },
+  {
+    "cluster_id": 7,
+    "title": "Stanbul · Türkiye",
+    "size": 27,
+    "keywords": [
+      "stanbul",
+      "ankara",
+      "ab",
+      "nin",
+      "konuk",
+      "yolu",
+      "leyen",
+      "nisan"
+    ],
+    "sources": {
+      "Habertürk": 5,
+      "TRT Haber": 4,
+      "Milliyet": 3,
+      "Sabah": 3,
+      "Cumhuriyet": 3,
+      "Yeni Şafak": 3,
+      "Hürriyet": 2,
+      "CNN Türk": 2,
+      "Sözcü": 2
+    },
+    "sentiment_distribution": {
+      "positive": 27
+    }
+  },
+  {
+    "cluster_id": 2,
+    "title": "Bilim · Türkiye",
+    "size": 26,
+    "keywords": [
+      "bilim",
+      "gelen",
+      "zeka",
+      "yapay zeka",
+      "yapay",
+      "ortaya",
+      "böcek",
+      "sergisi"
+    ],
+    "sources": {
+      "Cumhuriyet": 6,
+      "Hürriyet": 5,
+      "Habertürk": 4,
+      "TRT Haber": 4,
+      "Yeni Şafak": 3,
+      "NTV": 1,
+      "Sözcü": 1,
+      "Milliyet": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 26
+    }
+  },
+  {
+    "cluster_id": 9,
+    "title": "Kahramanmaraş",
+    "size": 24,
+    "keywords": [
+      "kahramanmaraş",
+      "okul",
+      "ta",
+      "kahramanmaraş ta",
+      "annesi",
+      "mersinli",
+      "sa aras",
+      "sa"
+    ],
+    "sources": {
+      "Cumhuriyet": 6,
+      "Habertürk": 4,
+      "TRT Haber": 4,
+      "Hürriyet": 3,
+      "CNN Türk": 2,
+      "NTV": 1,
+      "Sözcü": 1,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 24
+    }
+  },
+  {
+    "cluster_id": 10,
+    "title": "Nisan · Türkiye Cumhuriyet Merkez Bankası",
+    "size": 23,
+    "keywords": [
+      "nisan",
+      "2026",
+      "enflasyon",
+      "faiz",
+      "bankası",
+      "açıklanacak",
+      "fiyatları",
+      "merkez"
+    ],
+    "sources": {
+      "Habertürk": 14,
+      "CNN Türk": 3,
+      "TRT Haber": 2,
+      "Sözcü": 1,
+      "Milliyet": 1,
+      "Cumhuriyet": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 23
+    }
+  },
+  {
+    "cluster_id": 4,
+    "title": "Bin · İsrail",
+    "size": 22,
+    "keywords": [
+      "bin",
+      "nın",
+      "bursa",
+      "yolu",
+      "kaza",
+      "otomobilin",
+      "otomobil",
+      "iptal"
+    ],
+    "sources": {
+      "Cumhuriyet": 6,
+      "Habertürk": 5,
+      "NTV": 4,
+      "Sabah": 2,
+      "Hürriyet": 1,
+      "CNN Türk": 1,
+      "Sözcü": 1,
+      "TRT Haber": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 22
+    }
+  },
+  {
+    "cluster_id": 0,
+    "title": "Gürlek · Akın Gürlek",
+    "size": 19,
+    "keywords": [
+      "gürlek",
+      "adalet",
+      "akın gürlek",
+      "bakanı akın",
+      "akın",
+      "adalet bakanı",
+      "ilişkin",
+      "çocuk"
+    ],
+    "sources": {
+      "NTV": 6,
+      "Cumhuriyet": 5,
+      "Hürriyet": 3,
+      "Habertürk": 1,
+      "CNN Türk": 1,
+      "Milliyet": 1,
+      "TRT Haber": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 19
+    }
+  },
+  {
+    "cluster_id": 13,
+    "title": "Ataşehir",
+    "size": 19,
+    "keywords": [
+      "ataşehir",
+      "adıgüzel",
+      "onursal",
+      "onursal adıgüzel",
+      "tutuklandı",
+      "başkanı onursal",
+      "19",
+      "belediye başkanı"
+    ],
+    "sources": {
+      "Hürriyet": 5,
+      "Habertürk": 4,
+      "TRT Haber": 3,
+      "Cumhuriyet": 3,
+      "CNN Türk": 1,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 19
+    }
+  },
+  {
+    "cluster_id": 3,
+    "title": "Ötv · TBMM",
+    "size": 18,
+    "keywords": [
+      "ötv",
+      "doğum",
+      "araç",
+      "sosyal",
+      "izni",
+      "milyar",
+      "kabul edildi",
+      "vize"
+    ],
+    "sources": {
+      "Habertürk": 7,
+      "Sözcü": 3,
+      "Cumhuriyet": 3,
+      "Milliyet": 2,
+      "NTV": 1,
+      "CNN Türk": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 18
+    }
+  },
+  {
+    "cluster_id": 5,
+    "title": "Ünlü · İrem Helvacıoğlu",
+    "size": 13,
+    "keywords": [
+      "ünlü",
+      "aşk",
+      "helvacıoğlu",
+      "ortaya",
+      "rem helvacıoğlu",
+      "kralı",
+      "yıllar",
+      "kendi"
+    ],
+    "sources": {
+      "Hürriyet": 11,
+      "Habertürk": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 13
+    }
+  },
+  {
+    "cluster_id": 11,
+    "title": "Hava · İstanbul",
+    "size": 13,
+    "keywords": [
+      "hava",
+      "marmara",
+      "kuvvetli",
+      "ege",
+      "stanbul",
+      "sağanak",
+      "su",
+      "hava durumu"
+    ],
+    "sources": {
+      "Habertürk": 7,
+      "CNN Türk": 3,
+      "TRT Haber": 2,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 13
+    }
+  }
+]
