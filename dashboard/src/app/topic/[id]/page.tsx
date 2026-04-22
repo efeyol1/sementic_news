@@ -3,7 +3,7 @@ import Link from "next/link";
 import { api, todayDate } from "@/lib/api";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
-import { ArrowLeft, ExternalLink, Layers, Hash } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash } from "lucide-react";
 import { sentimentColor, sentimentLabel } from "@/lib/utils";
 
 interface Props {
@@ -16,10 +16,12 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
 
   if (!data) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-4">
-        <Layers className="w-12 h-12 text-text-muted" />
-        <p className="text-text-secondary">Küme #{id} bulunamadı.</p>
-        <Link href="/" className="text-accent-glow text-sm hover:underline">
+      <div className="flex flex-col items-center justify-center min-h-[60vh] gap-3">
+        <div className="w-12 h-12 rounded-xl bg-white border border-slate-200 flex items-center justify-center">
+          <Hash className="w-5 h-5 text-slate-300" />
+        </div>
+        <p className="text-slate-500 text-sm">Küme #{id} bulunamadı.</p>
+        <Link href="/" className="text-green-600 text-sm hover:underline">
           ← Ana sayfaya dön
         </Link>
       </div>
@@ -28,9 +30,9 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
 
   const entityMap = data.news.reduce(
     (acc, n) => {
-      n.entities.PER.forEach((e) => acc.PER.add(e));
-      n.entities.ORG.forEach((e) => acc.ORG.add(e));
-      n.entities.LOC.forEach((e) => acc.LOC.add(e));
+      (n.entities?.PER ?? []).forEach((e) => acc.PER.add(e));
+      (n.entities?.ORG ?? []).forEach((e) => acc.ORG.add(e));
+      (n.entities?.LOC ?? []).forEach((e) => acc.LOC.add(e));
       return acc;
     },
     { PER: new Set<string>(), ORG: new Set<string>(), LOC: new Set<string>() }
@@ -43,69 +45,64 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
   };
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-7">
       {/* Back + header */}
       <div>
         <Link
           href={`/?date=${date}`}
-          className="inline-flex items-center gap-1.5 text-sm text-text-secondary hover:text-text-primary transition-colors mb-4"
+          className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
           Genel bakışa dön
         </Link>
         <div className="flex items-start justify-between">
-          <div className="flex items-center gap-3 mb-2">
-            <div className="w-10 h-10 rounded-xl bg-accent-muted border border-border-glow flex items-center justify-center">
-              <Hash className="w-5 h-5 text-accent-glow" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center">
+              <Hash className="w-5 h-5 text-green-600" />
             </div>
             <div>
-              <div className="text-xs text-text-muted">Küme #{id}</div>
-              <h1 className="text-2xl font-bold text-text-primary">
+              <div className="text-xs text-slate-400">Küme #{id}</div>
+              <h1 className="text-xl font-bold text-slate-900">
                 {data.keywords.slice(0, 3).join(" · ")}
               </h1>
             </div>
           </div>
-          <div className="glass-card px-4 py-2 text-center">
-            <div className="text-2xl font-bold font-mono text-text-primary">{data.size}</div>
-            <div className="text-xs text-text-muted">haber</div>
+          <div className="card px-4 py-2 text-center">
+            <div className="text-xl font-bold font-mono text-slate-800">{data.size}</div>
+            <div className="text-xs text-slate-400">haber</div>
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 mt-4">
+        <div className="flex flex-wrap gap-1.5 mt-4">
           {data.keywords.map((kw) => (
-            <span key={kw} className="keyword-chip">
-              {kw}
-            </span>
+            <span key={kw} className="keyword-chip">{kw}</span>
           ))}
         </div>
       </div>
 
       {/* Content grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="glass-card p-6">
-          <h2 className="text-base font-semibold text-text-primary mb-4">Duygu Dağılımı</h2>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+        <div className="card p-5">
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Duygu Dağılımı</h2>
           <SentimentGauge counts={data.sentiment_distribution} />
         </div>
-        <div className="lg:col-span-2 glass-card p-6">
-          <h2 className="text-base font-semibold text-text-primary mb-4">Öne Çıkan Varlıklar</h2>
+        <div className="lg:col-span-2 card p-5">
+          <h2 className="text-sm font-semibold text-slate-700 mb-4">Öne Çıkan Varlıklar</h2>
           <EntityCloud entities={entities} />
         </div>
       </div>
 
       {/* News list */}
-      <div className="glass-card p-6">
-        <h2 className="text-base font-semibold text-text-primary mb-4">
+      <div className="card p-6">
+        <h2 className="text-sm font-semibold text-slate-700 mb-4">
           Bu Kümeden Haberler
-          <span className="text-text-muted font-normal text-sm ml-2">({data.news.length})</span>
+          <span className="text-slate-400 font-normal ml-1.5">({data.news.length})</span>
         </h2>
-        <div className="space-y-3">
+        <div className="divide-y divide-slate-50">
           {data.news.slice(0, 30).map((item, i) => (
-            <div
-              key={i}
-              className="flex items-start gap-4 p-3.5 rounded-xl hover:bg-bg-hover/30 transition-colors group"
-            >
+            <div key={i} className="flex items-start gap-3 py-3 group">
               <div
-                className="w-1 min-h-[40px] rounded-full shrink-0 mt-1"
+                className="w-1 min-h-[36px] rounded-full shrink-0 mt-0.5"
                 style={{ background: sentimentColor(item.sentiment_label) }}
               />
               <div className="flex-1 min-w-0">
@@ -114,22 +111,20 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
                     href={item.link}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="font-medium text-text-primary hover:text-accent-glow transition-colors line-clamp-2 flex items-start gap-2"
+                    className="text-sm font-medium text-slate-700 hover:text-green-700 transition-colors line-clamp-2 flex items-start gap-1.5"
                   >
                     {item.title}
-                    <ExternalLink className="w-3 h-3 text-text-muted shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    <ExternalLink className="w-3 h-3 text-slate-300 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                   </a>
                 ) : (
-                  <p className="font-medium text-text-primary line-clamp-2">{item.title}</p>
+                  <p className="text-sm font-medium text-slate-700 line-clamp-2">{item.title}</p>
                 )}
-                <div className="flex items-center gap-3 mt-1.5">
-                  <span className="text-xs text-text-muted">{item.source_name}</span>
-                  <span className="text-xs text-text-muted">·</span>
-                  <span
-                    className="text-xs font-medium"
-                    style={{ color: sentimentColor(item.sentiment_label) }}
-                  >
-                    {sentimentLabel(item.sentiment_label)} ({(item.sentiment_score * 100).toFixed(0)}%)
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-xs text-slate-400">{item.source_name}</span>
+                  <span className="text-xs text-slate-300">·</span>
+                  <span className="text-xs font-medium" style={{ color: sentimentColor(item.sentiment_label) }}>
+                    {sentimentLabel(item.sentiment_label)}{" "}
+                    {item.sentiment_score != null && `(${(item.sentiment_score * 100).toFixed(0)}%)`}
                   </span>
                 </div>
               </div>
@@ -150,8 +145,8 @@ export default function TopicPage({ params, searchParams }: Props) {
       <Suspense
         fallback={
           <div className="animate-pulse space-y-4">
-            <div className="h-8 w-64 bg-bg-card rounded-xl" />
-            <div className="h-64 bg-bg-card rounded-2xl" />
+            <div className="h-8 w-60 bg-slate-200 rounded-lg" />
+            <div className="h-60 bg-white border border-slate-200 rounded-xl" />
           </div>
         }
       >

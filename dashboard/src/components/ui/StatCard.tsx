@@ -1,7 +1,3 @@
-"use client";
-
-import { motion } from "framer-motion";
-import { AnimatedCounter } from "./AnimatedCounter";
 import { cn } from "@/lib/utils";
 import { Newspaper, Globe2, TrendingUp, Layers, TrendingDown, Activity } from "lucide-react";
 
@@ -14,52 +10,34 @@ interface Props {
   suffix?: string;
   decimals?: number;
   iconName: IconName;
-  trend?: number;
-  accent?: "default" | "positive" | "negative" | "neutral";
-  delay?: number;
+  accent?: "default" | "positive" | "negative";
 }
 
 const accentMap = {
-  default: { icon: "text-accent-glow", glow: "#6366F1" },
-  positive: { icon: "text-sentiment-positive", glow: "#10B981" },
-  negative: { icon: "text-sentiment-negative", glow: "#EF4444" },
-  neutral: { icon: "text-yellow-400", glow: "#F59E0B" },
+  default: { iconBg: "bg-slate-100", iconColor: "text-slate-500" },
+  positive: { iconBg: "bg-green-50", iconColor: "text-green-600" },
+  negative: { iconBg: "bg-red-50", iconColor: "text-red-500" },
 };
 
-export function StatCard({ label, value, suffix = "", decimals = 0, iconName, trend, accent = "default", delay = 0 }: Props) {
+export function StatCard({ label, value, suffix = "", decimals = 0, iconName, accent = "default" }: Props) {
   const colors = accentMap[accent];
   const Icon = ICONS[iconName];
 
+  const formatted = value
+    .toFixed(decimals)
+    .replace(/\B(?=(\d{3})+(?!\d))/g, ".");
+
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, delay: delay / 1000, ease: "easeOut" }}
-      className="glass-card p-6 group cursor-default"
-    >
-      <div className="flex items-start justify-between mb-4">
-        <div
-          className="w-10 h-10 rounded-xl flex items-center justify-center"
-          style={{ background: `${colors.glow}18` }}
-        >
-          <Icon className={cn("w-5 h-5", colors.icon)} />
+    <div className="card p-5">
+      <div className="flex items-center justify-between mb-3">
+        <div className={cn("w-9 h-9 rounded-lg flex items-center justify-center", colors.iconBg)}>
+          <Icon className={cn("w-4.5 h-4.5", colors.iconColor)} />
         </div>
-        {trend !== undefined && (
-          <span
-            className={cn(
-              "text-xs font-medium px-2 py-0.5 rounded-full",
-              trend >= 0 ? "text-sentiment-positive bg-sentiment-positiveMuted" : "text-sentiment-negative bg-sentiment-negativeMuted"
-            )}
-          >
-            {trend >= 0 ? "+" : ""}
-            {trend.toFixed(1)}%
-          </span>
-        )}
       </div>
-      <div className="text-3xl font-bold text-text-primary mb-1 font-mono">
-        <AnimatedCounter value={value} suffix={suffix} decimals={decimals} />
+      <div className="text-2xl font-bold text-slate-900 font-mono tabular-nums">
+        {formatted}{suffix}
       </div>
-      <div className="text-sm text-text-secondary">{label}</div>
-    </motion.div>
+      <div className="text-sm text-slate-500 mt-0.5">{label}</div>
+    </div>
   );
 }

@@ -26,6 +26,7 @@ from transformers import pipeline
 # Constants
 # ---------------------------------------------------------------------------
 
+# Switch to fine-tuned model after retraining: "efeyol11/bert-turkish-sentiment"
 HF_MODEL_ID = "savasy/bert-base-turkish-sentiment-cased"
 
 # Normalize the model's raw label strings to canonical form

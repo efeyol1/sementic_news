@@ -4,16 +4,17 @@ from transformers import AutoTokenizer
 
 MODEL_NAME = "savasy/bert-base-turkish-sentiment-cased"
 
-LABEL2ID = {"negative": 0, "positive": 1}
+LABEL2ID = {"negative": 0, "neutral": 1, "positive": 2}
 ID2LABEL = {v: k for k, v in LABEL2ID.items()}
-
-_NEUTRAL_LABELS = {"notr", "nötr", "neutral"}
 
 _RAW_LABEL_MAP: dict[str, int] = {
     "negatif": 0,
     "negative": 0,
-    "pozitif": 1,
-    "positive": 1,
+    "notr": 1,
+    "nötr": 1,
+    "neutral": 1,
+    "pozitif": 2,
+    "positive": 2,
 }
 
 
@@ -45,21 +46,11 @@ def preprocess(batch: dict, tokenizer: AutoTokenizer) -> dict:
     return tokens
 
 
-def _drop_neutral(ds: Dataset) -> Dataset:
-    before = len(ds)
-    ds = ds.filter(lambda x: x["label"].strip().lower() not in _NEUTRAL_LABELS)
-    logger.info(f"Dropped {before - len(ds)} neutral examples → {len(ds)} remain")
-    return ds
-
-
 def get_tokenized_datasets(
     tokenizer: AutoTokenizer, max_samples: int | None = None
 ):
     train_ds = load_turkish_sentiment("train")
     val_ds = load_turkish_sentiment("test")
-
-    train_ds = _drop_neutral(train_ds)
-    val_ds = _drop_neutral(val_ds)
 
     if max_samples is not None:
         train_ds = train_ds.select(range(min(max_samples, len(train_ds))))

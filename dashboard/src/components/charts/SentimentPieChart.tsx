@@ -9,8 +9,8 @@ interface Props {
 
 export function SentimentPieChart({ counts }: Props) {
   const data = [
-    { name: "Pozitif", value: counts.positive ?? 0, color: "#10B981" },
-    { name: "Negatif", value: counts.negative ?? 0, color: "#EF4444" },
+    { name: "Pozitif", value: counts.positive ?? 0, color: "#22c55e" },
+    { name: "Negatif", value: counts.negative ?? 0, color: "#f87171" },
   ];
 
   return (
@@ -32,11 +32,11 @@ export function SentimentPieChart({ counts }: Props) {
         </Pie>
         <Tooltip
           contentStyle={{
-            background: "#131C35",
-            border: "1px solid #1E2D4F",
+            background: "#ffffff",
+            border: "1px solid #e2e8f0",
             borderRadius: "8px",
             fontSize: 12,
-            color: "#F1F5F9",
+            color: "#0f172a",
           }}
           formatter={(v: number) => [`${v} haber`, ""]}
         />

@@ -6,9 +6,9 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 export function sentimentColor(label: string): string {
-  if (label === "positive") return "#10B981";
-  if (label === "negative") return "#EF4444";
-  return "#F59E0B";
+  if (label === "positive") return "#16a34a";
+  if (label === "negative") return "#dc2626";
+  return "#d97706";
 }
 
 export function sentimentLabel(label: string): string {

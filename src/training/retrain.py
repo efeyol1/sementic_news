@@ -148,7 +148,7 @@ def retrain(
 
     model = AutoModelForSequenceClassification.from_pretrained(
         HF_MODEL_ID,
-        num_labels=2,
+        num_labels=3,
         id2label=ID2LABEL,
         label2id=LABEL2ID,
         ignore_mismatched_sizes=True,
