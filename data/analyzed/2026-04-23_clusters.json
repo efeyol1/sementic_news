@@ -1,0 +1,433 @@
+[
+  {
+    "cluster_id": 9,
+    "title": "Ünlü · Eşref Rüya",
+    "size": 57,
+    "keywords": [
+      "ünlü",
+      "günay",
+      "çıktı",
+      "nin",
+      "geldi",
+      "nedeni",
+      "evine",
+      "bitti"
+    ],
+    "sources": {
+      "Sözcü": 24,
+      "Hürriyet": 14,
+      "Cumhuriyet": 10,
+      "Habertürk": 4,
+      "CNN Türk": 3,
+      "Yeni Şafak": 2
+    },
+    "sentiment_distribution": {
+      "negative": 26,
+      "neutral": 3,
+      "positive": 28
+    }
+  },
+  {
+    "cluster_id": 0,
+    "title": "Gülistan · Gülistan Doku",
+    "size": 48,
+    "keywords": [
+      "gülistan",
+      "doku",
+      "başkanı",
+      "görevden",
+      "gülistan doku",
+      "belediye",
+      "ın",
+      "bakanlığı"
+    ],
+    "sources": {
+      "Cumhuriyet": 13,
+      "Hürriyet": 11,
+      "TRT Haber": 9,
+      "NTV": 5,
+      "Habertürk": 4,
+      "Milliyet": 2,
+      "CNN Türk": 1,
+      "Sözcü": 1,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 38,
+      "positive": 10
+    }
+  },
+  {
+    "cluster_id": 4,
+    "title": "Zaman · Nisan",
+    "size": 48,
+    "keywords": [
+      "zaman",
+      "2026",
+      "şte",
+      "nisan",
+      "peki",
+      "son",
+      "merak",
+      "sınavı"
+    ],
+    "sources": {
+      "Habertürk": 33,
+      "Cumhuriyet": 5,
+      "Yeni Şafak": 3,
+      "NTV": 2,
+      "Sözcü": 2,
+      "Hürriyet": 1,
+      "CNN Türk": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 24,
+      "negative": 19,
+      "neutral": 5
+    }
+  },
+  {
+    "cluster_id": 1,
+    "title": "Ran · ABD",
+    "size": 46,
+    "keywords": [
+      "ran",
+      "abd",
+      "trump",
+      "hürmüz",
+      "ın",
+      "srail",
+      "başkanı",
+      "hürmüz boğazı"
+    ],
+    "sources": {
+      "TRT Haber": 12,
+      "Habertürk": 6,
+      "Cumhuriyet": 6,
+      "Hürriyet": 5,
+      "Milliyet": 5,
+      "CNN Türk": 4,
+      "NTV": 2,
+      "Sözcü": 2,
+      "Sabah": 2,
+      "Yeni Şafak": 2
+    },
+    "sentiment_distribution": {
+      "negative": 33,
+      "positive": 11,
+      "neutral": 2
+    }
+  },
+  {
+    "cluster_id": 3,
+    "title": "Galatasaray",
+    "size": 40,
+    "keywords": [
+      "galatasaray",
+      "kupası",
+      "avrupa",
+      "milli",
+      "mağlup",
+      "takım",
+      "fenerbahçe",
+      "şampiyonası"
+    ],
+    "sources": {
+      "Cumhuriyet": 20,
+      "Habertürk": 10,
+      "Hürriyet": 5,
+      "CNN Türk": 2,
+      "Sözcü": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 18,
+      "positive": 22
+    }
+  },
+  {
+    "cluster_id": 8,
+    "title": "23 · 23 Nisan Ulusal Egemenlik ve Çocuk Bayramı",
+    "size": 38,
+    "keywords": [
+      "23",
+      "23 nisan",
+      "nisan",
+      "çocuk",
+      "ulusal",
+      "nisan ulusal",
+      "egemenlik",
+      "ulusal egemenlik"
+    ],
+    "sources": {
+      "Cumhuriyet": 12,
+      "CNN Türk": 6,
+      "TRT Haber": 6,
+      "Sabah": 4,
+      "Hürriyet": 3,
+      "Sözcü": 2,
+      "Milliyet": 2,
+      "Habertürk": 1,
+      "NTV": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 33,
+      "negative": 4,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 2,
+    "title": "Stanbul · Türkiye",
+    "size": 33,
+    "keywords": [
+      "stanbul",
+      "ankara",
+      "nato",
+      "un",
+      "nisan",
+      "nin",
+      "stanbul un",
+      "elektrik"
+    ],
+    "sources": {
+      "Habertürk": 8,
+      "Milliyet": 6,
+      "Sözcü": 4,
+      "Hürriyet": 3,
+      "TRT Haber": 3,
+      "Cumhuriyet": 3,
+      "NTV": 2,
+      "Sabah": 2,
+      "CNN Türk": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 16,
+      "negative": 16,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 11,
+    "title": "Milyon · Türkiye",
+    "size": 30,
+    "keywords": [
+      "milyon",
+      "lira",
+      "şirketi",
+      "değildir",
+      "market",
+      "ötv",
+      "kimseyi",
+      "yönelik"
+    ],
+    "sources": {
+      "Cumhuriyet": 10,
+      "Habertürk": 7,
+      "Sözcü": 6,
+      "TRT Haber": 3,
+      "Hürriyet": 2,
+      "Milliyet": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 17,
+      "positive": 13
+    }
+  },
+  {
+    "cluster_id": 7,
+    "title": "Hayatını · Batı Şeria",
+    "size": 29,
+    "keywords": [
+      "hayatını",
+      "çıkan",
+      "öldü",
+      "öldürdü",
+      "intihar",
+      "ilçesinde",
+      "batı şeria",
+      "şeria"
+    ],
+    "sources": {
+      "TRT Haber": 9,
+      "Cumhuriyet": 6,
+      "Habertürk": 3,
+      "Hürriyet": 3,
+      "NTV": 3,
+      "Sözcü": 2,
+      "Yeni Şafak": 2,
+      "CNN Türk": 1
+    },
+    "sentiment_distribution": {
+      "negative": 27,
+      "positive": 2
+    }
+  },
+  {
+    "cluster_id": 12,
+    "title": "Altın · ABD",
+    "size": 22,
+    "keywords": [
+      "altın",
+      "petrol",
+      "fiyatları",
+      "akaryakıt",
+      "abd",
+      "fiyatlarında",
+      "indirim",
+      "ateşkes"
+    ],
+    "sources": {
+      "Habertürk": 8,
+      "Sözcü": 5,
+      "CNN Türk": 3,
+      "Milliyet": 2,
+      "Cumhuriyet": 2,
+      "TRT Haber": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 6,
+      "negative": 13,
+      "neutral": 3
+    }
+  },
+  {
+    "cluster_id": 14,
+    "title": "23 · 23 Nisan Ulusal Egemenlik ve Çocuk Bayramı",
+    "size": 19,
+    "keywords": [
+      "23",
+      "23 nisan",
+      "nisan",
+      "ulusal",
+      "egemenlik çocuk",
+      "çocuk bayramı",
+      "ulusal egemenlik",
+      "egemenlik"
+    ],
+    "sources": {
+      "Habertürk": 9,
+      "CNN Türk": 4,
+      "NTV": 2,
+      "TRT Haber": 2,
+      "Hürriyet": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 8,
+      "neutral": 4,
+      "positive": 7
+    }
+  },
+  {
+    "cluster_id": 6,
+    "title": "Lezzet · Türkiye",
+    "size": 15,
+    "keywords": [
+      "lezzet",
+      "tarifi",
+      "sağlıklı",
+      "videolu",
+      "pratik",
+      "klasik",
+      "hafif",
+      "tarif"
+    ],
+    "sources": {
+      "Hürriyet": 12,
+      "Habertürk": 1,
+      "TRT Haber": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 14,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 10,
+    "title": "Sosyal · TBMM",
+    "size": 12,
+    "keywords": [
+      "sosyal",
+      "sosyal medyaya",
+      "medyaya",
+      "yaş",
+      "15 yaş",
+      "15",
+      "kanun",
+      "doğum"
+    ],
+    "sources": {
+      "Habertürk": 3,
+      "CNN Türk": 2,
+      "TRT Haber": 2,
+      "Cumhuriyet": 2,
+      "Hürriyet": 1,
+      "NTV": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "negative": 4,
+      "positive": 7,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 13,
+    "title": "Tutuklandı · Antalya",
+    "size": 7,
+    "keywords": [
+      "tutuklandı",
+      "gözaltına",
+      "soruşturma",
+      "şüpheli",
+      "gözaltına alınan",
+      "soruşturma kapsamında",
+      "tutuklama",
+      "alınan"
+    ],
+    "sources": {
+      "TRT Haber": 2,
+      "Cumhuriyet": 2,
+      "Habertürk": 1,
+      "Hürriyet": 1,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "negative": 2,
+      "positive": 5
+    }
+  },
+  {
+    "cluster_id": 5,
+    "title": "Hava · Marmara",
+    "size": 5,
+    "keywords": [
+      "hava",
+      "derece",
+      "marmara",
+      "hava durumu",
+      "meteoroloji",
+      "durumu",
+      "ila",
+      "ila derece"
+    ],
+    "sources": {
+      "CNN Türk": 2,
+      "Habertürk": 1,
+      "NTV": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 3,
+      "positive": 2
+    }
+  }
+]
