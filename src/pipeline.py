@@ -21,6 +21,7 @@ from loguru import logger
 from src.analysis.clustering import cluster_topics
 from src.analysis.ner import extract_entities
 from src.analysis.sentiment import analyze
+from src.analysis.vector_store import index_date
 from src.data.preprocessor import preprocess
 from src.data.rss_collector import collect_all
 
@@ -70,6 +71,7 @@ def run(
     _step("sentiment", analyze, date_str=date_str)
     _step("ner", extract_entities, date_str=date_str)
     _step("clustering", cluster_topics, date_str=date_str, n_clusters=n_clusters)
+    _step("vector_store", index_date, date_str=date_str)
 
     total = time.perf_counter() - wall_start
     logger.success(f"Pipeline complete — {date_str} finished in {total:.1f}s")

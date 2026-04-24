@@ -11,6 +11,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
+from src.analysis.vector_store import find_similar, get_collection
+
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
@@ -136,6 +138,20 @@ class SourceComparisonResponse(BaseModel):
 
 class HealthResponse(BaseModel):
     status: str = Field(..., example="ok")
+
+
+class SimilarNewsItem(BaseModel):
+    title: str
+    source_name: str
+    date: str
+    sentiment_label: str
+    link: str | None
+    similarity: float = Field(..., description="Kosinüs benzerliği (0-1)", example=0.91)
+
+
+class SimilarNewsResponse(BaseModel):
+    query_title: str
+    results: list[SimilarNewsItem]
 
 # ---------------------------------------------------------------------------
 # Data helpers
@@ -371,3 +387,44 @@ def source_comparison(
         }
 
     return {"date": target, "sources": result}
+
+
+@app.get(
+    "/api/similar",
+    tags=["Analiz"],
+    summary="Semantik olarak benzer haberler",
+    response_model=SimilarNewsResponse,
+    responses={404: {"description": "Vektör veritabanı boş veya haber bulunamadı"}},
+)
+def similar_news(
+    q: str = Query(..., description="Aranacak haber başlığı veya metin", min_length=5),
+    n: int = Query(default=5, ge=1, le=20, description="Döndürülecek sonuç sayısı"),
+):
+    """
+    Verilen metne semantik olarak en benzer haberleri döndürür.
+
+    Cosine similarity ile ChromaDB'de arama yapar.
+    Herhangi bir metin gönderilebilir — haber başlığı, anahtar kelime vb.
+    """
+    try:
+        collection = get_collection()
+        if collection.count() == 0:
+            raise HTTPException(status_code=404, detail="Vektör veritabanı henüz boş.")
+    except Exception as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+
+    results = find_similar(q, n=n)
+    return {
+        "query_title": q,
+        "results": [
+            {
+                "title": r.get("title", ""),
+                "source_name": r.get("source_name", ""),
+                "date": r.get("date", ""),
+                "sentiment_label": r.get("sentiment_label", ""),
+                "link": r.get("link") or None,
+                "similarity": r["similarity"],
+            }
+            for r in results
+        ],
+    }
