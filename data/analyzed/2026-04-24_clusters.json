@@ -1,0 +1,435 @@
+[
+  {
+    "cluster_id": 9,
+    "title": "Abd",
+    "size": 49,
+    "keywords": [
+      "abd",
+      "ran",
+      "srail",
+      "trump",
+      "lübnan",
+      "ın",
+      "savunma",
+      "pentagon"
+    ],
+    "sources": {
+      "TRT Haber": 17,
+      "Cumhuriyet": 10,
+      "Hürriyet": 7,
+      "Habertürk": 4,
+      "CNN Türk": 3,
+      "Sözcü": 2,
+      "Milliyet": 2,
+      "Sabah": 2,
+      "Yeni Şafak": 2
+    },
+    "sentiment_distribution": {
+      "negative": 34,
+      "positive": 13,
+      "neutral": 2
+    }
+  },
+  {
+    "cluster_id": 10,
+    "title": "2026 · ##26",
+    "size": 43,
+    "keywords": [
+      "2026",
+      "zaman",
+      "peki",
+      "şte",
+      "yeni",
+      "nisan",
+      "altın",
+      "nisan 2026"
+    ],
+    "sources": {
+      "Habertürk": 28,
+      "CNN Türk": 5,
+      "Cumhuriyet": 4,
+      "Hürriyet": 3,
+      "TRT Haber": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 23,
+      "negative": 15,
+      "neutral": 5
+    }
+  },
+  {
+    "cluster_id": 5,
+    "title": "23 Nisan · 23 Nisan Ulusal Egemenlik ve Çocuk Bayramı",
+    "size": 42,
+    "keywords": [
+      "23 nisan",
+      "23",
+      "nisan",
+      "çocuk",
+      "bayramı",
+      "egemenlik",
+      "çocuk bayramı",
+      "ulusal egemenlik"
+    ],
+    "sources": {
+      "Cumhuriyet": 11,
+      "Habertürk": 8,
+      "Milliyet": 7,
+      "NTV": 5,
+      "Hürriyet": 3,
+      "TRT Haber": 3,
+      "Sözcü": 2,
+      "Sabah": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 27,
+      "negative": 15
+    }
+  },
+  {
+    "cluster_id": 11,
+    "title": "Araç · İran",
+    "size": 40,
+    "keywords": [
+      "araç",
+      "yeni",
+      "yüzde",
+      "yapay",
+      "çıktı",
+      "bin",
+      "yapay zeka",
+      "zeka"
+    ],
+    "sources": {
+      "TRT Haber": 8,
+      "Sözcü": 7,
+      "Habertürk": 6,
+      "Cumhuriyet": 5,
+      "NTV": 4,
+      "CNN Türk": 4,
+      "Hürriyet": 2,
+      "Sabah": 2,
+      "Yeni Şafak": 2
+    },
+    "sentiment_distribution": {
+      "positive": 17,
+      "neutral": 4,
+      "negative": 19
+    }
+  },
+  {
+    "cluster_id": 14,
+    "title": "Kupası · Türkiye",
+    "size": 36,
+    "keywords": [
+      "kupası",
+      "yarı",
+      "kupası nda",
+      "maçı",
+      "nda",
+      "beşiktaş",
+      "finale",
+      "trabzonspor"
+    ],
+    "sources": {
+      "Cumhuriyet": 11,
+      "Sözcü": 6,
+      "Habertürk": 5,
+      "TRT Haber": 5,
+      "Hürriyet": 4,
+      "CNN Türk": 3,
+      "Milliyet": 2
+    },
+    "sentiment_distribution": {
+      "negative": 18,
+      "positive": 18
+    }
+  },
+  {
+    "cluster_id": 4,
+    "title": "Ünlü · Kanal D",
+    "size": 35,
+    "keywords": [
+      "ünlü",
+      "çift",
+      "geldi",
+      "etti",
+      "tedavi",
+      "kanal nin",
+      "şey",
+      "aynı"
+    ],
+    "sources": {
+      "Hürriyet": 16,
+      "Habertürk": 6,
+      "Sözcü": 3,
+      "Cumhuriyet": 3,
+      "NTV": 2,
+      "Milliyet": 2,
+      "TRT Haber": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 20,
+      "positive": 14,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 12,
+    "title": "Galatasaray · Fenerbahçe",
+    "size": 35,
+    "keywords": [
+      "galatasaray",
+      "arda",
+      "fenerbahçe",
+      "vali",
+      "trabzonspor",
+      "yarı",
+      "öncesi",
+      "uzak"
+    ],
+    "sources": {
+      "Sözcü": 15,
+      "Hürriyet": 8,
+      "Cumhuriyet": 7,
+      "Habertürk": 3,
+      "CNN Türk": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "negative": 22,
+      "positive": 11,
+      "neutral": 2
+    }
+  },
+  {
+    "cluster_id": 8,
+    "title": "Deprem · AFAD",
+    "size": 27,
+    "keywords": [
+      "deprem",
+      "girit",
+      "büyüklüğünde",
+      "adası",
+      "girit adası",
+      "doğu",
+      "büyüklüğünde deprem",
+      "adası nda"
+    ],
+    "sources": {
+      "CNN Türk": 6,
+      "Habertürk": 5,
+      "Cumhuriyet": 4,
+      "NTV": 3,
+      "TRT Haber": 3,
+      "Hürriyet": 2,
+      "Sözcü": 2,
+      "Sabah": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "negative": 18,
+      "neutral": 5,
+      "positive": 4
+    }
+  },
+  {
+    "cluster_id": 1,
+    "title": "Chp · Türkiye",
+    "size": 26,
+    "keywords": [
+      "chp",
+      "23 nisan",
+      "23",
+      "yönelik",
+      "dolandırıcılık",
+      "çişleri",
+      "van",
+      "nisan"
+    ],
+    "sources": {
+      "Cumhuriyet": 14,
+      "Habertürk": 3,
+      "Hürriyet": 3,
+      "Sözcü": 2,
+      "TRT Haber": 2,
+      "Milliyet": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "neutral": 3,
+      "negative": 20,
+      "positive": 3
+    }
+  },
+  {
+    "cluster_id": 13,
+    "title": "Tarifi · Ay",
+    "size": 26,
+    "keywords": [
+      "tarifi",
+      "altın",
+      "lezzet",
+      "aldı",
+      "uyumuyla",
+      "sağlıklı",
+      "tarif",
+      "brownie"
+    ],
+    "sources": {
+      "Hürriyet": 10,
+      "Sözcü": 6,
+      "Habertürk": 2,
+      "Milliyet": 2,
+      "Cumhuriyet": 2,
+      "Yeni Şafak": 2,
+      "CNN Türk": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 18,
+      "negative": 8
+    }
+  },
+  {
+    "cluster_id": 0,
+    "title": "Gözaltına · Bursa",
+    "size": 21,
+    "keywords": [
+      "gözaltına",
+      "yaralı",
+      "yaralandı",
+      "ilçesinde",
+      "gözaltına alındı",
+      "kayseri",
+      "alındı",
+      "şüpheli"
+    ],
+    "sources": {
+      "Cumhuriyet": 9,
+      "Habertürk": 3,
+      "NTV": 3,
+      "CNN Türk": 2,
+      "Hürriyet": 1,
+      "Milliyet": 1,
+      "Sabah": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 6,
+      "negative": 15
+    }
+  },
+  {
+    "cluster_id": 7,
+    "title": "Stanbul · İstanbul",
+    "size": 21,
+    "keywords": [
+      "stanbul",
+      "bin",
+      "elektrik",
+      "konut",
+      "kura",
+      "toplu",
+      "sosyal konut",
+      "100"
+    ],
+    "sources": {
+      "Habertürk": 8,
+      "Yeni Şafak": 4,
+      "Sözcü": 2,
+      "Milliyet": 2,
+      "TRT Haber": 2,
+      "Cumhuriyet": 2,
+      "NTV": 1
+    },
+    "sentiment_distribution": {
+      "positive": 17,
+      "neutral": 1,
+      "negative": 3
+    }
+  },
+  {
+    "cluster_id": 2,
+    "title": "Kim · Survivor '",
+    "size": 20,
+    "keywords": [
+      "kim",
+      "survivor",
+      "kim kazandı",
+      "buluşacak",
+      "kazandı",
+      "girecek",
+      "soru",
+      "görev"
+    ],
+    "sources": {
+      "Cumhuriyet": 9,
+      "Habertürk": 6,
+      "TRT Haber": 2,
+      "Hürriyet": 1,
+      "CNN Türk": 1,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 9,
+      "negative": 11
+    }
+  },
+  {
+    "cluster_id": 6,
+    "title": "Okul · Kahramanmaraş",
+    "size": 17,
+    "keywords": [
+      "okul",
+      "komisyonu",
+      "araştırma",
+      "dijital",
+      "araştırma komisyonu",
+      "eğitim",
+      "meclis",
+      "sosyal"
+    ],
+    "sources": {
+      "CNN Türk": 4,
+      "Cumhuriyet": 3,
+      "Hürriyet": 2,
+      "NTV": 2,
+      "Sözcü": 2,
+      "TRT Haber": 2,
+      "Habertürk": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 6,
+      "negative": 11
+    }
+  },
+  {
+    "cluster_id": 3,
+    "title": "23 · 23 Nisan",
+    "size": 13,
+    "keywords": [
+      "23",
+      "23 nisan",
+      "tatil",
+      "açık",
+      "nisan",
+      "resmi tatil",
+      "resmi",
+      "çalışma"
+    ],
+    "sources": {
+      "Habertürk": 12,
+      "CNN Türk": 1
+    },
+    "sentiment_distribution": {
+      "negative": 6,
+      "neutral": 4,
+      "positive": 3
+    }
+  }
+]
