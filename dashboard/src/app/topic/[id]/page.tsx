@@ -1,9 +1,9 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { api, todayDate } from "@/lib/api";
+import { api, todayDate, type SimilarNewsItem } from "@/lib/api";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
-import { ArrowLeft, ExternalLink, Hash } from "lucide-react";
+import { ArrowLeft, ExternalLink, Hash, Sparkles } from "lucide-react";
 import { sentimentColor, sentimentLabel } from "@/lib/utils";
 
 interface Props {
@@ -13,6 +13,9 @@ interface Props {
 
 async function TopicContent({ id, date }: { id: number; date: string }) {
   const data = await api.topic(id, date).catch(() => null);
+  const similarData = data
+    ? await api.similar(data.keywords.slice(0, 2).join(" "), 4).catch(() => null)
+    : null;
 
   if (!data) {
     return (
@@ -132,6 +135,50 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
           ))}
         </div>
       </div>
+
+      {/* Similar news */}
+      {similarData && similarData.results.length > 0 && (
+        <div className="card p-6">
+          <div className="flex items-center gap-2 mb-4">
+            <Sparkles className="w-4 h-4 text-green-600" />
+            <h2 className="text-sm font-semibold text-slate-700">Benzer Haberler</h2>
+            <span className="text-xs text-slate-400 ml-1">semantik arama</span>
+          </div>
+          <div className="divide-y divide-slate-50">
+            {similarData.results.map((item: SimilarNewsItem, i: number) => (
+              <div key={i} className="flex items-start gap-3 py-3 group">
+                <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center shrink-0 mt-0.5">
+                  <span className="text-xs font-mono text-green-600">{(item.similarity * 100).toFixed(0)}%</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  {item.link ? (
+                    <a
+                      href={item.link}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-sm font-medium text-slate-700 hover:text-green-700 transition-colors line-clamp-2 flex items-start gap-1.5"
+                    >
+                      {item.title}
+                      <ExternalLink className="w-3 h-3 text-slate-300 shrink-0 mt-0.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                    </a>
+                  ) : (
+                    <p className="text-sm font-medium text-slate-700 line-clamp-2">{item.title}</p>
+                  )}
+                  <div className="flex items-center gap-2 mt-1">
+                    <span className="text-xs text-slate-400">{item.source_name}</span>
+                    <span className="text-xs text-slate-300">·</span>
+                    <span className="text-xs text-slate-400">{item.date}</span>
+                    <span className="text-xs text-slate-300">·</span>
+                    <span className="text-xs font-medium" style={{ color: sentimentColor(item.sentiment_label) }}>
+                      {sentimentLabel(item.sentiment_label)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

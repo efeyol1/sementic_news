@@ -8,6 +8,8 @@ Usage:
     python -m src.analysis.vector_store --date 2026-04-22
 """
 
+from __future__ import annotations
+
 import argparse
 import json
 import sys

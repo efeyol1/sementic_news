@@ -56,6 +56,20 @@ export interface SourceComparison {
   sources: Record<string, SourceStats>;
 }
 
+export interface SimilarNewsItem {
+  title: string;
+  source_name: string;
+  date: string;
+  sentiment_label: string;
+  link: string | null;
+  similarity: number;
+}
+
+export interface SimilarNewsResponse {
+  query_title: string;
+  results: SimilarNewsItem[];
+}
+
 async function apiFetch<T>(path: string, params?: Record<string, string>): Promise<T> {
   const url = new URL(`${API_BASE}${path}`);
   if (params) {
@@ -75,6 +89,9 @@ export const api = {
 
   sources: (date?: string) =>
     apiFetch<SourceComparison>("/api/source-comparison", date ? { date } : undefined),
+
+  similar: (q: string, n = 5) =>
+    apiFetch<SimilarNewsResponse>("/api/similar", { q, n: String(n) }),
 };
 
 export function todayDate(): string {

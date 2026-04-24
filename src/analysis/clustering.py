@@ -47,6 +47,7 @@ _REPO_ROOT = Path(__file__).resolve().parents[2]
 _DATA_ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
 
 _TURKISH_STOPWORDS = [
+    # Bağlaçlar ve edatlar
     "bir", "bu", "ve", "ile", "için", "de", "da", "den", "dan", "mi",
     "mı", "mu", "mü", "ne", "o", "ya", "ki", "ama", "en", "çok", "daha",
     "olan", "oldu", "olarak", "olan", "var", "yok", "gibi", "kadar",
@@ -54,7 +55,18 @@ _TURKISH_STOPWORDS = [
     "şu", "hangi", "nasıl", "neden", "çünkü", "ancak", "fakat",
     "hem", "veya", "yani", "ise", "iken", "diye", "göre",
     "üzere", "karşı", "doğru", "içinde", "üzerinde", "altında",
+    # Haber jargonu
     "türkiye", "türk", "yıl", "gün", "ay", "saat", "kişi", "kez",
+    # Sık geçen ama anlamsız kelimeler
+    "ın", "in", "un", "ün", "nın", "nin", "nun", "nün",
+    "peki", "zaman", "artık", "sadece", "bile", "hiç", "çünkü",
+    "olacak", "olan", "oldu", "olup", "olmak", "olmadan",
+    "şimdi", "geçen", "geldi", "gelecek", "yapılan", "yapıldı",
+    # Aylar (küme başlığında tarihe değil konuya odaklanmak için)
+    "ocak", "şubat", "mart", "nisan", "mayıs", "haziran",
+    "temmuz", "ağustos", "eylül", "ekim", "kasım", "aralık",
+    # Sayılar ve genel kelimeler
+    "2024", "2025", "2026", "son", "yeni", "büyük", "ilk", "önemli",
 ]
 
 mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
