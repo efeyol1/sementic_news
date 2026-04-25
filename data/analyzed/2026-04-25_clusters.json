@@ -1,0 +1,423 @@
+[
+  {
+    "cluster_id": 8,
+    "title": "Ran · İran",
+    "size": 58,
+    "keywords": [
+      "ran",
+      "abd",
+      "başkanı",
+      "trump",
+      "dedi",
+      "dışişleri",
+      "dışişleri bakanı",
+      "bakanı"
+    ],
+    "sources": {
+      "Cumhuriyet": 16,
+      "TRT Haber": 14,
+      "Hürriyet": 10,
+      "CNN Türk": 6,
+      "Milliyet": 5,
+      "Habertürk": 2,
+      "Sözcü": 2,
+      "Yeni Şafak": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "positive": 18,
+      "negative": 40
+    }
+  },
+  {
+    "cluster_id": 13,
+    "title": "Hayatını · Kahramanmaraş",
+    "size": 51,
+    "keywords": [
+      "hayatını",
+      "filminin",
+      "ilçesinde",
+      "konusu",
+      "filminin konusu",
+      "kahramanmaraş",
+      "edilen",
+      "filmi"
+    ],
+    "sources": {
+      "Cumhuriyet": 17,
+      "Hürriyet": 9,
+      "Habertürk": 4,
+      "NTV": 4,
+      "Yeni Şafak": 4,
+      "Sözcü": 3,
+      "Milliyet": 3,
+      "Sabah": 3,
+      "CNN Türk": 2,
+      "TRT Haber": 2
+    },
+    "sentiment_distribution": {
+      "negative": 37,
+      "positive": 13,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 9,
+    "title": "Tarifi · Türkiye",
+    "size": 44,
+    "keywords": [
+      "tarifi",
+      "tarif",
+      "sağlıklı",
+      "lezzet",
+      "hafif",
+      "doyurucu",
+      "sunuyor",
+      "videolu"
+    ],
+    "sources": {
+      "Hürriyet": 17,
+      "Cumhuriyet": 10,
+      "Habertürk": 9,
+      "Sözcü": 3,
+      "Milliyet": 2,
+      "TRT Haber": 2,
+      "Yeni Şafak": 1
+    },
+    "sentiment_distribution": {
+      "positive": 29,
+      "negative": 14,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 5,
+    "title": "Döndü · Türkiye",
+    "size": 41,
+    "keywords": [
+      "döndü",
+      "adım",
+      "çıktı",
+      "biliyor",
+      "bulundu",
+      "emre",
+      "tepki",
+      "geri"
+    ],
+    "sources": {
+      "Sözcü": 25,
+      "Hürriyet": 6,
+      "Cumhuriyet": 6,
+      "CNN Türk": 2,
+      "Habertürk": 1,
+      "Milliyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 24,
+      "negative": 15,
+      "neutral": 2
+    }
+  },
+  {
+    "cluster_id": 3,
+    "title": "Galatasaray",
+    "size": 39,
+    "keywords": [
+      "galatasaray",
+      "fenerbahçe",
+      "kupası",
+      "milli",
+      "galatasaray fenerbahçe",
+      "süper",
+      "nda",
+      "takım"
+    ],
+    "sources": {
+      "Habertürk": 12,
+      "Cumhuriyet": 12,
+      "Hürriyet": 10,
+      "NTV": 1,
+      "CNN Türk": 1,
+      "Sözcü": 1,
+      "Milliyet": 1,
+      "TRT Haber": 1
+    },
+    "sentiment_distribution": {
+      "positive": 28,
+      "negative": 11
+    }
+  },
+  {
+    "cluster_id": 2,
+    "title": "Bakanlığı · Nazif Yılmaz",
+    "size": 36,
+    "keywords": [
+      "bakanlığı",
+      "bakan",
+      "eğitim",
+      "milli",
+      "görevden",
+      "genel",
+      "hastanesi",
+      "milli eğitim"
+    ],
+    "sources": {
+      "Habertürk": 9,
+      "Cumhuriyet": 8,
+      "TRT Haber": 5,
+      "NTV": 4,
+      "Milliyet": 3,
+      "Hürriyet": 2,
+      "CNN Türk": 2,
+      "Sözcü": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "neutral": 2,
+      "negative": 21,
+      "positive": 13
+    }
+  },
+  {
+    "cluster_id": 10,
+    "title": "Stanbul · İstanbul",
+    "size": 36,
+    "keywords": [
+      "stanbul",
+      "kura",
+      "toki",
+      "konut",
+      "ilişkin",
+      "bin",
+      "stanbul kura",
+      "toki stanbul"
+    ],
+    "sources": {
+      "TRT Haber": 9,
+      "Habertürk": 6,
+      "Cumhuriyet": 5,
+      "CNN Türk": 4,
+      "NTV": 3,
+      "Sabah": 3,
+      "Milliyet": 2,
+      "Yeni Şafak": 2,
+      "Hürriyet": 1,
+      "Sözcü": 1
+    },
+    "sentiment_distribution": {
+      "positive": 26,
+      "negative": 10
+    }
+  },
+  {
+    "cluster_id": 0,
+    "title": "Gözaltına · İstanbul",
+    "size": 35,
+    "keywords": [
+      "gözaltına",
+      "tutuklandı",
+      "yakalandı",
+      "şüpheli",
+      "gülistan doku",
+      "doku",
+      "gülistan",
+      "gözaltına alındı"
+    ],
+    "sources": {
+      "Cumhuriyet": 9,
+      "CNN Türk": 5,
+      "TRT Haber": 5,
+      "Hürriyet": 4,
+      "Yeni Şafak": 4,
+      "NTV": 3,
+      "Habertürk": 2,
+      "Sözcü": 2,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "negative": 22,
+      "positive": 12,
+      "neutral": 1
+    }
+  },
+  {
+    "cluster_id": 7,
+    "title": "Sınav · Nisan",
+    "size": 32,
+    "keywords": [
+      "sınav",
+      "resmi",
+      "şte",
+      "alımı",
+      "başvuru",
+      "tarafından",
+      "detaylar",
+      "tarihi"
+    ],
+    "sources": {
+      "Habertürk": 27,
+      "CNN Türk": 3,
+      "TRT Haber": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 16,
+      "neutral": 4,
+      "positive": 12
+    }
+  },
+  {
+    "cluster_id": 6,
+    "title": "Emekli · Nisan",
+    "size": 29,
+    "keywords": [
+      "emekli",
+      "fiyatları",
+      "altın",
+      "te",
+      "100",
+      "promosyon",
+      "vatandaş",
+      "tarım"
+    ],
+    "sources": {
+      "Habertürk": 13,
+      "CNN Türk": 5,
+      "Cumhuriyet": 4,
+      "Sözcü": 3,
+      "TRT Haber": 2,
+      "Milliyet": 1,
+      "Sabah": 1
+    },
+    "sentiment_distribution": {
+      "neutral": 3,
+      "negative": 9,
+      "positive": 17
+    }
+  },
+  {
+    "cluster_id": 1,
+    "title": "Deprem · İsrail",
+    "size": 24,
+    "keywords": [
+      "deprem",
+      "hava",
+      "25",
+      "hafta",
+      "hava durumu",
+      "depremler",
+      "durumu",
+      "nerede"
+    ],
+    "sources": {
+      "Habertürk": 5,
+      "NTV": 5,
+      "CNN Türk": 4,
+      "TRT Haber": 4,
+      "Cumhuriyet": 3,
+      "Milliyet": 2,
+      "Hürriyet": 1
+    },
+    "sentiment_distribution": {
+      "neutral": 3,
+      "negative": 13,
+      "positive": 8
+    }
+  },
+  {
+    "cluster_id": 12,
+    "title": "Ilçesinde · Erdemli",
+    "size": 12,
+    "keywords": [
+      "ilçesinde",
+      "otomobil",
+      "yaralandı",
+      "kar",
+      "kaza",
+      "ikiye",
+      "devrildi",
+      "yolu"
+    ],
+    "sources": {
+      "TRT Haber": 5,
+      "Habertürk": 3,
+      "Cumhuriyet": 2,
+      "Yeni Şafak": 2
+    },
+    "sentiment_distribution": {
+      "negative": 11,
+      "positive": 1
+    }
+  },
+  {
+    "cluster_id": 11,
+    "title": "Madrid · Real Madrid",
+    "size": 10,
+    "keywords": [
+      "madrid",
+      "real",
+      "real madrid",
+      "maç",
+      "real betis",
+      "betis",
+      "arda güler",
+      "güler"
+    ],
+    "sources": {
+      "Habertürk": 4,
+      "Sözcü": 4,
+      "Hürriyet": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 4,
+      "negative": 6
+    }
+  },
+  {
+    "cluster_id": 4,
+    "title": "Vergi · Türkiye Büyük Millet Meclisi",
+    "size": 6,
+    "keywords": [
+      "vergi",
+      "yılında",
+      "aile",
+      "ötv",
+      "araç",
+      "20",
+      "dışından",
+      "yurt dışından"
+    ],
+    "sources": {
+      "Habertürk": 3,
+      "Sözcü": 2,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "positive": 5,
+      "negative": 1
+    }
+  },
+  {
+    "cluster_id": 14,
+    "title": "Kızı · Sosyal medya",
+    "size": 2,
+    "keywords": [
+      "kızı",
+      "kızı tarafından",
+      "yaşındaki kızı",
+      "öldürüldü",
+      "14 yaşındaki",
+      "tarafından öldürüldü",
+      "fenomeni 14",
+      "fenomeni"
+    ],
+    "sources": {
+      "Sözcü": 1,
+      "Cumhuriyet": 1
+    },
+    "sentiment_distribution": {
+      "negative": 2
+    }
+  }
+]
