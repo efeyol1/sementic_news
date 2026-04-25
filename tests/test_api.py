@@ -75,8 +75,9 @@ def test_today():
 
 
 def test_today_missing_date():
-    import src.api.main as api_module
     from unittest.mock import patch
+
+    import src.api.main as api_module
 
     with patch.object(api_module, "fetch_all_for_api", return_value=[]):
         r = client.get("/api/today?date=1999-01-01")

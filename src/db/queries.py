@@ -2,14 +2,12 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
 import psycopg2.extras
 from loguru import logger
 
-from src.db.client import get_conn
-
+from src.db.client import get_conn  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # RSS Collector
@@ -109,7 +107,8 @@ def fetch_processed_by_date(date_str: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, cleaned_title, cleaned_summary, is_turkish FROM news_items WHERE collected_date = %s ORDER BY id",
+                "SELECT id, cleaned_title, cleaned_summary, is_turkish"
+                " FROM news_items WHERE collected_date = %s ORDER BY id",
                 (date_str,),
             )
             return [dict(row) for row in cur.fetchall()]

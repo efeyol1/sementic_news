@@ -13,7 +13,6 @@ from __future__ import annotations
 import argparse
 import sys
 from datetime import date
-from pathlib import Path
 from typing import Any
 
 from loguru import logger

@@ -127,8 +127,6 @@ def extract_entities(date_str: str | None = None) -> int:
 
     bulk_update_ner(updates)
 
-    turkish_updates = [u for u in updates if u["entity_count"] > 0 or True]
-    turkish_items = [u for u in updates if any(v for v in u["entities"].values())]
     total_entities = sum(u.get("entity_count", 0) for u in updates)
     per_count = sum(len(u["entities"].get("PER", [])) for u in updates)
     org_count = sum(len(u["entities"].get("ORG", [])) for u in updates)
