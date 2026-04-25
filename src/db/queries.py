@@ -33,6 +33,8 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
     ]
     with get_conn() as conn:
         with conn.cursor() as cur:
+            cur.execute("SELECT count(*) FROM news_items WHERE collected_date = %s", (date_str,))
+            before = cur.fetchone()[0]
             psycopg2.extras.execute_values(
                 cur,
                 """
@@ -43,8 +45,10 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
                 """,
                 rows,
             )
-            inserted = cur.rowcount
-    logger.info(f"Inserted {inserted}/{len(rows)} items for {date_str}")
+            cur.execute("SELECT count(*) FROM news_items WHERE collected_date = %s", (date_str,))
+            after = cur.fetchone()[0]
+    inserted = after - before
+    logger.info(f"Inserted {inserted}/{len(rows)} items for {date_str} (total in DB: {after})")
     return inserted
 
 
@@ -257,11 +261,11 @@ def upsert_cluster_summaries(summaries: list[dict[str, Any]], date_str: str) -> 
 
 
 # ---------------------------------------------------------------------------
-# Vector store
+# Vector store (pgvector)
 # ---------------------------------------------------------------------------
 
 def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
-    """Return Turkish items with sentiment for ChromaDB indexing."""
+    """Return Turkish items with sentiment to be embedded."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -280,6 +284,53 @@ def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
     for row in rows:
         row["date"] = date_str
     return rows
+
+
+def bulk_update_embeddings(updates: list[dict[str, Any]]) -> None:
+    """Store sentence-transformer embeddings in the news_items.embedding column.
+
+    Each update dict must have: id (int), embedding (list[float] of length 384).
+    """
+    if not updates:
+        return
+    # pgvector expects the vector as a string literal: '[0.1,0.2,...]'
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                "UPDATE news_items SET embedding = %s::vector WHERE id = %s",
+                [
+                    ("[" + ",".join(str(x) for x in u["embedding"]) + "]", u["id"])
+                    for u in updates
+                ],
+            )
+            logger.info(f"Updated {cur.rowcount} embeddings")
+
+
+def find_similar_pgvector(
+    query_embedding: list[float],
+    n: int = 5,
+) -> list[dict[str, Any]]:
+    """Return top-n news items by cosine similarity to *query_embedding*."""
+    vec_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    title,
+                    source_name,
+                    collected_date::text AS date,
+                    sentiment_label,
+                    link,
+                    1 - (embedding <=> %s::vector) AS similarity
+                FROM news_items
+                WHERE embedding IS NOT NULL
+                ORDER BY embedding <=> %s::vector
+                LIMIT %s
+                """,
+                (vec_str, vec_str, n),
+            )
+            return [dict(row) for row in cur.fetchall()]
 
 
 # ---------------------------------------------------------------------------

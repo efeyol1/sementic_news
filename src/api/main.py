@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
-from src.analysis.vector_store import find_similar, get_collection
+from src.analysis.vector_store import find_similar
 from src.db.queries import (
     fetch_all_for_api,
     fetch_available_dates,
@@ -361,14 +361,9 @@ def similar_news(
     q: str = Query(..., description="Aranacak haber başlığı veya metin", min_length=5),
     n: int = Query(default=5, ge=1, le=20),
 ):
-    try:
-        collection = get_collection()
-        if collection.count() == 0:
-            raise HTTPException(status_code=404, detail="Vektör veritabanı henüz boş.")
-    except Exception as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
-
     results = find_similar(q, n=n)
+    if not results:
+        raise HTTPException(status_code=404, detail="Henüz hiç embedding yok — pipeline çalıştırın.")
     return {
         "query_title": q,
         "results": [

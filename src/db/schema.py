@@ -9,6 +9,8 @@ from loguru import logger
 from src.db.client import get_conn
 
 _DDL = """
+CREATE EXTENSION IF NOT EXISTS vector;
+
 CREATE TABLE IF NOT EXISTS news_items (
     id               SERIAL PRIMARY KEY,
     collected_date   DATE NOT NULL,
@@ -34,12 +36,15 @@ CREATE TABLE IF NOT EXISTS news_items (
     -- clustering
     cluster_id       INTEGER,
     cluster_keywords JSONB,
-    cluster_title    TEXT
+    cluster_title    TEXT,
+    -- vector search (pgvector)
+    embedding        vector(384)
 );
 
-CREATE INDEX IF NOT EXISTS idx_news_date    ON news_items(collected_date);
-CREATE INDEX IF NOT EXISTS idx_news_source  ON news_items(source_name);
-CREATE INDEX IF NOT EXISTS idx_news_cluster ON news_items(cluster_id, collected_date);
+CREATE INDEX IF NOT EXISTS idx_news_date      ON news_items(collected_date);
+CREATE INDEX IF NOT EXISTS idx_news_source    ON news_items(source_name);
+CREATE INDEX IF NOT EXISTS idx_news_cluster   ON news_items(cluster_id, collected_date);
+CREATE INDEX IF NOT EXISTS idx_news_embedding ON news_items USING hnsw (embedding vector_cosine_ops);
 
 CREATE TABLE IF NOT EXISTS cluster_summaries (
     id                     SERIAL PRIMARY KEY,

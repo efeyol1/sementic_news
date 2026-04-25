@@ -1,7 +1,7 @@
-"""Vector store for semantic news search.
+"""Vector indexing and semantic search using pgvector.
 
-Embeds analyzed news items using sentence-transformers and upserts them
-into a ChromaDB collection. Provides similarity search used by the API.
+Embeds analyzed news items with sentence-transformers and stores the vectors
+in the news_items.embedding column (PostgreSQL + pgvector extension).
 
 Usage:
     python -m src.analysis.vector_store               # index today's items
@@ -16,18 +16,20 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
-import chromadb
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
-from src.db.queries import fetch_for_indexing
+from src.db.queries import (
+    bulk_update_embeddings,
+    fetch_for_indexing,
+    find_similar_pgvector,
+)
 
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
 
 _EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
-_COLLECTION_NAME = "news"
 
 _embed_model: SentenceTransformer | None = None
 
@@ -37,28 +39,6 @@ def _get_embed_model() -> SentenceTransformer:
     if _embed_model is None:
         _embed_model = SentenceTransformer(_EMBED_MODEL)
     return _embed_model
-
-
-_REPO_ROOT = Path(__file__).resolve().parents[2]
-_CHROMA_DIR = _REPO_ROOT / "data" / "chroma"
-
-# ---------------------------------------------------------------------------
-# Client / collection helpers
-# ---------------------------------------------------------------------------
-
-
-def get_client() -> chromadb.PersistentClient:
-    _CHROMA_DIR.mkdir(parents=True, exist_ok=True)
-    return chromadb.PersistentClient(path=str(_CHROMA_DIR))
-
-
-def get_collection(client: chromadb.PersistentClient | None = None) -> chromadb.Collection:
-    if client is None:
-        client = get_client()
-    return client.get_or_create_collection(
-        name=_COLLECTION_NAME,
-        metadata={"hnsw:space": "cosine"},
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -72,13 +52,11 @@ def _build_text(item: dict[str, Any]) -> str:
     return f"{title}. {summary}".strip()
 
 
-def _item_id(item: dict[str, Any], date_str: str, idx: int) -> str:
-    source = (item.get("source_name", "unknown") or "unknown").replace(" ", "_")
-    return f"{date_str}_{source}_{idx}"
-
-
 def index_date(date_str: str) -> int:
-    """Embed and upsert all analyzed items for *date_str*. Returns count upserted."""
+    """Embed all analyzed items for *date_str* and store in PostgreSQL.
+
+    Returns count of items indexed.
+    """
     items = fetch_for_indexing(date_str)
     if not items:
         logger.warning(f"No items to index for {date_str}")
@@ -87,27 +65,16 @@ def index_date(date_str: str) -> int:
     logger.info(f"Embedding {len(items)} items for {date_str}...")
     model = _get_embed_model()
     texts = [_build_text(i) for i in items]
-    embeddings = model.encode(texts, batch_size=64, show_progress_bar=True).tolist()
+    embeddings = model.encode(texts, batch_size=64, show_progress_bar=True)
 
-    collection = get_collection()
-
-    ids = [_item_id(item, date_str, idx) for idx, item in enumerate(items)]
-    metadatas = [
-        {
-            "date": date_str,
-            "title": item.get("title", "") or "",
-            "source_name": item.get("source_name", "") or "",
-            "sentiment_label": item.get("sentiment_label", "") or "",
-            "sentiment_score": float(item.get("sentiment_score") or 0),
-            "cluster_id": int(item.get("cluster_id") or -1),
-            "link": item.get("link", "") or "",
-        }
-        for item in items
+    updates = [
+        {"id": item["id"], "embedding": embeddings[i].tolist()}
+        for i, item in enumerate(items)
     ]
 
-    collection.upsert(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
-    logger.success(f"Upserted {len(ids)} items into ChromaDB for {date_str}")
-    return len(ids)
+    bulk_update_embeddings(updates)
+    logger.success(f"Indexed {len(updates)} items for {date_str}")
+    return len(updates)
 
 
 # ---------------------------------------------------------------------------
@@ -115,37 +82,14 @@ def index_date(date_str: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def find_similar(
-    text: str,
-    n: int = 5,
-    exclude_id: str | None = None,
-) -> list[dict[str, Any]]:
+def find_similar(text: str, n: int = 5) -> list[dict[str, Any]]:
     """Return top-n semantically similar news items to *text*."""
     model = _get_embed_model()
     embedding = model.encode([text])[0].tolist()
-
-    collection = get_collection()
-    results = collection.query(
-        query_embeddings=[embedding],
-        n_results=n + (1 if exclude_id else 0),
-        include=["metadatas", "documents", "distances"],
-    )
-
-    output = []
-    for meta, doc, dist in zip(
-        results["metadatas"][0],
-        results["documents"][0],
-        results["distances"][0],
-    ):
-        if exclude_id and meta.get("id") == exclude_id:
-            continue
-        output.append({
-            **meta,
-            "text": doc,
-            "similarity": round(1 - dist, 4),
-        })
-
-    return output[:n]
+    results = find_similar_pgvector(embedding, n=n)
+    for r in results:
+        r["similarity"] = round(float(r["similarity"]), 4)
+    return results
 
 
 # ---------------------------------------------------------------------------
@@ -154,7 +98,7 @@ def find_similar(
 
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
-    p = argparse.ArgumentParser(description="Index analyzed news into ChromaDB")
+    p = argparse.ArgumentParser(description="Index analyzed news into pgvector")
     p.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
     return p.parse_args(argv)
 
