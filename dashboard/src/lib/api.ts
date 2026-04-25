@@ -80,6 +80,10 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
   return res.json();
 }
 
+export interface DatesResponse {
+  dates: string[];
+}
+
 export const api = {
   today: (date?: string) =>
     apiFetch<TodayResponse>("/api/today", date ? { date } : undefined),
@@ -92,6 +96,8 @@ export const api = {
 
   similar: (q: string, n = 5) =>
     apiFetch<SimilarNewsResponse>("/api/similar", { q, n: String(n) }),
+
+  dates: () => apiFetch<DatesResponse>("/api/dates"),
 };
 
 export function todayDate(): string {

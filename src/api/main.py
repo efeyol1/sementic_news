@@ -159,6 +159,10 @@ class SimilarNewsResponse(BaseModel):
     results: list[SimilarNewsItem]
 
 
+class DatesResponse(BaseModel):
+    dates: list[str] = Field(..., example=["2026-04-20", "2026-04-21"])
+
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -348,6 +352,16 @@ def source_comparison(
         }
 
     return {"date": target, "sources": result}
+
+
+@app.get(
+    "/api/dates",
+    tags=["Analiz"],
+    summary="Mevcut analiz tarihleri",
+    response_model=DatesResponse,
+)
+def available_dates():
+    return {"dates": fetch_available_dates()}
 
 
 @app.get(

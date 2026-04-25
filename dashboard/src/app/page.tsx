@@ -5,7 +5,8 @@ import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
 import { ClusterGrid } from "@/components/ui/ClusterGrid";
 import { SentimentPieChart } from "@/components/charts/SentimentPieChart";
-import { Globe2, Calendar } from "lucide-react";
+import { DatePicker } from "@/components/ui/DatePicker";
+import { Globe2 } from "lucide-react";
 
 interface Props {
   searchParams: { date?: string };
@@ -36,21 +37,19 @@ async function DashboardContent({ date }: { date: string }) {
   return (
     <div className="space-y-7">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Günlük Analiz</h1>
-          <div className="flex items-center gap-1.5 text-slate-500 text-sm">
-            <Calendar className="w-4 h-4" />
-            <span>
-              {new Date(date).toLocaleDateString("tr-TR", {
-                weekday: "long",
-                year: "numeric",
-                month: "long",
-                day: "numeric",
-              })}
-            </span>
-          </div>
+          <p className="text-slate-500 text-sm">
+            {new Date(date + "T12:00:00").toLocaleDateString("tr-TR", {
+              weekday: "long",
+              year: "numeric",
+              month: "long",
+              day: "numeric",
+            })}
+          </p>
         </div>
+        <DatePicker availableDates={data.available_dates} currentDate={date} />
       </div>
 
       {/* Stat cards */}

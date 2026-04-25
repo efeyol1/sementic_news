@@ -1,460 +1,191 @@
-# Semantic News TR — Mimari ve Proje Akışı
-
-## Projenin Özü
-
-10 Türk haber kaynağından her gün otomatik olarak haber çekip bunları üç farklı ML modeliyle analiz eden, sonuçları bir API üzerinden sunan tam bir MLOps pipeline'ı.
-
----
+# Semantic News TR — Mimari
 
 ## Büyük Resim
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        GÜNLÜK DÖNGÜ                         │
-│                                                             │
-│   RSS Kaynakları                                            │
-│   (10 site)  ──►  Collect  ──►  Preprocess  ──►  Analyze   │
-│                                                     │       │
-│                                              ┌──────┴───┐   │
-│                                              │ sentiment│   │
-│                                              │   NER    │   │
-│                                              │clustering│   │
-│                                              └──────┬───┘   │
-│                                                     │       │
-│                                              data/analyzed/ │
-└─────────────────────────────────────────────────────┼───────┘
-                                                      │
-                                              ┌───────▼──────┐
-                                              │  FastAPI     │
-                                              │  /api/today  │
-                                              │  /api/topic  │
-                                              │  /metrics    │
-                                              └───────┬──────┘
-                                                      │
-                                         ┌────────────┴──────────┐
-                                         │                       │
-                                   ┌─────▼─────┐         ┌──────▼──────┐
-                                   │  Grafana  │         │  Next.js    │
-                                   │ Dashboard │         │  Dashboard  │
-                                   │ (izleme)  │         │  (:3000)    │
-                                   └───────────┘         └─────────────┘
+┌─────────────────────────────────────────────────────────────────┐
+│                     GÜNLÜK PIPELINE (04:00 UTC)                 │
+│                                                                 │
+│  RSS Kaynakları (10)                                            │
+│  ──────────────────►  rss_collector  ──► PostgreSQL (Neon)      │
+│                              │                                  │
+│                        preprocessor  (clean, langdetect)        │
+│                              │                                  │
+│                         sentiment    (xlm-roberta zero-shot)    │
+│                              │                                  │
+│                           ner         (bert-turkish-ner)        │
+│                              │                                  │
+│                        clustering    (MiniLM + KMeans)          │
+│                              │                                  │
+│                       vector_store   (MiniLM → pgvector)        │
+└──────────────────────────────┼──────────────────────────────────┘
+                               │ PostgreSQL (Neon)
+                     ┌─────────▼──────────┐
+                     │     FastAPI         │
+                     │  (Render, :8000)    │
+                     └─────────┬──────────┘
+                               │ REST + pgvector similarity
+                     ┌─────────▼──────────┐
+                     │   Next.js Dashboard │
+                     │   (Vercel, :3000)   │
+                     └────────────────────┘
+```
+
+---
+
+## Veri Katmanı
+
+### PostgreSQL — `news_items` tablosu
+
+Her haber bir satır. Pipeline adımları sırayla aynı satırı günceller.
+
+| Kolon | Tip | Doldurulduğu Adım |
+|-------|-----|-------------------|
+| `collected_date` | DATE | rss_collector |
+| `title, summary, source_name, link` | TEXT | rss_collector |
+| `cleaned_title, cleaned_summary` | TEXT | preprocessor |
+| `is_turkish, char_count` | BOOL/INT | preprocessor |
+| `sentiment_label, sentiment_score` | TEXT/FLOAT | sentiment |
+| `sentiment_scores` | JSONB | sentiment |
+| `entities, entity_count` | JSONB/INT | ner |
+| `cluster_id, cluster_keywords, cluster_title` | INT/JSONB/TEXT | clustering |
+| `embedding` | vector(384) | vector_store |
+
+### PostgreSQL — `cluster_summaries` tablosu
+
+Her gün 15 küme özeti: `(date, cluster_id) UNIQUE`, keywords, sentiment dağılımı, kaynak dağılımı.
+
+### pgvector
+
+`embedding vector(384)` kolonu + `HNSW` indeksi. `/api/similar` için cosine similarity sorgusu:
+```sql
+SELECT title, 1 - (embedding <=> $1::vector) AS similarity
+FROM news_items ORDER BY embedding <=> $1::vector LIMIT 5
 ```
 
 ---
 
 ## Pipeline Adımları
 
-### 1. Veri Toplama — `src/data/rss_collector.py`
+### 1. `rss_collector.py`
+- 10 RSS feed → feedparser → normalize
+- `INSERT ... ON CONFLICT (link) DO NOTHING` ile dedup
+- **Çıktı:** ~400-500 satır/gün
 
-```
-Habertürk ──┐
-Hürriyet   ──┤
-NTV        ──┤
-CNN Türk   ──┼──► feedparser ──► deduplicate ──► data/raw/YYYY-MM-DD.json
-Sözcü      ──┤     (link bazlı)
-Milliyet   ──┤
-Sabah      ──┤
-TRT Haber  ──┤
-Cumhuriyet ──┤
-Yeni Şafak ──┘
-```
+### 2. `preprocessor.py`
+- HTML strip, whitespace normalize, langdetect
+- 10 karakterden kısa olanları DELETE
+- **Çıktı:** ~450 satır (is_turkish=True ~%99)
 
-**Ne yapıyor:** Her kaynaktan XML/Atom feed çeker, girişleri normalize eder, link bazlı tekrar kontrolü yapar, bugünün dosyasına ekler.
+### 3. `sentiment.py`
+- Model: `joeddav/xlm-roberta-large-xnli` (zero-shot classification)
+- Türkçe etiketler: "olumlu haber" / "olumsuz haber" / "tarafsız haber"
+- Çok dilli: TR/DE/FR/ES/EN SENTIMENT_LABELS dict'i genişlet
+- **Çıktı:** sentiment_label, sentiment_score (0-1), sentiment_scores {pos/neg/neu}
 
-**Çıktı alanları:** `title, summary, source_name, published_date, link, category`
+### 4. `ner.py`
+- Model: `savasy/bert-base-turkish-ner-cased`
+- Entity tipleri: PER, ORG, LOC
+- **Çıktı:** ~1700 entity/gün
 
----
+### 5. `clustering.py`
+- `paraphrase-multilingual-MiniLM-L12-v2` ile embedding
+- KMeans (n=15), silhouette score MLflow'a log
+- TF-IDF + Türkçe stopword listesi ile küme başlıkları
+- **Çıktı:** cluster_id (0-14) + cluster_summaries tablosu
 
-### 2. Ön İşleme — `src/data/preprocessor.py`
-
-```
-data/raw/YYYY-MM-DD.json
-         │
-         ▼
-    HTML temizle  ──► Çok kısaları filtrele (< 10 karakter)
-         │
-         ▼
-    Boşluk normalize  ──► Tarih normalize (ISO-8601)
-         │
-         ▼
-    Dil tespiti (langdetect) ──► is_turkish flag
-         │
-         ▼
-data/processed/YYYY-MM-DD.json
-```
-
-**Eklenen alanlar:** `cleaned_title, cleaned_summary, is_turkish, char_count`
+### 6. `vector_store.py`
+- Aynı MiniLM modeli (lazy singleton)
+- `vector(384)` → PostgreSQL pgvector
+- **Çıktı:** her Türkçe habere 384 boyutlu embedding
 
 ---
 
-### 3. Sentiment Analizi — `src/analysis/sentiment.py`
+## API Katmanı
 
 ```
-data/processed/  ──►  savasy/bert-base-turkish-sentiment-cased
-                                    │
-                         ┌──────────┼──────────┐
-                         ▼          ▼          ▼
-                      positive   neutral   negative
-                         │
-                         ▼
-                  sentiment_label + sentiment_score + sentiment_scores
-                         │
-                         ▼
-                data/analyzed/YYYY-MM-DD.json  (ilk yazım)
+FastAPI (Render)
+├── GET /health                    → liveness probe
+├── GET /api/today?date=           → günlük özet (sentiment, entity, cluster)
+├── GET /api/topic/{id}?date=      → küme detayı + haberler
+├── GET /api/source-comparison     → kaynak bazlı sentiment istatistik
+├── GET /api/similar?q=&n=         → pgvector cosine similarity arama
+└── GET /metrics                   → Prometheus metrikleri
 ```
 
-**Model:** BERT tabanlı, Türkçe için fine-tune edilmiş. Her haber için 3 sınıf olasılığı döner, en yüksek olan `sentiment_label` olur.
-
-**MLflow:** Her run için `negative_pct`, `positive_pct`, `avg_confidence`, `duration_sec` loglanır.
+Startup'ta `init_db()` çağrılır → tablolar yoksa yaratır.
 
 ---
 
-### 4. Named Entity Recognition — `src/analysis/ner.py`
+## Dashboard Katmanı
 
 ```
-data/analyzed/  ──►  savasy/bert-base-turkish-ner-cased
-                                │
-                     ┌──────────┼──────────┐
-                     ▼          ▼          ▼
-                    PER        ORG        LOC
-               (kişi adı)  (kurum)   (yer adı)
-                     │
-                     ▼
-              entities: {PER: [...], ORG: [...], LOC: [...]}
-              entity_count: int
-                     │
-                     ▼
-              data/analyzed/YYYY-MM-DD.json  (üzerine yazar)
+Next.js 14 App Router (Vercel)
+├── /                    → Ana sayfa: istatistik, sentiment, entity cloud, kümeler
+├── /topic/[id]          → Küme detayı: haberler, entity cloud, benzer haberler
+└── /sources             → Kaynak karşılaştırma: heatmap, sentiment dağılımı
 ```
 
-**Örnek çıktı:**
-```json
-{
-  "entities": {
-    "PER": ["Erdoğan", "Özel"],
-    "ORG": ["TBMM", "Bakanlık"],
-    "LOC": ["Ankara", "İstanbul"]
-  },
-  "entity_count": 6
-}
-```
+API'ye `fetch` ile bağlanır (`NEXT_PUBLIC_API_URL` env var). 5 dakika revalidate.
 
 ---
 
-### 5. Konu Kümeleme — `src/analysis/clustering.py`
+## CI/CD
 
 ```
-Tüm haberler
-     │
-     ▼
-TF-IDF vektörleştirme (5000 feature, unigram+bigram)
-     │
-     ▼
-KMeans (15 cluster, random_state=42)
-     │
-     ├──► Her habere: cluster_id + cluster_keywords
-     │
-     └──► data/analyzed/YYYY-MM-DD_clusters.json
-          (her cluster için: boyut, keywords, kaynak dağılımı, sentiment dağılımı)
-```
-
-**Silhouette score** ile kümeleme kalitesi MLflow'a loglanır.
-
----
-
-## Veri Şeması — Tam Yaşam Döngüsü
-
-```
-Ham (raw)          İşlenmiş (processed)      Analiz edilmiş (analyzed)
-─────────          ────────────────────      ─────────────────────────
-title          →   title                 →   title
-summary        →   summary               →   summary
-source_name    →   source_name           →   source_name
-published_date →   published_date (ISO)  →   published_date
-link           →   link                  →   link
-category       →   category              →   category
-               →   cleaned_title         →   cleaned_title
-               →   cleaned_summary       →   cleaned_summary
-               →   is_turkish            →   is_turkish
-               →   char_count            →   char_count
-                                         →   sentiment_label   ← sentiment.py
-                                         →   sentiment_score   ← sentiment.py
-                                         →   sentiment_scores  ← sentiment.py
-                                         →   analyzed_at       ← sentiment.py
-                                         →   entities          ← ner.py
-                                         →   entity_count      ← ner.py
-                                         →   cluster_id        ← clustering.py
-                                         →   cluster_keywords  ← clustering.py
-```
-
----
-
-## MLOps Katmanı
-
-### DVC — Pipeline Versiyonlama
-
-```
-dvc repro
+git push main
     │
-    ├── [collect]    → data/raw/
-    ├── [preprocess] → data/processed/   (deps: data/raw, preprocessor.py)
-    └── [analyze]    → data/analyzed/    (deps: data/processed, sentiment/ner/clustering.py)
-```
-
-Kaynak kodunda değişiklik yoksa DVC ilgili stage'i atlar — her gün sadece değişen kısım çalışır.
-
-### MLflow — Experiment Tracking
-
-```
-Experiments:
-├── turkish-sentiment   ← model eğitimi (train.py)
-├── news-sentiment      ← günlük analiz run'ları
-├── news-ner            ← günlük NER run'ları
-└── news-clustering     ← günlük clustering run'ları
-
-Model Registry:
-└── turkish-news-sentiment
-    ├── v1 (staging)
-    └── v2 (production)  ← F1 > 0.75 şartı
-```
-
-```bash
-mlflow ui  # http://localhost:5000
-```
-
----
-
-## FastAPI Servisi
-
-```
-GET /health
-    └── {"status": "ok"}
-
-GET /api/today?date=2026-04-20
-    └── {total_items, turkish_items, sentiment{}, top_entities{}, top_clusters[]}
-
-GET /api/topic/{cluster_id}?date=2026-04-20
-    └── {keywords[], size, sentiment_distribution{}, news[]}
-
-GET /api/source-comparison?date=2026-04-20
-    └── {sources: {kaynak: {total, sentiment_percentages{}, avg_confidence}}}
-
-GET /metrics
-    └── Prometheus formatında HTTP metrikleri
-```
-
----
-
-## Monitoring Stack
-
-```
-FastAPI (:8000)
-    │  /metrics (Prometheus formatı)
-    ▼
-Prometheus (:9090)
-    │  scrape / 15s
-    ▼
-Grafana (:3000)
+    ├── deploy.yml
+    │   ├── ruff check + pytest (PostgreSQL service container ile)
+    │   └── Render deploy hook → API yeniden deploy
     │
-    ├── İstek/dakika (endpoint bazlı)
-    ├── Ortalama yanıt süresi
-    ├── HTTP 5xx hata oranı
-    └── Endpoint dağılımı (pie chart)
-```
+    └── Vercel (otomatik Next.js deploy)
 
-Yerel çalıştırmak için:
-```bash
-docker compose up
-# Grafana: http://localhost:3000  (admin/admin)
-# Prometheus: http://localhost:9090
+Cron: daily_pipeline.yml → 04:00 UTC → python -m src.pipeline
+Cron: weekly_retrain.yml → Pazar 02:00 UTC → python -m src.training.retrain
 ```
 
 ---
 
-## CI/CD ve Otomasyon Akışı
+## Yol Haritası
 
-```
-Her gün 07:00 (UTC 04:00)
-        │
-        ▼
-GitHub Actions — daily_pipeline.yml
-        │
-        ├── pip install + HF model cache
-        ├── python -m src.pipeline
-        └── git commit data/analyzed/ + push
+### Kısa Vade (1-2 ay)
 
-git push origin main
-        │
-        ├──► CI (ci.yml)
-        │    ├── ruff check src/ tests/
-        │    └── pytest tests/ -v
-        │
-        └──► Deploy (deploy.yml)
-             └── curl RENDER_DEPLOY_HOOK_URL
-                      │
-                      ▼
-                 Render.com
-                 docker build + deploy
+| # | Ne | Neden |
+|---|-----|-------|
+| 1 | **Trend grafikleri** — çok günlü sentiment çizgi grafiği | Tek günlük veri yetersiz, örüntü görünmez |
+| 2 | **Date picker UI** — takvim bileşeni | URL ile tarih seçmek kullanıcı dostu değil |
+| 3 | **Türkçe news corpus ile fine-tune** | Zero-shot iyi ama domain-specific model daha hassas |
+| 4 | **Backfill scripti** — geçmiş günleri toplu işle | Tarihsel veri olmadan trend gösterilemez |
 
-Yerel çalıştırma:
-        │
-        ▼
-crontab: 0 7 * * * scripts/run_daily.sh
-        │
-        └── log: logs/pipeline_YYYY-MM-DD.log
-```
+### Orta Vade (3-6 ay)
 
-### Cron Kurulumu (yerel)
+| # | Ne | Neden |
+|---|-----|-------|
+| 5 | **Medya bias skoru** — aynı olayı farklı kaynakların nasıl çerçevelediği | Projenin en özgün katkısı olabilir |
+| 6 | **Entity zaman serisi** — politikacı/kurum sentiment trendi | "Son 30 günde Erdoğan haberleri nasıl değişti?" |
+| 7 | **Real-time modu** — WebSocket ile anlık güncelleme | Breaking news için kritik |
+| 8 | **Avrupa genişlemesi** — DE/FR/ES kaynakları ekle | SENTIMENT_LABELS altyapısı hazır, sadece kaynak ekle |
 
-```bash
-# crontab'a ekle
-crontab -e
-# Şu satırı ekle:
-0 7 * * * /Users/efeyol11/sementic_news/scripts/run_daily.sh
+### Uzun Vade — Projenin Gidebileceği Yer
 
-# Manuel test
-bash scripts/run_daily.sh
-tail -f logs/pipeline_$(date +%Y-%m-%d).log
-```
-
-### GitHub Actions Manuel Tetikleme
-
-```
-GitHub → Actions → Daily Pipeline → Run workflow
-```
+| Vizyon | Açıklama |
+|--------|----------|
+| **Medya Gözlemevi** | Hangi kaynak hangi konuları öne çıkarıyor, hangi olayları görmezden geliyor? Araştırmacı gazetecilik aracı. |
+| **Haber API as a Service** | Geliştiricilere abonelikle günlük analiz verisi sat — medya şirketleri, akademisyenler, finans firmaları hedef kitle. |
+| **LLM Özet Katmanı** | Her küme için GPT/Claude ile otomatik özet üret. "Bugün Türkiye'de ne oldu?" sorusuna tek paragrafta cevap. |
+| **Alarm Sistemi** | Sentiment aniden negatife dönen konular için bildirim gönder. Kriz erken uyarı sistemi. |
+| **Multi-modal** | Haber görsellerini de analiz et, başlık-görsel tutarsızlığını tespit et. |
+| **Akademik Dataset** | Etiketli Türkçe haber sentiment dataseti yayınla — Türkçe NLP topluluğuna katkı. |
 
 ---
 
-## Tech Stack Özeti
+## Teknoloji Seçim Gerekçeleri
 
-| Katman | Teknoloji | Neden |
-|--------|-----------|-------|
-| Veri toplama | feedparser | RSS/Atom parse, hata toleranslı |
-| Metin temizleme | BeautifulSoup, langdetect | HTML strip, dil tespiti |
-| Sentiment | HuggingFace Transformers | Türkçe BERT, hazır model |
-| NER | HuggingFace Transformers | Türkçe NER, hazır model |
-| Kümeleme | scikit-learn TF-IDF + KMeans | Hafif, yorumlanabilir |
-| Experiment tracking | MLflow | Ücretsiz, yerel SQLite |
-| Pipeline versiyonlama | DVC | Git ile entegre, cache |
-| API | FastAPI | Hızlı, otomatik OpenAPI docs |
-| Monitoring | Prometheus + Grafana | Endüstri standardı |
-| CI/CD | GitHub Actions + Render | Ücretsiz tier |
-| Loglama | loguru | Renkli, yapılandırılmış |
-| Dashboard | Next.js 14 + Tailwind + Recharts | App Router, dark enterprise UI |
-
----
-
-## Dizin Yapısı
-
-```
-sementic_news/
-├── src/
-│   ├── data/
-│   │   ├── rss_collector.py    # Adım 1: RSS → data/raw/
-│   │   ├── preprocessor.py     # Adım 2: raw → data/processed/
-│   │   └── dataset.py          # HuggingFace dataset (eğitim için)
-│   ├── analysis/
-│   │   ├── sentiment.py        # Adım 3: processed → analyzed (sentiment)
-│   │   ├── ner.py              # Adım 4: analyzed += entities
-│   │   └── clustering.py       # Adım 5: analyzed += cluster_id
-│   ├── training/
-│   │   ├── train.py            # BERT fine-tune (isteğe bağlı)
-│   │   ├── evaluate.py         # F1/accuracy hesaplama
-│   │   └── registry.py         # MLflow model registry
-│   ├── api/
-│   │   └── main.py             # FastAPI uygulaması
-│   └── pipeline.py             # Tüm adımları tek komutta çalıştırır
-├── data/
-│   ├── raw/                    # YYYY-MM-DD.json (ham)
-│   ├── processed/              # YYYY-MM-DD.json (temizlenmiş)
-│   └── analyzed/               # YYYY-MM-DD.json + _clusters.json
-├── monitoring/
-│   ├── prometheus.yml
-│   └── grafana/
-│       ├── dashboards/
-│       └── provisioning/
-├── notebooks/
-│   └── eda.ipynb               # Görselleştirme (5 grafik)
-├── tests/
-│   └── test_api.py             # 6 endpoint smoke testi
-├── .github/workflows/
-│   ├── ci.yml                  # Lint + test
-│   └── deploy.yml              # Render CD
-├── dashboard/                  # Next.js 14 enterprise dashboard
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── page.tsx        # Ana dashboard (istatistikler, sentiment, kümeler)
-│   │   │   ├── sources/        # Kaynak × sentiment karşılaştırması
-│   │   │   └── topic/[id]/     # Küme detay sayfası
-│   │   ├── components/
-│   │   │   ├── ui/             # StatCard, Navbar, EntityCloud, ClusterGrid...
-│   │   │   └── charts/         # SentimentPieChart, SourceHeatmap
-│   │   └── lib/                # api.ts (FastAPI client), utils.ts
-│   └── package.json
-├── dvc.yaml                    # DVC pipeline tanımı
-├── docker-compose.yml          # API + Prometheus + Grafana
-├── Dockerfile                  # Production container
-└── pyproject.toml              # Bağımlılıklar + araç ayarları
-```
-
----
-
-## Next.js Dashboard
-
-```
-dashboard/
-  src/app/
-    page.tsx          → /        Ana dashboard
-    sources/page.tsx  → /sources Kaynak analizi
-    topic/[id]/       → /topic/3 Küme detayı
-```
-
-**Özellikler:**
-- Glassmorphism kartlar + `#0A0F1E` dark background
-- Animated counters (Framer Motion)
-- Sentiment gauge (renk geçişli progress bar)
-- Kaynak × sentiment heatmap (yatay stacked bar)
-- Entity cloud (PER / ORG / LOC renk kodlu)
-- Cluster grid → tıklanabilir, küme detayına yönlendirir
-
-**Çalıştırma:**
-```bash
-cd dashboard
-npm install
-npm run dev          # http://localhost:3000
-# API'nin de açık olması gerekiyor:
-uvicorn src.api.main:app --port 8000
-```
-
-**Vercel Deploy:**
-```bash
-vercel --cwd dashboard   # dashboard/ klasörünü deploy eder
-# NEXT_PUBLIC_API_URL=https://your-api.onrender.com
-```
-
----
-
-## Günlük Çalışma Senaryosu
-
-```
-Sabah 06:00 (cron — Blok D'de eklenecek)
-        │
-        ▼
-python -m src.pipeline
-        │
-        ├── collect:    545 haber çekildi (10 kaynak)
-        ├── preprocess: 520 kaldı (HTML temiz, Türkçe)
-        ├── sentiment:  520 haber → positive/negative (2 dk)
-        ├── ner:        520 haber → PER/ORG/LOC (5 dk)
-        └── clustering: 15 konu kümesi oluşturuldu
-                │
-                ▼
-        data/analyzed/2026-04-20.json  ✓
-        data/analyzed/2026-04-20_clusters.json  ✓
-                │
-                ▼
-        API sorgulanabilir:
-        GET /api/today → günlük özet
-        GET /api/topic/3 → ekonomi haberleri
-        GET /api/source-comparison → Cumhuriyet %61 negatif
-```
+| Karar | Alternatif | Neden bu? |
+|-------|-----------|-----------|
+| Zero-shot (xlm-roberta) | Fine-tuned BERT | Eğitim verisi domain mismatch sorununu ortadan kaldırır |
+| pgvector | ChromaDB | Ayrı servis yok, tek DB yeter; Neon ücretsiz destekliyor |
+| Neon PostgreSQL | Supabase, Render PG | Serverless, generous free tier, pgvector built-in |
+| Next.js App Router | CRA, Vite | Server components → API fetch sunucu tarafında, CORS yok |
+| psycopg2 | SQLAlchemy ORM | Sorgular basit, ORM overkill; direkt SQL daha şeffaf |

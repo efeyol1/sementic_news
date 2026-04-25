@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import { api, todayDate } from "@/lib/api";
 import { SourceHeatmap } from "@/components/charts/SourceHeatmap";
+import { DatePicker } from "@/components/ui/DatePicker";
 import { BarChart3, TrendingDown, TrendingUp, Minus } from "lucide-react";
 
 interface Props {
@@ -8,7 +9,10 @@ interface Props {
 }
 
 async function SourcesContent({ date }: { date: string }) {
-  const data = await api.sources(date).catch(() => null);
+  const [data, datesData] = await Promise.all([
+    api.sources(date).catch(() => null),
+    api.dates().catch(() => null),
+  ]);
 
   if (!data) {
     return (
@@ -30,12 +34,17 @@ async function SourcesContent({ date }: { date: string }) {
 
   return (
     <div className="space-y-7">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 mb-1">Kaynak Analizi</h1>
-        <p className="text-slate-500 text-sm">
-          {new Date(date).toLocaleDateString("tr-TR", { year: "numeric", month: "long", day: "numeric" })} —{" "}
-          {sources.length} kaynak, {totalNews.toLocaleString("tr-TR")} haber
-        </p>
+      <div className="flex items-start justify-between flex-wrap gap-3">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-900 mb-1">Kaynak Analizi</h1>
+          <p className="text-slate-500 text-sm">
+            {new Date(date + "T12:00:00").toLocaleDateString("tr-TR", { year: "numeric", month: "long", day: "numeric" })} —{" "}
+            {sources.length} kaynak, {totalNews.toLocaleString("tr-TR")} haber
+          </p>
+        </div>
+        {datesData && (
+          <DatePicker availableDates={datesData.dates} currentDate={date} />
+        )}
       </div>
 
       {/* Highlight cards */}
