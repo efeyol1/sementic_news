@@ -27,6 +27,7 @@ dependencies = [
     "feedparser>=6.0.0",
     "beautifulsoup4>=4.12.0",
     "langdetect>=1.0.9",
+    "psycopg2-binary>=2.9.9",
 ]
 
 [project.optional-dependencies]

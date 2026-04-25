@@ -4,14 +4,13 @@ Embeds analyzed news items using sentence-transformers and upserts them
 into a ChromaDB collection. Provides similarity search used by the API.
 
 Usage:
-    python -m src.analysis.vector_store               # index today's file
+    python -m src.analysis.vector_store               # index today's items
     python -m src.analysis.vector_store --date 2026-04-22
 """
 
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -21,6 +20,8 @@ import chromadb
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
+from src.db.queries import fetch_for_indexing
+
 # ---------------------------------------------------------------------------
 # Constants
 # ---------------------------------------------------------------------------
@@ -28,7 +29,6 @@ from sentence_transformers import SentenceTransformer
 _EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 _COLLECTION_NAME = "news"
 
-# Lazy singleton — loaded once per process
 _embed_model: SentenceTransformer | None = None
 
 
@@ -38,8 +38,8 @@ def _get_embed_model() -> SentenceTransformer:
         _embed_model = SentenceTransformer(_EMBED_MODEL)
     return _embed_model
 
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_DATA_ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
 _CHROMA_DIR = _REPO_ROOT / "data" / "chroma"
 
 # ---------------------------------------------------------------------------
@@ -68,49 +68,41 @@ def get_collection(client: chromadb.PersistentClient | None = None) -> chromadb.
 
 def _build_text(item: dict[str, Any]) -> str:
     title = item.get("cleaned_title", "") or item.get("title", "") or ""
-    summary = item.get("cleaned_summary", "") or item.get("summary", "") or ""
+    summary = item.get("cleaned_summary", "") or ""
     return f"{title}. {summary}".strip()
 
 
 def _item_id(item: dict[str, Any], date_str: str, idx: int) -> str:
-    """Stable ID: date + source + index."""
     source = (item.get("source_name", "unknown") or "unknown").replace(" ", "_")
     return f"{date_str}_{source}_{idx}"
 
 
 def index_date(date_str: str) -> int:
     """Embed and upsert all analyzed items for *date_str*. Returns count upserted."""
-    path = _DATA_ANALYZED_DIR / f"{date_str}.json"
-    if not path.exists():
-        raise FileNotFoundError(f"Analyzed file not found: {path}")
-
-    with path.open(encoding="utf-8") as fh:
-        items: list[dict[str, Any]] = json.load(fh)
-
-    turkish = [i for i in items if i.get("is_turkish") and i.get("sentiment_label")]
-    if not turkish:
-        logger.warning(f"No Turkish items to index for {date_str}")
+    items = fetch_for_indexing(date_str)
+    if not items:
+        logger.warning(f"No items to index for {date_str}")
         return 0
 
-    logger.info(f"Embedding {len(turkish)} items for {date_str}...")
+    logger.info(f"Embedding {len(items)} items for {date_str}...")
     model = _get_embed_model()
-    texts = [_build_text(i) for i in turkish]
+    texts = [_build_text(i) for i in items]
     embeddings = model.encode(texts, batch_size=64, show_progress_bar=True).tolist()
 
     collection = get_collection()
 
-    ids = [_item_id(item, date_str, idx) for idx, item in enumerate(turkish)]
+    ids = [_item_id(item, date_str, idx) for idx, item in enumerate(items)]
     metadatas = [
         {
             "date": date_str,
-            "title": item.get("title", ""),
-            "source_name": item.get("source_name", ""),
-            "sentiment_label": item.get("sentiment_label", ""),
+            "title": item.get("title", "") or "",
+            "source_name": item.get("source_name", "") or "",
+            "sentiment_label": item.get("sentiment_label", "") or "",
             "sentiment_score": float(item.get("sentiment_score") or 0),
             "cluster_id": int(item.get("cluster_id") or -1),
             "link": item.get("link", "") or "",
         }
-        for item in turkish
+        for item in items
     ]
 
     collection.upsert(ids=ids, embeddings=embeddings, documents=texts, metadatas=metadatas)
@@ -150,7 +142,7 @@ def find_similar(
         output.append({
             **meta,
             "text": doc,
-            "similarity": round(1 - dist, 4),  # cosine distance → similarity
+            "similarity": round(1 - dist, 4),
         })
 
     return output[:n]
@@ -163,20 +155,12 @@ def find_similar(
 
 def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     p = argparse.ArgumentParser(description="Index analyzed news into ChromaDB")
-    p.add_argument(
-        "--date",
-        default=date.today().isoformat(),
-        metavar="YYYY-MM-DD",
-        help="Date to index (default: today)",
-    )
+    p.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
     return p.parse_args(argv)
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    try:
-        count = index_date(args.date)
-        logger.info(f"Done — {count} items indexed")
-    except FileNotFoundError as exc:
-        logger.error(str(exc))
-        sys.exit(1)
+    count = index_date(args.date)
+    logger.info(f"Done — {count} items indexed")
+    sys.exit(0)

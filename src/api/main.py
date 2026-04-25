@@ -1,10 +1,7 @@
 """FastAPI application for Semantic News TR."""
 
-import json
 from collections import Counter, defaultdict
 from datetime import date
-from pathlib import Path as FilePath
-from typing import Any
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -12,6 +9,12 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
 from src.analysis.vector_store import find_similar, get_collection
+from src.db.queries import (
+    fetch_all_for_api,
+    fetch_available_dates,
+    fetch_cluster_summaries,
+)
+from src.db.schema import init_db
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -29,11 +32,12 @@ Her gün sabah 07:00'de çalışır:
 3. **Sentiment** — BERT tabanlı pozitif/negatif sınıflandırma
 4. **NER** — Kişi, kurum, yer adı çıkarma
 5. **Clustering** — TF-IDF + KMeans ile 15 konu kümesi
+6. **Vector Store** — ChromaDB semantik arama indeksi
 
 ## Kaynaklar
 Habertürk · Hürriyet · NTV · CNN Türk · Sözcü · Milliyet · Sabah · TRT Haber · Cumhuriyet · Yeni Şafak
 """,
-    version="1.0.0",
+    version="2.0.0",
     contact={"name": "Semantic News TR", "url": "https://github.com/efeyol11/sementic_news"},
     license_info={"name": "MIT"},
     openapi_tags=[
@@ -51,8 +55,15 @@ app.add_middleware(
 
 Instrumentator().instrument(app).expose(app)
 
-_REPO_ROOT = FilePath(__file__).resolve().parents[2]
-_ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
+
+@app.on_event("startup")
+def _startup():
+    try:
+        init_db()
+    except Exception as exc:
+        import logging
+        logging.warning(f"DB init on startup failed: {exc}")
+
 
 # ---------------------------------------------------------------------------
 # Pydantic response models
@@ -60,13 +71,13 @@ _ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
 
 
 class SentimentCounts(BaseModel):
-    positive: int = Field(..., description="Pozitif haber sayısı", example=264)
-    negative: int = Field(..., description="Negatif haber sayısı", example=276)
+    positive: int = Field(..., example=264)
+    negative: int = Field(..., example=276)
 
 
 class SentimentPercentages(BaseModel):
-    positive: float = Field(..., description="Pozitif yüzde (0-100)", example=48.9)
-    negative: float = Field(..., description="Negatif yüzde (0-100)", example=51.1)
+    positive: float = Field(..., example=48.9)
+    negative: float = Field(..., example=51.1)
 
 
 class SentimentSummary(BaseModel):
@@ -76,64 +87,58 @@ class SentimentSummary(BaseModel):
 
 class ClusterSummary(BaseModel):
     cluster_id: int = Field(..., example=3)
-    title: str = Field(..., description="Küme başlığı", example="Ekonomi · Merkez Bankası")
-    size: int = Field(..., description="Kümedeki haber sayısı", example=47)
-    keywords: list[str] = Field(..., description="En ayırt edici 5 kelime", example=["ekonomi", "dolar", "faiz"])
+    title: str = Field(..., example="Ekonomi · Merkez Bankası")
+    size: int = Field(..., example=47)
+    keywords: list[str] = Field(..., example=["ekonomi", "dolar", "faiz"])
 
 
 class TopEntities(BaseModel):
-    PER: list[str] = Field(..., description="En çok geçen 10 kişi adı", example=["Erdoğan", "Trump"])
-    ORG: list[str] = Field(..., description="En çok geçen 10 kurum adı", example=["TBMM", "Merkez Bankası"])
-    LOC: list[str] = Field(..., description="En çok geçen 10 yer adı", example=["Ankara", "İstanbul"])
+    PER: list[str] = Field(..., example=["Erdoğan", "Trump"])
+    ORG: list[str] = Field(..., example=["TBMM", "Merkez Bankası"])
+    LOC: list[str] = Field(..., example=["Ankara", "İstanbul"])
 
 
 class TodayResponse(BaseModel):
-    date: str = Field(..., description="Analiz tarihi (YYYY-MM-DD)", example="2026-04-20")
-    total_items: int = Field(..., description="Toplam çekilen haber sayısı", example=545)
-    turkish_items: int = Field(..., description="Türkçe olarak tespit edilen haber sayısı", example=540)
-    sources: dict[str, int] = Field(..., description="Kaynak → haber sayısı", example={"Cumhuriyet": 114})
+    date: str = Field(..., example="2026-04-20")
+    total_items: int = Field(..., example=545)
+    turkish_items: int = Field(..., example=540)
+    sources: dict[str, int] = Field(..., example={"Cumhuriyet": 114})
     sentiment: SentimentSummary
     top_entities: TopEntities
-    cluster_count: int = Field(..., description="Toplam küme sayısı", example=15)
-    top_clusters: list[ClusterSummary] = Field(..., description="En büyük 5 küme")
-    available_dates: list[str] = Field(..., description="Veri mevcut tarihler", example=["2026-04-20"])
+    cluster_count: int = Field(..., example=15)
+    top_clusters: list[ClusterSummary]
+    available_dates: list[str] = Field(..., example=["2026-04-20"])
 
 
 class NewsItem(BaseModel):
-    title: str = Field(..., description="Haber başlığı", example="Kabine toplantısı ne zaman?")
-    source_name: str = Field(..., description="Kaynak adı", example="Habertürk")
-    published_date: str = Field(..., description="Yayın tarihi (ISO-8601)", example="2026-04-20T07:30:00+00:00")
-    sentiment_label: str | None = Field(None, description="positive veya negative", example="positive")
-    sentiment_score: float | None = Field(None, description="Model güven skoru (0-1)", example=0.977)
-    entities: dict[str, list[str]] | None = Field(
-        None, description="NER sonuçları", example={"PER": ["Erdoğan"], "ORG": ["TBMM"], "LOC": ["Ankara"]}
-    )
-    link: str | None = Field(None, description="Haberin orijinal URL'i")
+    title: str = Field(..., example="Kabine toplantısı ne zaman?")
+    source_name: str = Field(..., example="Habertürk")
+    published_date: str = Field(..., example="2026-04-20T07:30:00+00:00")
+    sentiment_label: str | None = Field(None, example="positive")
+    sentiment_score: float | None = Field(None, example=0.977)
+    entities: dict[str, list[str]] | None = Field(None)
+    link: str | None = Field(None)
 
 
 class TopicResponse(BaseModel):
     date: str = Field(..., example="2026-04-20")
     cluster_id: int = Field(..., example=3)
-    keywords: list[str] = Field(..., description="Kümenin tüm anahtar kelimeleri")
-    size: int = Field(..., description="Kümede kaç haber var", example=47)
-    sentiment_distribution: dict[str, int] = Field(
-        ..., description="Küme içi sentiment sayıları", example={"positive": 25, "negative": 22}
-    )
-    news: list[NewsItem] = Field(..., description="Kümedeki tüm haberler")
+    keywords: list[str]
+    size: int = Field(..., example=47)
+    sentiment_distribution: dict[str, int]
+    news: list[NewsItem]
 
 
 class SourceStats(BaseModel):
-    total: int = Field(..., description="Bu kaynaktan gelen haber sayısı", example=109)
-    sentiment_counts: dict[str, int] = Field(..., example={"positive": 43, "negative": 66})
-    sentiment_percentages: dict[str, float] = Field(
-        ..., description="Yüzde cinsinden dağılım (0-100)", example={"positive": 39.4, "negative": 60.6}
-    )
-    avg_confidence: float | None = Field(None, description="Ortalama model güven skoru", example=0.861)
+    total: int = Field(..., example=109)
+    sentiment_counts: dict[str, int]
+    sentiment_percentages: dict[str, float]
+    avg_confidence: float | None = Field(None, example=0.861)
 
 
 class SourceComparisonResponse(BaseModel):
     date: str = Field(..., example="2026-04-20")
-    sources: dict[str, SourceStats] = Field(..., description="Kaynak adı → istatistikler")
+    sources: dict[str, SourceStats]
 
 
 class HealthResponse(BaseModel):
@@ -146,56 +151,46 @@ class SimilarNewsItem(BaseModel):
     date: str
     sentiment_label: str
     link: str | None
-    similarity: float = Field(..., description="Kosinüs benzerliği (0-1)", example=0.91)
+    similarity: float = Field(..., example=0.91)
 
 
 class SimilarNewsResponse(BaseModel):
     query_title: str
     results: list[SimilarNewsItem]
 
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
 
 
-def _load_analyzed(date_str: str) -> list[dict[str, Any]]:
-    path = _ANALYZED_DIR / f"{date_str}.json"
-    if not path.exists():
+def _get_items(date_str: str) -> list[dict]:
+    items = fetch_all_for_api(date_str)
+    if not items:
         raise HTTPException(
             status_code=404,
             detail=f"{date_str} tarihine ait analiz verisi bulunamadı.",
         )
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    return items
 
 
-def _load_clusters(date_str: str) -> list[dict[str, Any]]:
-    path = _ANALYZED_DIR / f"{date_str}_clusters.json"
-    if not path.exists():
+def _get_clusters(date_str: str) -> list[dict]:
+    clusters = fetch_cluster_summaries(date_str)
+    if not clusters:
         raise HTTPException(
             status_code=404,
             detail=f"{date_str} tarihine ait cluster verisi bulunamadı.",
         )
-    with path.open(encoding="utf-8") as fh:
-        return json.load(fh)
+    return clusters
 
-
-def _available_dates() -> list[str]:
-    return sorted(p.stem for p in _ANALYZED_DIR.glob("????-??-??.json"))
 
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
 
 
-@app.get(
-    "/health",
-    tags=["Sistem"],
-    summary="Servis sağlık kontrolü",
-    response_model=HealthResponse,
-)
+@app.get("/health", tags=["Sistem"], response_model=HealthResponse)
 def health():
-    """API'nin ayakta olup olmadığını kontrol eder. Kubernetes/Docker liveness probe olarak kullanılır."""
     return {"status": "ok"}
 
 
@@ -214,19 +209,9 @@ def today(
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
 ):
-    """
-    Bir günün tam analiz özetini döndürür:
-
-    - **Haber sayıları** — toplam ve Türkçe
-    - **Kaynak dağılımı** — hangi kaynaktan kaç haber
-    - **Sentiment** — pozitif/negatif sayı ve yüzdeleri
-    - **Top entity'ler** — en çok geçen kişi, kurum ve yer adları
-    - **Konu kümeleri** — en büyük 5 küme ve anahtar kelimeleri
-    - **Mevcut tarihler** — sorgulanabilir tüm tarihler
-    """
     target = date_str or date.today().isoformat()
-    items = _load_analyzed(target)
-    clusters = _load_clusters(target)
+    items = _get_items(target)
+    clusters = fetch_cluster_summaries(target)
 
     turkish = [i for i in items if i.get("is_turkish")]
     n = len(turkish)
@@ -234,7 +219,8 @@ def today(
     _counts = Counter(i.get("sentiment_label") for i in turkish if i.get("sentiment_label"))
     sentiment_counts = {"positive": _counts.get("positive", 0), "negative": _counts.get("negative", 0)}
     sentiment_pct = (
-        {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()} if n else {"positive": 0.0, "negative": 0.0}
+        {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()}
+        if n else {"positive": 0.0, "negative": 0.0}
     )
 
     entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
@@ -242,10 +228,7 @@ def today(
         for label, words in (item.get("entities") or {}).items():
             if label in entity_agg:
                 entity_agg[label].update(words)
-    top_entities = {
-        label: [w for w, _ in ctr.most_common(10)]
-        for label, ctr in entity_agg.items()
-    }
+    top_entities = {label: [w for w, _ in ctr.most_common(10)] for label, ctr in entity_agg.items()}
 
     source_counts = Counter(i["source_name"] for i in items)
 
@@ -266,7 +249,7 @@ def today(
             }
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
-        "available_dates": _available_dates(),
+        "available_dates": fetch_available_dates(),
     }
 
 
@@ -275,31 +258,19 @@ def today(
     tags=["Analiz"],
     summary="Konu kümesi detayı",
     response_model=TopicResponse,
-    responses={
-        404: {"description": "Belirtilen cluster_id veya tarihe ait veri bulunamadı"},
-    },
+    responses={404: {"description": "Belirtilen cluster_id veya tarihe ait veri bulunamadı"}},
 )
 def topic(
     cluster_id: int = Path(..., description="Küme numarası (0-14)", ge=0, le=14),
     date_str: str = Query(
         default=None,
         alias="date",
-        description="Analiz tarihi (YYYY-MM-DD). Belirtilmezse bugün.",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
 ):
-    """
-    Belirli bir konu kümesinin detaylı analizini döndürür:
-
-    - **keywords** — kümeyi tanımlayan anahtar kelimeler
-    - **sentiment_distribution** — küme içi pozitif/negatif dağılımı
-    - **news** — kümedeki tüm haberler (başlık, kaynak, sentiment, entity, link)
-
-    `cluster_id` değerlerini `/api/today` endpoint'indeki `top_clusters` listesinden alabilirsiniz.
-    """
     target = date_str or date.today().isoformat()
-    items = _load_analyzed(target)
-    clusters = _load_clusters(target)
+    items = _get_items(target)
+    clusters = fetch_cluster_summaries(target)
 
     cluster_meta = next((c for c in clusters if c["cluster_id"] == cluster_id), None)
     if cluster_meta is None:
@@ -309,7 +280,7 @@ def topic(
         {
             "title": i["title"],
             "source_name": i["source_name"],
-            "published_date": i["published_date"],
+            "published_date": str(i.get("published_date", "")),
             "sentiment_label": i.get("sentiment_label"),
             "sentiment_score": i.get("sentiment_score"),
             "entities": i.get("entities"),
@@ -340,22 +311,11 @@ def source_comparison(
     date_str: str = Query(
         default=None,
         alias="date",
-        description="Analiz tarihi (YYYY-MM-DD). Belirtilmezse bugün.",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
 ):
-    """
-    Her haber kaynağı için sentiment istatistiklerini karşılaştırır:
-
-    - **total** — o kaynaktan toplam haber sayısı
-    - **sentiment_counts** — pozitif/negatif ham sayılar
-    - **sentiment_percentages** — yüzde dağılımı (0-100)
-    - **avg_confidence** — modelin ortalama güven skoru
-
-    Hangi kaynağın daha olumsuz haber ürettiğini analiz etmek için kullanılır.
-    """
     target = date_str or date.today().isoformat()
-    items = _load_analyzed(target)
+    items = _get_items(target)
 
     sources: dict[str, dict] = defaultdict(lambda: {
         "total": 0, "sentiment_counts": Counter(), "scores": [],
@@ -382,7 +342,8 @@ def source_comparison(
                 {k: round(v / n * 100, 1) for k, v in counts.items()} if n else {}
             ),
             "avg_confidence": (
-                round(sum(data["scores"]) / len(data["scores"]), 4) if data["scores"] else None
+                round(sum(data["scores"]) / len(data["scores"]), 4)
+                if data["scores"] else None
             ),
         }
 
@@ -398,14 +359,8 @@ def source_comparison(
 )
 def similar_news(
     q: str = Query(..., description="Aranacak haber başlığı veya metin", min_length=5),
-    n: int = Query(default=5, ge=1, le=20, description="Döndürülecek sonuç sayısı"),
+    n: int = Query(default=5, ge=1, le=20),
 ):
-    """
-    Verilen metne semantik olarak en benzer haberleri döndürür.
-
-    Cosine similarity ile ChromaDB'de arama yapar.
-    Herhangi bir metin gönderilebilir — haber başlığı, anahtar kelime vb.
-    """
     try:
         collection = get_collection()
         if collection.count() == 0:

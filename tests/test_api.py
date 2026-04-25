@@ -1,7 +1,5 @@
 """FastAPI endpoint smoke tests."""
 
-import json
-
 import pytest
 from fastapi.testclient import TestClient
 
@@ -10,27 +8,21 @@ from src.api.main import app
 client = TestClient(app)
 
 # ---------------------------------------------------------------------------
-# Fixtures — minimal fake data so tests never need real data/analyzed/ files
+# Fake data
 # ---------------------------------------------------------------------------
 
 _FAKE_ITEM = {
+    "id": 1,
     "title": "Test Haberi",
-    "summary": "Test özeti",
     "source_name": "Test Kaynak",
     "published_date": "2026-04-20T10:00:00+00:00",
     "link": "https://example.com/1",
-    "category": None,
-    "cleaned_title": "test haberi",
-    "cleaned_summary": "test özeti",
     "is_turkish": True,
-    "char_count": 22,
     "sentiment_label": "positive",
     "sentiment_score": 0.92,
-    "sentiment_scores": {"positive": 0.92, "negative": 0.08},
-    "analyzed_at": "2026-04-20T10:01:00+00:00",
     "entities": {"PER": ["Ali"], "ORG": ["TBMM"], "LOC": ["Ankara"]},
-    "entity_count": 3,
     "cluster_id": 0,
+    "cluster_title": "Test · TBMM",
     "cluster_keywords": ["test", "haber"],
 }
 
@@ -44,22 +36,20 @@ _FAKE_CLUSTER = {
 }
 
 
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
 @pytest.fixture(autouse=True)
-def _mock_data(tmp_path, monkeypatch):
-    """Redirect _ANALYZED_DIR to a temp dir with fake JSON files."""
-    analyzed_dir = tmp_path / "analyzed"
-    analyzed_dir.mkdir()
-
-    date_str = "2026-04-20"
-    (analyzed_dir / f"{date_str}.json").write_text(
-        json.dumps([_FAKE_ITEM]), encoding="utf-8"
-    )
-    (analyzed_dir / f"{date_str}_clusters.json").write_text(
-        json.dumps([_FAKE_CLUSTER]), encoding="utf-8"
-    )
-
+def _mock_db(monkeypatch):
+    """Replace DB query functions with in-memory fakes."""
     import src.api.main as api_module
-    monkeypatch.setattr(api_module, "_ANALYZED_DIR", analyzed_dir)
+
+    monkeypatch.setattr(api_module, "fetch_all_for_api", lambda date_str: [_FAKE_ITEM])
+    monkeypatch.setattr(api_module, "fetch_cluster_summaries", lambda date_str: [_FAKE_CLUSTER])
+    monkeypatch.setattr(api_module, "fetch_available_dates", lambda: ["2026-04-20"])
+    monkeypatch.setattr(api_module, "init_db", lambda: None)
 
 
 # ---------------------------------------------------------------------------
@@ -85,7 +75,11 @@ def test_today():
 
 
 def test_today_missing_date():
-    r = client.get("/api/today?date=1999-01-01")
+    import src.api.main as api_module
+    from unittest.mock import patch
+
+    with patch.object(api_module, "fetch_all_for_api", return_value=[]):
+        r = client.get("/api/today?date=1999-01-01")
     assert r.status_code == 404
 
 

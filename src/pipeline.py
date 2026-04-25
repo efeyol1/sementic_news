@@ -65,7 +65,7 @@ def run(
     wall_start = time.perf_counter()
 
     if not skip_collect:
-        _step("collect", collect_all)
+        _step("collect", collect_all, date_str=date_str)
 
     _step("preprocess", preprocess, date_str=date_str)
     _step("sentiment", analyze, date_str=date_str)
@@ -115,7 +115,7 @@ if __name__ == "__main__":
             skip_collect=args.skip_collect,
             n_clusters=args.n_clusters,
         )
-    except FileNotFoundError as exc:
+    except (FileNotFoundError, RuntimeError) as exc:
         logger.error(str(exc))
         sys.exit(1)
     except KeyboardInterrupt:
