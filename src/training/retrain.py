@@ -1,7 +1,7 @@
 """Weekly retraining pipeline using accumulated news data.
 
-Loads high-confidence predictions from data/analyzed/*.json, mixes them
-with the original winvoker dataset, and retrains the production model.
+Loads high-confidence predictions from PostgreSQL, mixes them with the
+original winvoker dataset, and retrains the production model.
 Pushes to HuggingFace Hub only if F1 improves over the current model.
 
 Usage:
@@ -10,7 +10,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from datetime import date
 from pathlib import Path
@@ -28,6 +27,7 @@ from transformers import (
 )
 
 from src.data.dataset import ID2LABEL, LABEL2ID, get_tokenized_datasets
+from src.db.queries import fetch_high_confidence_items
 from src.training.evaluate import compute_metrics, print_classification_report
 
 # ---------------------------------------------------------------------------
@@ -36,10 +36,9 @@ from src.training.evaluate import compute_metrics, print_classification_report
 
 HF_MODEL_ID = "efeyol11/bert-turkish-sentiment"
 MIN_CONFIDENCE = 0.85
-MAX_NEWS_SAMPLES = 50_000   # cap to avoid overshadowing original dataset
+MAX_NEWS_SAMPLES = 50_000
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
 _MODELS_DIR = _REPO_ROOT / "models"
 
 mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
@@ -50,46 +49,32 @@ mlflow.set_experiment("turkish-sentiment")
 # ---------------------------------------------------------------------------
 
 
-def _load_news_dataset(min_confidence: float) -> Dataset:
-    """Load high-confidence predictions from all analyzed JSON files."""
+def _load_news_dataset(min_confidence: float, max_samples: int = MAX_NEWS_SAMPLES) -> Dataset:
+    """Load high-confidence predictions from PostgreSQL."""
+    rows = fetch_high_confidence_items(min_confidence=min_confidence, max_samples=max_samples)
+
     texts, labels = [], []
-
-    json_files = sorted(_ANALYZED_DIR.glob("????-??-??.json"))
-    if not json_files:
-        raise FileNotFoundError(f"No analyzed files found in {_ANALYZED_DIR}")
-
-    for path in json_files:
-        with path.open(encoding="utf-8") as fh:
-            items = json.load(fh)
-        for item in items:
-            if not item.get("is_turkish"):
-                continue
-            label = item.get("sentiment_label")
-            score = item.get("sentiment_score", 0.0)
-            if label not in LABEL2ID or score < min_confidence:
-                continue
-            title = item.get("cleaned_title", "") or ""
-            summary = item.get("cleaned_summary", "") or ""
-            text = f"{title}. {summary}".strip()
-            if len(text) >= 20:
-                texts.append(text)
-                labels.append(LABEL2ID[label])
+    for row in rows:
+        label = row.get("sentiment_label")
+        if label not in LABEL2ID:
+            continue
+        title = row.get("cleaned_title") or ""
+        summary = row.get("cleaned_summary") or ""
+        text = f"{title}. {summary}".strip()
+        if len(text) >= 20:
+            texts.append(text)
+            labels.append(LABEL2ID[label])
 
     logger.info(
         f"Loaded {len(texts)} high-confidence news examples "
-        f"(confidence ≥ {min_confidence}) from {len(json_files)} files"
+        f"(confidence ≥ {min_confidence}) from PostgreSQL"
     )
 
     if not texts:
         raise ValueError(
-            f"No examples with confidence ≥ {min_confidence}. "
+            f"No examples with confidence ≥ {min_confidence} in DB. "
             "Lower --min-confidence or run more pipeline days first."
         )
-
-    if len(texts) > MAX_NEWS_SAMPLES:
-        logger.info(f"Capping to {MAX_NEWS_SAMPLES} most recent examples")
-        texts = texts[-MAX_NEWS_SAMPLES:]
-        labels = labels[-MAX_NEWS_SAMPLES:]
 
     return Dataset.from_dict({"text": texts, "label": labels})
 

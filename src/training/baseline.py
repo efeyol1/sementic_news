@@ -16,7 +16,7 @@ import numpy as np
 from loguru import logger
 from transformers import AutoModelForSequenceClassification, AutoTokenizer, Trainer, TrainingArguments
 
-from src.data.dataset import ID2LABEL, MODEL_NAME, get_tokenized_datasets
+from src.data.dataset import ID2LABEL, LABEL2ID, MODEL_NAME, get_tokenized_datasets
 from src.training.evaluate import compute_metrics, print_classification_report
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -27,7 +27,13 @@ mlflow.set_experiment("turkish-sentiment")
 def run_baseline(max_samples: int | None = None) -> dict:
     logger.info(f"Loading pre-trained model: {MODEL_NAME}")
     tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(MODEL_NAME)
+    model = AutoModelForSequenceClassification.from_pretrained(
+        MODEL_NAME,
+        num_labels=3,
+        id2label=ID2LABEL,
+        label2id=LABEL2ID,
+        ignore_mismatched_sizes=True,
+    )
 
     _, val_ds = get_tokenized_datasets(tokenizer, max_samples=max_samples)
 

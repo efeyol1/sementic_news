@@ -1,18 +1,21 @@
 """Multilingual sentiment analysis for news items.
 
-Uses zero-shot classification (joeddav/xlm-roberta-large-xnli) so the same
-model works for any language without fine-tuning. Labels are defined per
-language — extend SENTIMENT_LABELS to add new countries.
+Two modes (controlled by SENTIMENT_MODEL_ID env var):
+  - Zero-shot (default): joeddav/xlm-roberta-large-xnli — no fine-tuning needed,
+    works for any language via SENTIMENT_LABELS candidate labels.
+  - Fine-tuned: set SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment (or local
+    path) to use the domain-adapted BERT model for Turkish news.
 
 Reads items from PostgreSQL, writes enriched results back to the same rows.
 
 Usage:
     python -m src.analysis.sentiment               # analyze today's items
     python -m src.analysis.sentiment --date 2026-04-17
-    python -m src.analysis.sentiment --lang de     # German news
+    SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment python -m src.analysis.sentiment
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import date, datetime, timezone
@@ -30,7 +33,9 @@ from src.db.queries import bulk_update_sentiment, fetch_processed_by_date
 # Constants
 # ---------------------------------------------------------------------------
 
-HF_MODEL_ID = "joeddav/xlm-roberta-large-xnli"
+_ZERO_SHOT_MODEL = "joeddav/xlm-roberta-large-xnli"
+_FINETUNED_LABEL_MAP = {"LABEL_0": "negative", "LABEL_1": "neutral", "LABEL_2": "positive",
+                        "negative": "negative", "neutral": "neutral", "positive": "positive"}
 
 SENTIMENT_LABELS: dict[str, dict[str, str]] = {
     "tr": {
@@ -71,10 +76,23 @@ mlflow.set_experiment("news-sentiment")
 # ---------------------------------------------------------------------------
 
 
+def _is_finetuned_mode() -> bool:
+    return bool(os.getenv("SENTIMENT_MODEL_ID"))
+
+
+def _active_model_id() -> str:
+    return os.getenv("SENTIMENT_MODEL_ID") or _ZERO_SHOT_MODEL
+
+
 def _load_pipeline():
     device = 0 if torch.cuda.is_available() else -1
-    logger.info(f"Loading model {HF_MODEL_ID!r} on {'CUDA' if device == 0 else 'CPU/MPS'}")
-    pipe = pipeline("zero-shot-classification", model=HF_MODEL_ID, device=device)
+    model_id = _active_model_id()
+    if _is_finetuned_mode():
+        logger.info(f"Loading fine-tuned model {model_id!r} on {'CUDA' if device == 0 else 'CPU'}")
+        pipe = pipeline("text-classification", model=model_id, device=device, top_k=None)
+    else:
+        logger.info(f"Loading zero-shot model {model_id!r} on {'CUDA' if device == 0 else 'CPU'}")
+        pipe = pipeline("zero-shot-classification", model=model_id, device=device)
     logger.success("Model loaded.")
     return pipe
 
@@ -90,20 +108,34 @@ def _build_text(item: dict[str, Any]) -> str:
 
 
 def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
-    label_map = _get_labels(lang)
-    candidate_labels = list(label_map.values())
-    result = pipe(text, candidate_labels, multi_label=False)
-    reverse_map = {v: k for k, v in label_map.items()}
-    scores: dict[str, float] = {
-        reverse_map[lbl]: round(score, 6)
-        for lbl, score in zip(result["labels"], result["scores"])
-    }
-    top_canonical = reverse_map[result["labels"][0]]
-    return {
-        "sentiment_label": top_canonical,
-        "sentiment_score": round(result["scores"][0], 6),
-        "sentiment_scores": scores,
-    }
+    if _is_finetuned_mode():
+        # Fine-tuned text-classification pipeline returns list of {label, score} dicts
+        raw = pipe(text, truncation=True, max_length=128)[0]
+        scores: dict[str, float] = {
+            _FINETUNED_LABEL_MAP.get(r["label"], r["label"]): round(r["score"], 6)
+            for r in raw
+        }
+        top = max(scores, key=lambda k: scores[k])
+        return {
+            "sentiment_label": top,
+            "sentiment_score": round(scores[top], 6),
+            "sentiment_scores": scores,
+        }
+    else:
+        label_map = _get_labels(lang)
+        candidate_labels = list(label_map.values())
+        result = pipe(text, candidate_labels, multi_label=False)
+        reverse_map = {v: k for k, v in label_map.items()}
+        scores = {
+            reverse_map[lbl]: round(score, 6)
+            for lbl, score in zip(result["labels"], result["scores"])
+        }
+        top_canonical = reverse_map[result["labels"][0]]
+        return {
+            "sentiment_label": top_canonical,
+            "sentiment_score": round(result["scores"][0], 6),
+            "sentiment_scores": scores,
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -177,7 +209,8 @@ def analyze(date_str: str | None = None, lang: str = DEFAULT_LANG) -> int:
 
     with mlflow.start_run(run_name=f"sentiment-{date_str}"):
         mlflow.log_params({
-            "model_id": HF_MODEL_ID,
+            "model_id": _active_model_id(),
+            "finetuned": _is_finetuned_mode(),
             "lang": lang,
             "date": date_str,
             "total_items": len(items),

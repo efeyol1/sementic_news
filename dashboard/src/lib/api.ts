@@ -3,11 +3,13 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 export interface SentimentCounts {
   positive: number;
   negative: number;
+  neutral?: number;
 }
 
 export interface SentimentPercentages {
   positive: number;
   negative: number;
+  neutral?: number;
 }
 
 export interface TodayResponse {
@@ -84,6 +86,19 @@ export interface DatesResponse {
   dates: string[];
 }
 
+export interface TrendPoint {
+  date: string;
+  positive: number;
+  negative: number;
+  neutral?: number;
+  total: number;
+  positive_pct: number;
+}
+
+export interface TrendResponse {
+  points: TrendPoint[];
+}
+
 export const api = {
   today: (date?: string) =>
     apiFetch<TodayResponse>("/api/today", date ? { date } : undefined),
@@ -98,6 +113,9 @@ export const api = {
     apiFetch<SimilarNewsResponse>("/api/similar", { q, n: String(n) }),
 
   dates: () => apiFetch<DatesResponse>("/api/dates"),
+
+  trend: (days = 30) =>
+    apiFetch<TrendResponse>("/api/trend", { days: String(days) }),
 };
 
 export function todayDate(): string {

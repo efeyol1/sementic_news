@@ -32,7 +32,7 @@ _FAKE_CLUSTER = {
     "size": 1,
     "keywords": ["test", "haber"],
     "sources": {"Test Kaynak": 1},
-    "sentiment_distribution": {"positive": 1},
+    "sentiment_distribution": {"positive": 1, "neutral": 0, "negative": 0},
 }
 
 

@@ -47,20 +47,35 @@ def preprocess(batch: dict, tokenizer: AutoTokenizer) -> dict:
 
 
 def get_tokenized_datasets(
-    tokenizer: AutoTokenizer, max_samples: int | None = None
+    tokenizer: AutoTokenizer,
+    max_samples: int | None = None,
+    start_idx: int | None = None,
+    end_idx: int | None = None,
+    shuffle_seed: int = 42,
 ):
+    """Load and tokenize the dataset.
+
+    Args:
+        max_samples: smoke-test cap (mutually exclusive with start_idx/end_idx).
+        start_idx, end_idx: slice the train set after a deterministic shuffle.
+            Use these for incremental/chunked training.
+        shuffle_seed: shuffle seed (kept constant across chunks so chunks
+            don't overlap and together cover the full dataset).
+    """
     train_ds = load_turkish_sentiment("train")
     val_ds = load_turkish_sentiment("test")
 
+    train_ds = train_ds.shuffle(seed=shuffle_seed)
+
     if max_samples is not None:
         train_ds = train_ds.select(range(min(max_samples, len(train_ds))))
-        val_ds = val_ds.select(
-            range(min(max_samples // 4, len(val_ds)))
-        )
-        logger.info(
-            f"SMOKE TEST — using {len(train_ds)} train "
-            f"/ {len(val_ds)} val samples"
-        )
+        val_ds = val_ds.select(range(min(max_samples // 4, len(val_ds))))
+        logger.info(f"SMOKE TEST — {len(train_ds)} train / {len(val_ds)} val samples")
+    elif start_idx is not None or end_idx is not None:
+        s = start_idx or 0
+        e = min(end_idx or len(train_ds), len(train_ds))
+        train_ds = train_ds.select(range(s, e))
+        logger.info(f"CHUNK [{s}:{e}] — {len(train_ds)} train samples")
 
     logger.info(f"Train size: {len(train_ds)} | Val size: {len(val_ds)}")
 
