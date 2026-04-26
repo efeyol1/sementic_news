@@ -36,7 +36,8 @@ jobs:
       - name: Run retraining
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL }}
-        run: python -m src.training.retrain --epochs 2 --batch-size 32
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: python -m src.training.retrain --epochs 2 --batch-size 32 --max-orig-samples 8000
 
       - name: Notify on failure
         if: failure()

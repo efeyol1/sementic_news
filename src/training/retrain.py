@@ -10,6 +10,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -41,7 +42,9 @@ MAX_NEWS_SAMPLES = 50_000
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _MODELS_DIR = _REPO_ROOT / "models"
 
-mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
+mlflow.set_tracking_uri(
+    os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
+)
 mlflow.set_experiment("turkish-sentiment")
 
 # ---------------------------------------------------------------------------
@@ -105,19 +108,24 @@ def retrain(
     epochs: int = 2,
     batch_size: int = 32,
     dry_run: bool = False,
+    max_orig_samples: int | None = None,
 ) -> dict:
     """Retrain production model on accumulated news + original data.
 
     Returns metrics dict with at least ``f1_macro``.
     """
-    logger.info(f"Retraining — min_confidence={min_confidence}, epochs={epochs}")
+    logger.info(
+        f"Retraining — min_confidence={min_confidence}, epochs={epochs}, "
+        f"max_orig_samples={max_orig_samples}"
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_ID)
 
-    # Original winvoker dataset (full)
-    orig_train, val_ds = get_tokenized_datasets(
-        tokenizer, max_samples=128 if dry_run else None
-    )
+    if dry_run:
+        orig_cap = 128
+    else:
+        orig_cap = max_orig_samples
+    orig_train, val_ds = get_tokenized_datasets(tokenizer, max_samples=orig_cap)
 
     # News dataset (high-confidence pseudo-labels)
     raw_news = _load_news_dataset(min_confidence)
@@ -172,6 +180,7 @@ def retrain(
             "epochs": epochs,
             "news_samples": len(news_train),
             "orig_samples": len(orig_train),
+            "max_orig_samples": max_orig_samples,
             "dry_run": dry_run,
         })
 
@@ -222,6 +231,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--min-confidence", type=float, default=MIN_CONFIDENCE)
     p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--batch-size", type=int, default=32)
+    p.add_argument(
+        "--max-orig-samples",
+        type=int,
+        default=None,
+        help="Cap original winvoker rows (full dataset if unset). Use to fit CPU runs in CI time budget.",
+    )
     p.add_argument("--dry-run", action="store_true", help="Quick smoke test, no HF push")
     return p.parse_args()
 
@@ -234,6 +249,7 @@ if __name__ == "__main__":
             epochs=args.epochs,
             batch_size=args.batch_size,
             dry_run=args.dry_run,
+            max_orig_samples=args.max_orig_samples,
         )
     except (FileNotFoundError, ValueError) as exc:
         logger.error(str(exc))
