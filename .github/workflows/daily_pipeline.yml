@@ -38,3 +38,11 @@ jobs:
 
       - name: Run pipeline
         run: python -m src.pipeline
+
+      - name: Drift check (sentiment distribution PSI)
+        # Fail-soft: drift instrumentation never blocks the daily run.
+        # Writes data/drift_reports/<date>.json and appends a summary
+        # to $GITHUB_STEP_SUMMARY when the baseline has ≥ 7 qualifying days.
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: python -m src.monitoring.drift

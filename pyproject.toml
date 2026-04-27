@@ -48,6 +48,9 @@ select = ["E", "F", "I"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "behavioral: Behavioral / CheckList tests against the production sentiment model. Loads a real HF model — slower than unit tests. Run with `pytest -m behavioral` or skip with `pytest -m 'not behavioral'`.",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src"]

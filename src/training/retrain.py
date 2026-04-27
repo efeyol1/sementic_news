@@ -11,6 +11,7 @@ Usage:
 
 import argparse
 import os
+import subprocess
 import sys
 from datetime import date
 from pathlib import Path
@@ -29,7 +30,12 @@ from transformers import (
 
 from src.data.dataset import ID2LABEL, LABEL2ID, get_tokenized_datasets
 from src.db.queries import fetch_high_confidence_items
-from src.training.evaluate import compute_metrics, print_classification_report
+from src.training.evaluate import (
+    compute_metrics,
+    confusion_matrix_dict,
+    min_per_class_f1,
+    print_classification_report,
+)
 
 # ---------------------------------------------------------------------------
 # Config
@@ -80,6 +86,40 @@ def _load_news_dataset(min_confidence: float, max_samples: int = MAX_NEWS_SAMPLE
         )
 
     return Dataset.from_dict({"text": texts, "label": labels})
+
+
+def _run_behavioral_gate(candidate_path: Path) -> tuple[bool, str]:
+    """Run the regression-blocking behavioral suite against a candidate.
+
+    Uses ``-k must_pass`` so only the green tests are gated on. The strict
+    xfail watchlist is intentionally excluded — its whole point is to alert
+    via XPASS when a retrain improves the model, so we don't want it to
+    block a promotion that would resolve known failures.
+    """
+    env = {**os.environ, "BEHAVIORAL_MODEL_ID": str(candidate_path)}
+    try:
+        proc = subprocess.run(
+            [
+                "pytest",
+                "tests/behavioral",
+                "-m",
+                "behavioral",
+                "-k",
+                "must_pass",
+                "--tb=short",
+                "-q",
+            ],
+            env=env,
+            capture_output=True,
+            text=True,
+            timeout=900,
+            cwd=str(_REPO_ROOT),
+        )
+    except subprocess.TimeoutExpired:
+        return False, "behavioral suite timeout (>15 min)"
+
+    output = (proc.stdout or "") + "\n" + (proc.stderr or "")
+    return proc.returncode == 0, output
 
 
 def _tokenize_raw(ds: Dataset, tokenizer: AutoTokenizer) -> Dataset:
@@ -192,31 +232,64 @@ def retrain(
         mlflow.log_metrics(metrics)
 
         f1 = metrics.get("eval_f1_macro", 0.0)
+        per_class_floor = min_per_class_f1(metrics)
         preds_out = trainer.predict(val_ds)
         preds = np.argmax(preds_out.predictions, axis=-1)
         print_classification_report(preds_out.label_ids, preds, ID2LABEL)
 
-        logger.info(f"Retrain F1 macro: {f1:.4f}")
+        cm = confusion_matrix_dict(preds_out.label_ids, preds, ID2LABEL)
+        mlflow.log_dict(cm, "confusion_matrix.json")
+
+        logger.info(
+            f"Retrain F1 macro: {f1:.4f} | min per-class F1: {per_class_floor:.4f}"
+        )
 
         if dry_run:
             logger.info("DRY RUN — skipping HF Hub push")
             return metrics
 
-        # Push to HF Hub only if above threshold
-        if f1 >= 0.80:
-            logger.info(f"F1={f1:.4f} ≥ 0.80 — pushing to HuggingFace Hub...")
-            trainer.save_model(str(_MODELS_DIR / "retrained"))
-            tokenizer.save_pretrained(str(_MODELS_DIR / "retrained"))
+        # Save candidate locally so the behavioral suite can load it before
+        # we decide whether to promote to HF Hub.
+        candidate_dir = _MODELS_DIR / "retrained"
+        trainer.save_model(str(candidate_dir))
+        tokenizer.save_pretrained(str(candidate_dir))
+        logger.info(f"Candidate saved to {candidate_dir}")
 
+        logger.info("Running behavioral gate (must-pass) against candidate...")
+        behavioral_passed, behavioral_log = _run_behavioral_gate(candidate_dir)
+        mlflow.log_text(behavioral_log[-4000:], "behavioral_output.txt")
+        mlflow.set_tag("behavioral_passed", str(behavioral_passed))
+
+        # Quality gate: macro F1 ≥ 0.80, every class ≥ 0.70, behavioral green.
+        # Per-class floor blocks "macro looks healthy but minority collapsed"
+        # regressions; behavioral catches catastrophic class collapse the
+        # validation set won't surface (e.g., model only predicts neutral).
+        gate_macro = f1 >= 0.80
+        gate_per_class = per_class_floor >= 0.70
+        gate_behavioral = behavioral_passed
+
+        if gate_macro and gate_per_class and gate_behavioral:
+            logger.info(
+                f"Quality gate passed (macro={f1:.4f}, min_class={per_class_floor:.4f}, "
+                f"behavioral=PASS) — pushing to HuggingFace Hub..."
+            )
             model.push_to_hub(HF_MODEL_ID)
             tokenizer.push_to_hub(HF_MODEL_ID)
             mlflow.set_tag("deployed", "true")
             logger.success(f"Model pushed to {HF_MODEL_ID}")
         else:
+            reason = []
+            if not gate_macro:
+                reason.append(f"macro F1 {f1:.4f} < 0.80")
+            if not gate_per_class:
+                reason.append(f"min per-class F1 {per_class_floor:.4f} < 0.70")
+            if not gate_behavioral:
+                reason.append("behavioral suite failed")
             logger.warning(
-                f"F1={f1:.4f} < 0.80 — model NOT pushed (quality gate failed)"
+                "Quality gate failed (" + "; ".join(reason) + ") — model NOT pushed"
             )
             mlflow.set_tag("deployed", "false")
+            mlflow.set_tag("gate_failure", "; ".join(reason))
 
     return metrics
 
