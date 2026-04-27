@@ -6,6 +6,7 @@ import { EntityCloud } from "@/components/ui/EntityCloud";
 import { ClusterGrid } from "@/components/ui/ClusterGrid";
 import { SentimentPieChart } from "@/components/charts/SentimentPieChart";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { SentimentTrendChart } from "@/components/charts/SentimentTrendChart";
 import { Globe2 } from "lucide-react";
 
 interface Props {
@@ -13,7 +14,10 @@ interface Props {
 }
 
 async function DashboardContent({ date }: { date: string }) {
-  const data = await api.today(date).catch(() => null);
+  const [data, trendData] = await Promise.all([
+    api.today(date).catch(() => null),
+    api.trend(30).catch(() => null),
+  ]);
 
   if (!data) {
     return (
@@ -31,8 +35,17 @@ async function DashboardContent({ date }: { date: string }) {
 
   const positivePct = data.sentiment.percentages.positive ?? 0;
   const negativePct = data.sentiment.percentages.negative ?? 0;
-  const dominantLabel = negativePct > positivePct ? "Ağırlıklı Negatif" : "Ağırlıklı Pozitif";
-  const dominantClass = negativePct > positivePct ? "negative-badge" : "positive-badge";
+  const neutralPct = data.sentiment.percentages.neutral ?? 0;
+  const dominantPct = Math.max(positivePct, negativePct, neutralPct);
+  let dominantLabel = "Ağırlıklı Pozitif";
+  let dominantClass = "positive-badge";
+  if (dominantPct === negativePct && negativePct > 0) {
+    dominantLabel = "Ağırlıklı Negatif";
+    dominantClass = "negative-badge";
+  } else if (dominantPct === neutralPct && neutralPct > 0) {
+    dominantLabel = "Ağırlıklı Nötr";
+    dominantClass = "neutral-badge";
+  }
 
   return (
     <div className="space-y-7">
@@ -89,6 +102,35 @@ async function DashboardContent({ date }: { date: string }) {
           <EntityCloud entities={data.top_entities} />
         </div>
       </div>
+
+      {/* Trend chart */}
+      {trendData && trendData.points.length > 1 && (
+        <div className="card p-6">
+          <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+            <div>
+              <h2 className="text-base font-semibold text-slate-800">Sentiment Trendi</h2>
+              <p className="text-sm text-slate-500 mt-0.5">Son 30 günlük haber sayısı</p>
+            </div>
+            <div className="flex items-center gap-4 text-xs text-slate-500">
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 bg-green-500 rounded inline-block" />
+                Pozitif
+              </span>
+              {trendData.points.some((p) => (p.neutral ?? 0) > 0) && (
+                <span className="flex items-center gap-1.5">
+                  <span className="w-3 h-0.5 bg-slate-400 rounded inline-block" style={{ borderTop: "1.5px dashed #94a3b8", height: 0 }} />
+                  Nötr
+                </span>
+              )}
+              <span className="flex items-center gap-1.5">
+                <span className="w-3 h-0.5 bg-red-400 rounded inline-block" />
+                Negatif
+              </span>
+            </div>
+          </div>
+          <SentimentTrendChart points={trendData.points} />
+        </div>
+      )}
 
       {/* Clusters */}
       <div>

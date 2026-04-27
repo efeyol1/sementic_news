@@ -30,6 +30,18 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--lr", type=float, default=2e-5)
     p.add_argument("--max-steps", type=int, default=-1, help="Set low for smoke test")
     p.add_argument("--dry-run", action="store_true", help="5-step smoke test")
+    p.add_argument(
+        "--chunk", type=int, default=None,
+        help="Chunk index for incremental training (0-based, used with --chunk-size)"
+    )
+    p.add_argument(
+        "--chunk-size", type=int, default=20_000,
+        help="Samples per chunk (default: 20000 ≈ 30-40 min on CPU)"
+    )
+    p.add_argument(
+        "--no-resume", action="store_true",
+        help="Don't auto-resume from models/best/ — start fresh from base model"
+    )
     return p.parse_args()
 
 
@@ -37,23 +49,45 @@ def main():
     args = parse_args()
 
     max_samples = None
+    start_idx, end_idx = None, None
     if args.dry_run:
         logger.info("DRY RUN MODE — 5 steps, 128 samples only")
         args.max_steps = 5
         args.epochs = 1
         max_samples = 128
+    elif args.chunk is not None:
+        start_idx = args.chunk * args.chunk_size
+        end_idx = start_idx + args.chunk_size
+        logger.info(f"CHUNK MODE — chunk={args.chunk}, range=[{start_idx}:{end_idx}]")
 
-    logger.info(f"Loading tokenizer and model: {MODEL_NAME}")
-    tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
-    model = AutoModelForSequenceClassification.from_pretrained(
-        MODEL_NAME,
-        num_labels=3,
-        id2label=ID2LABEL,
-        label2id=LABEL2ID,
-        ignore_mismatched_sizes=True,
+    best_dir = MODELS_DIR / "best"
+    resume = best_dir.exists() and not args.no_resume and not args.dry_run
+
+    if resume:
+        logger.info(f"Resuming from previous checkpoint: {best_dir}")
+        tokenizer = AutoTokenizer.from_pretrained(str(best_dir))
+        model = AutoModelForSequenceClassification.from_pretrained(str(best_dir))
+        # Lower LR on resume to mitigate catastrophic forgetting
+        if args.lr == 2e-5:
+            args.lr = 5e-6
+            logger.info(f"Auto-lowered LR to {args.lr} for resumed training")
+    else:
+        logger.info(f"Loading base model: {MODEL_NAME}")
+        tokenizer = AutoTokenizer.from_pretrained(MODEL_NAME)
+        model = AutoModelForSequenceClassification.from_pretrained(
+            MODEL_NAME,
+            num_labels=3,
+            id2label=ID2LABEL,
+            label2id=LABEL2ID,
+            ignore_mismatched_sizes=True,
+        )
+
+    train_ds, val_ds = get_tokenized_datasets(
+        tokenizer,
+        max_samples=max_samples,
+        start_idx=start_idx,
+        end_idx=end_idx,
     )
-
-    train_ds, val_ds = get_tokenized_datasets(tokenizer, max_samples=max_samples)
 
     training_args = TrainingArguments(
         output_dir=str(MODELS_DIR / "checkpoints"),
@@ -80,13 +114,21 @@ def main():
         compute_metrics=compute_metrics,
     )
 
-    with mlflow.start_run(run_name="bert-turkish-sentiment"):
+    run_name = (
+        f"chunk-{args.chunk}" if args.chunk is not None
+        else "bert-turkish-sentiment"
+    )
+    with mlflow.start_run(run_name=run_name):
         mlflow.log_params({
             "model_name": MODEL_NAME,
             "epochs": args.epochs,
             "batch_size": args.batch_size,
             "learning_rate": args.lr,
             "max_length": 128,
+            "resumed": resume,
+            "chunk": args.chunk,
+            "chunk_size": args.chunk_size if args.chunk is not None else None,
+            "train_samples": len(train_ds),
         })
 
         logger.info("Training started...")

@@ -100,6 +100,7 @@ async function SourcesContent({ date }: { date: string }) {
                 <th className="text-left py-2.5 px-3 text-slate-400 font-medium">Kaynak</th>
                 <th className="text-right py-2.5 px-3 text-slate-400 font-medium">Haber</th>
                 <th className="text-right py-2.5 px-3 text-green-600 font-medium">Pozitif</th>
+                <th className="text-right py-2.5 px-3 text-slate-500 font-medium">Nötr</th>
                 <th className="text-right py-2.5 px-3 text-red-500 font-medium">Negatif</th>
                 <th className="text-right py-2.5 px-3 text-slate-400 font-medium">Güven</th>
               </tr>
@@ -111,6 +112,9 @@ async function SourcesContent({ date }: { date: string }) {
                   <td className="py-2.5 px-3 text-right font-mono text-slate-500">{stats.total}</td>
                   <td className="py-2.5 px-3 text-right font-mono text-green-600">
                     %{(stats.sentiment_percentages.positive ?? 0).toFixed(1)}
+                  </td>
+                  <td className="py-2.5 px-3 text-right font-mono text-slate-500">
+                    %{(stats.sentiment_percentages.neutral ?? 0).toFixed(1)}
                   </td>
                   <td className="py-2.5 px-3 text-right font-mono text-red-500">
                     %{(stats.sentiment_percentages.negative ?? 0).toFixed(1)}

@@ -377,3 +377,50 @@ def fetch_available_dates() -> list[str]:
                 "SELECT DISTINCT collected_date FROM news_items ORDER BY collected_date"
             )
             return [str(row[0]) for row in cur.fetchall()]
+
+
+def fetch_high_confidence_items(min_confidence: float = 0.85, max_samples: int = 50_000) -> list[dict[str, Any]]:
+    """Return high-confidence Turkish news items for retraining.
+
+    Returns id, cleaned_title, cleaned_summary, sentiment_label, sentiment_score.
+    Ordered oldest-first so recency cap (LIMIT) keeps the most recent examples.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT cleaned_title, cleaned_summary, sentiment_label, sentiment_score
+                FROM news_items
+                WHERE is_turkish = true
+                  AND sentiment_label IS NOT NULL
+                  AND sentiment_score >= %s
+                ORDER BY collected_date DESC
+                LIMIT %s
+                """,
+                (min_confidence, max_samples),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+def fetch_sentiment_trend(days: int = 30) -> list[dict[str, Any]]:
+    """Return daily sentiment counts for the last *days* days, ordered ascending."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    collected_date::text AS date,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'positive') AS positive,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'negative') AS negative,
+                    COUNT(*) FILTER (WHERE sentiment_label = 'neutral')  AS neutral,
+                    COUNT(*) AS total
+                FROM news_items
+                WHERE is_turkish = true
+                  AND sentiment_label IS NOT NULL
+                  AND collected_date >= CURRENT_DATE - %s::int
+                GROUP BY collected_date
+                ORDER BY collected_date
+                """,
+                (days,),
+            )
+            return [dict(row) for row in cur.fetchall()]

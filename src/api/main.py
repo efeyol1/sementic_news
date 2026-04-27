@@ -13,6 +13,7 @@ from src.db.queries import (
     fetch_all_for_api,
     fetch_available_dates,
     fetch_cluster_summaries,
+    fetch_sentiment_trend,
 )
 from src.db.schema import init_db
 
@@ -73,11 +74,13 @@ def _startup():
 class SentimentCounts(BaseModel):
     positive: int = Field(..., example=264)
     negative: int = Field(..., example=276)
+    neutral: int = Field(0, example=120)
 
 
 class SentimentPercentages(BaseModel):
     positive: float = Field(..., example=48.9)
     negative: float = Field(..., example=51.1)
+    neutral: float = Field(0.0, example=18.2)
 
 
 class SentimentSummary(BaseModel):
@@ -163,6 +166,19 @@ class DatesResponse(BaseModel):
     dates: list[str] = Field(..., example=["2026-04-20", "2026-04-21"])
 
 
+class TrendPoint(BaseModel):
+    date: str = Field(..., example="2026-04-20")
+    positive: int
+    negative: int
+    neutral: int = 0
+    total: int
+    positive_pct: float
+
+
+class TrendResponse(BaseModel):
+    points: list[TrendPoint]
+
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -221,10 +237,14 @@ def today(
     n = len(turkish)
 
     _counts = Counter(i.get("sentiment_label") for i in turkish if i.get("sentiment_label"))
-    sentiment_counts = {"positive": _counts.get("positive", 0), "negative": _counts.get("negative", 0)}
+    sentiment_counts = {
+        "positive": _counts.get("positive", 0),
+        "negative": _counts.get("negative", 0),
+        "neutral":  _counts.get("neutral", 0),
+    }
     sentiment_pct = (
         {k: round(v / n * 100, 1) for k, v in sentiment_counts.items()}
-        if n else {"positive": 0.0, "negative": 0.0}
+        if n else {"positive": 0.0, "negative": 0.0, "neutral": 0.0}
     )
 
     entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
@@ -362,6 +382,30 @@ def source_comparison(
 )
 def available_dates():
     return {"dates": fetch_available_dates()}
+
+
+@app.get(
+    "/api/trend",
+    tags=["Analiz"],
+    summary="Çok günlük sentiment trendi",
+    response_model=TrendResponse,
+)
+def sentiment_trend(
+    days: int = Query(default=30, ge=7, le=90, description="Kaç günlük veri"),
+):
+    rows = fetch_sentiment_trend(days)
+    points = [
+        {
+            "date": r["date"],
+            "positive": r["positive"],
+            "negative": r["negative"],
+            "neutral": r.get("neutral", 0) or 0,
+            "total": r["total"],
+            "positive_pct": round(r["positive"] / r["total"] * 100, 1) if r["total"] else 0.0,
+        }
+        for r in rows
+    ]
+    return {"points": points}
 
 
 @app.get(

@@ -10,8 +10,9 @@ interface Props {
 export function SentimentPieChart({ counts }: Props) {
   const data = [
     { name: "Pozitif", value: counts.positive ?? 0, color: "#22c55e" },
+    { name: "Nötr",    value: counts.neutral ?? 0,  color: "#94a3b8" },
     { name: "Negatif", value: counts.negative ?? 0, color: "#f87171" },
-  ];
+  ].filter((d) => d.value > 0);
 
   return (
     <ResponsiveContainer width="100%" height={200}>

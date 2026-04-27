@@ -34,7 +34,10 @@ jobs:
         run: huggingface-cli login --token ${{ secrets.HF_TOKEN }} || hf auth login --token ${{ secrets.HF_TOKEN }}
 
       - name: Run retraining
-        run: python -m src.training.retrain --epochs 2 --batch-size 32
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: python -m src.training.retrain --epochs 2 --batch-size 32 --max-orig-samples 8000
 
       - name: Notify on failure
         if: failure()

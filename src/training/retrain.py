@@ -1,7 +1,7 @@
 """Weekly retraining pipeline using accumulated news data.
 
-Loads high-confidence predictions from data/analyzed/*.json, mixes them
-with the original winvoker dataset, and retrains the production model.
+Loads high-confidence predictions from PostgreSQL, mixes them with the
+original winvoker dataset, and retrains the production model.
 Pushes to HuggingFace Hub only if F1 improves over the current model.
 
 Usage:
@@ -10,7 +10,7 @@ Usage:
 """
 
 import argparse
-import json
+import os
 import sys
 from datetime import date
 from pathlib import Path
@@ -28,6 +28,7 @@ from transformers import (
 )
 
 from src.data.dataset import ID2LABEL, LABEL2ID, get_tokenized_datasets
+from src.db.queries import fetch_high_confidence_items
 from src.training.evaluate import compute_metrics, print_classification_report
 
 # ---------------------------------------------------------------------------
@@ -36,13 +37,14 @@ from src.training.evaluate import compute_metrics, print_classification_report
 
 HF_MODEL_ID = "efeyol11/bert-turkish-sentiment"
 MIN_CONFIDENCE = 0.85
-MAX_NEWS_SAMPLES = 50_000   # cap to avoid overshadowing original dataset
+MAX_NEWS_SAMPLES = 50_000
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-_ANALYZED_DIR = _REPO_ROOT / "data" / "analyzed"
 _MODELS_DIR = _REPO_ROOT / "models"
 
-mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
+mlflow.set_tracking_uri(
+    os.environ.get("MLFLOW_TRACKING_URI", f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
+)
 mlflow.set_experiment("turkish-sentiment")
 
 # ---------------------------------------------------------------------------
@@ -50,46 +52,32 @@ mlflow.set_experiment("turkish-sentiment")
 # ---------------------------------------------------------------------------
 
 
-def _load_news_dataset(min_confidence: float) -> Dataset:
-    """Load high-confidence predictions from all analyzed JSON files."""
+def _load_news_dataset(min_confidence: float, max_samples: int = MAX_NEWS_SAMPLES) -> Dataset:
+    """Load high-confidence predictions from PostgreSQL."""
+    rows = fetch_high_confidence_items(min_confidence=min_confidence, max_samples=max_samples)
+
     texts, labels = [], []
-
-    json_files = sorted(_ANALYZED_DIR.glob("????-??-??.json"))
-    if not json_files:
-        raise FileNotFoundError(f"No analyzed files found in {_ANALYZED_DIR}")
-
-    for path in json_files:
-        with path.open(encoding="utf-8") as fh:
-            items = json.load(fh)
-        for item in items:
-            if not item.get("is_turkish"):
-                continue
-            label = item.get("sentiment_label")
-            score = item.get("sentiment_score", 0.0)
-            if label not in LABEL2ID or score < min_confidence:
-                continue
-            title = item.get("cleaned_title", "") or ""
-            summary = item.get("cleaned_summary", "") or ""
-            text = f"{title}. {summary}".strip()
-            if len(text) >= 20:
-                texts.append(text)
-                labels.append(LABEL2ID[label])
+    for row in rows:
+        label = row.get("sentiment_label")
+        if label not in LABEL2ID:
+            continue
+        title = row.get("cleaned_title") or ""
+        summary = row.get("cleaned_summary") or ""
+        text = f"{title}. {summary}".strip()
+        if len(text) >= 20:
+            texts.append(text)
+            labels.append(LABEL2ID[label])
 
     logger.info(
         f"Loaded {len(texts)} high-confidence news examples "
-        f"(confidence ≥ {min_confidence}) from {len(json_files)} files"
+        f"(confidence ≥ {min_confidence}) from PostgreSQL"
     )
 
     if not texts:
         raise ValueError(
-            f"No examples with confidence ≥ {min_confidence}. "
+            f"No examples with confidence ≥ {min_confidence} in DB. "
             "Lower --min-confidence or run more pipeline days first."
         )
-
-    if len(texts) > MAX_NEWS_SAMPLES:
-        logger.info(f"Capping to {MAX_NEWS_SAMPLES} most recent examples")
-        texts = texts[-MAX_NEWS_SAMPLES:]
-        labels = labels[-MAX_NEWS_SAMPLES:]
 
     return Dataset.from_dict({"text": texts, "label": labels})
 
@@ -120,19 +108,24 @@ def retrain(
     epochs: int = 2,
     batch_size: int = 32,
     dry_run: bool = False,
+    max_orig_samples: int | None = None,
 ) -> dict:
     """Retrain production model on accumulated news + original data.
 
     Returns metrics dict with at least ``f1_macro``.
     """
-    logger.info(f"Retraining — min_confidence={min_confidence}, epochs={epochs}")
+    logger.info(
+        f"Retraining — min_confidence={min_confidence}, epochs={epochs}, "
+        f"max_orig_samples={max_orig_samples}"
+    )
 
     tokenizer = AutoTokenizer.from_pretrained(HF_MODEL_ID)
 
-    # Original winvoker dataset (full)
-    orig_train, val_ds = get_tokenized_datasets(
-        tokenizer, max_samples=128 if dry_run else None
-    )
+    if dry_run:
+        orig_cap = 128
+    else:
+        orig_cap = max_orig_samples
+    orig_train, val_ds = get_tokenized_datasets(tokenizer, max_samples=orig_cap)
 
     # News dataset (high-confidence pseudo-labels)
     raw_news = _load_news_dataset(min_confidence)
@@ -187,6 +180,7 @@ def retrain(
             "epochs": epochs,
             "news_samples": len(news_train),
             "orig_samples": len(orig_train),
+            "max_orig_samples": max_orig_samples,
             "dry_run": dry_run,
         })
 
@@ -237,6 +231,12 @@ def _parse_args() -> argparse.Namespace:
     p.add_argument("--min-confidence", type=float, default=MIN_CONFIDENCE)
     p.add_argument("--epochs", type=int, default=2)
     p.add_argument("--batch-size", type=int, default=32)
+    p.add_argument(
+        "--max-orig-samples",
+        type=int,
+        default=None,
+        help="Cap original winvoker rows (full dataset if unset). Use to fit CPU runs in CI time budget.",
+    )
     p.add_argument("--dry-run", action="store_true", help="Quick smoke test, no HF push")
     return p.parse_args()
 
@@ -249,6 +249,7 @@ if __name__ == "__main__":
             epochs=args.epochs,
             batch_size=args.batch_size,
             dry_run=args.dry_run,
+            max_orig_samples=args.max_orig_samples,
         )
     except (FileNotFoundError, ValueError) as exc:
         logger.error(str(exc))
