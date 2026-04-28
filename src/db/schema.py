@@ -59,6 +59,21 @@ CREATE TABLE IF NOT EXISTS cluster_summaries (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cluster_date ON cluster_summaries(date);
+
+CREATE TABLE IF NOT EXISTS drift_reports (
+    date            DATE PRIMARY KEY,
+    status          TEXT NOT NULL,
+    psi             DOUBLE PRECISION,
+    severity        TEXT,
+    baseline_days   INTEGER,
+    today_total     INTEGER,
+    today_ratios    JSONB,
+    baseline_ratios JSONB,
+    per_class_delta JSONB,
+    computed_at     TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE INDEX IF NOT EXISTS idx_drift_date ON drift_reports(date DESC);
 """
 
 

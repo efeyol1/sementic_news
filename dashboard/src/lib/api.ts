@@ -119,5 +119,8 @@ export const api = {
 };
 
 export function todayDate(): string {
-  return new Date().toISOString().split("T")[0];
+  // toISOString() returns UTC, which lags Türkiye by 3 hours and would point
+  // the dashboard at "tomorrow" or a not-yet-ingested day around midnight TR.
+  // en-CA locale produces YYYY-MM-DD; Europe/Istanbul keeps it in local time.
+  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" });
 }

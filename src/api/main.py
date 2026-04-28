@@ -9,10 +9,13 @@ from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
 from src.analysis.vector_store import find_similar
+from src.api import drift_metrics  # noqa: F401  registers Prometheus collector on import
 from src.db.queries import (
     fetch_all_for_api,
     fetch_available_dates,
     fetch_cluster_summaries,
+    fetch_drift_history,
+    fetch_latest_drift_report,
     fetch_sentiment_trend,
 )
 from src.db.schema import init_db
@@ -436,3 +439,30 @@ def similar_news(
             for r in results
         ],
     }
+
+
+@app.get(
+    "/api/drift/latest",
+    tags=["Sistem"],
+    summary="En son drift raporu (PSI + per-class delta)",
+    responses={404: {"description": "Henüz drift raporu üretilmedi"}},
+)
+def latest_drift():
+    row = fetch_latest_drift_report()
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail="Henüz drift raporu yok — daily pipeline'ın drift step'inin çalışmasını bekleyin.",
+        )
+    return row
+
+
+@app.get(
+    "/api/drift/history",
+    tags=["Sistem"],
+    summary="Drift raporları zaman serisi",
+)
+def drift_history(
+    days: int = Query(default=30, ge=7, le=180, description="Kaç günlük geriye"),
+):
+    return {"reports": fetch_drift_history(days)}

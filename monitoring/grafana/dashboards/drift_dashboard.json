@@ -1,0 +1,117 @@
+{
+  "title": "Semantic News TR — Model Drift",
+  "uid": "semantic-news-drift",
+  "timezone": "browser",
+  "tags": ["mlops", "drift", "sentiment"],
+  "panels": [
+    {
+      "id": 1,
+      "title": "PSI — Sentiment Distribution Drift",
+      "type": "timeseries",
+      "description": "Population Stability Index of today's sentiment-label distribution vs the rolling 30-day baseline. < 0.10 stable, < 0.25 moderate, ≥ 0.25 significant.",
+      "gridPos": { "x": 0, "y": 0, "w": 16, "h": 8 },
+      "targets": [
+        {
+          "expr": "news_sentiment_drift_psi",
+          "legendFormat": "PSI"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 0.10 },
+              { "color": "red", "value": 0.25 }
+            ]
+          },
+          "custom": {
+            "thresholdsStyle": { "mode": "line" }
+          }
+        }
+      }
+    },
+    {
+      "id": 2,
+      "title": "Severity",
+      "type": "stat",
+      "description": "0 = stable, 1 = moderate, 2 = significant, -1 = insufficient_data",
+      "gridPos": { "x": 16, "y": 0, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "news_sentiment_drift_severity"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "-1": { "text": "insufficient", "color": "blue" } } },
+            { "type": "value", "options": { "0":  { "text": "stable",       "color": "green" } } },
+            { "type": "value", "options": { "1":  { "text": "moderate",     "color": "yellow" } } },
+            { "type": "value", "options": { "2":  { "text": "significant",  "color": "red" } } }
+          ],
+          "color": { "mode": "thresholds" }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "Baseline Days Available",
+      "type": "stat",
+      "description": "Qualifying days (≥ 50 rows each) in the rolling baseline window. Need ≥ 7 for PSI to compute.",
+      "gridPos": { "x": 16, "y": 4, "w": 8, "h": 4 },
+      "targets": [
+        {
+          "expr": "news_sentiment_drift_baseline_days"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 7 },
+              { "color": "green",  "value": 14 }
+            ]
+          },
+          "color": { "mode": "thresholds" }
+        }
+      }
+    },
+    {
+      "id": 4,
+      "title": "Per-Class Δ (today − baseline)",
+      "type": "timeseries",
+      "description": "Positive Δ means the class is over-represented today vs the baseline window.",
+      "gridPos": { "x": 0, "y": 8, "w": 24, "h": 8 },
+      "targets": [
+        {
+          "expr": "news_sentiment_drift_delta_negative",
+          "legendFormat": "negative"
+        },
+        {
+          "expr": "news_sentiment_drift_delta_neutral",
+          "legendFormat": "neutral"
+        },
+        {
+          "expr": "news_sentiment_drift_delta_positive",
+          "legendFormat": "positive"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "custom": {
+            "drawStyle": "line",
+            "fillOpacity": 10
+          },
+          "unit": "percentunit"
+        }
+      }
+    }
+  ],
+  "schemaVersion": 38,
+  "version": 1,
+  "refresh": "1m"
+}

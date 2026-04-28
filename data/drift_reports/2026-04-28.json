@@ -1,0 +1,8 @@
+{
+  "date": "2026-04-28",
+  "window_days": 30,
+  "baseline_days": 3,
+  "computed_at": "2026-04-28T11:04:53.121250+00:00",
+  "status": "insufficient_data",
+  "reason": "baseline has 3 qualifying day(s); need ≥ 7"
+}

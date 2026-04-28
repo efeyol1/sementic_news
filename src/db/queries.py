@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import psycopg2.extras
@@ -420,6 +421,88 @@ def fetch_sentiment_trend(days: int = 30) -> list[dict[str, Any]]:
                   AND collected_date >= CURRENT_DATE - %s::int
                 GROUP BY collected_date
                 ORDER BY collected_date
+                """,
+                (days,),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+# ---------------------------------------------------------------------------
+# Drift reports
+# ---------------------------------------------------------------------------
+
+
+def upsert_drift_report(report: dict[str, Any]) -> None:
+    """Persist a drift report so the API can expose it as a Prometheus gauge.
+
+    Idempotent on ``(date)``. Re-running the daily drift step overwrites the
+    prior row for that day, which matches our daily-pipeline semantics.
+    """
+    today = report.get("today") or {}
+    baseline = report.get("baseline") or {}
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO drift_reports (
+                    date, status, psi, severity, baseline_days,
+                    today_total, today_ratios, baseline_ratios, per_class_delta
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (date) DO UPDATE SET
+                    status          = EXCLUDED.status,
+                    psi             = EXCLUDED.psi,
+                    severity        = EXCLUDED.severity,
+                    baseline_days   = EXCLUDED.baseline_days,
+                    today_total     = EXCLUDED.today_total,
+                    today_ratios    = EXCLUDED.today_ratios,
+                    baseline_ratios = EXCLUDED.baseline_ratios,
+                    per_class_delta = EXCLUDED.per_class_delta,
+                    computed_at     = NOW()
+                """,
+                (
+                    report["date"],
+                    report.get("status"),
+                    report.get("psi"),
+                    report.get("severity"),
+                    report.get("baseline_days"),
+                    today.get("total"),
+                    json.dumps(today.get("ratios")) if today.get("ratios") else None,
+                    json.dumps(baseline.get("ratios")) if baseline.get("ratios") else None,
+                    json.dumps(report.get("per_class_delta")) if report.get("per_class_delta") else None,
+                ),
+            )
+
+
+def fetch_latest_drift_report() -> dict[str, Any] | None:
+    """Most recent drift row, or None if the table is empty."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT date::text AS date, status, psi, severity, baseline_days,
+                       today_total, today_ratios, baseline_ratios, per_class_delta,
+                       computed_at
+                FROM drift_reports
+                ORDER BY date DESC
+                LIMIT 1
+                """,
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+def fetch_drift_history(days: int = 30) -> list[dict[str, Any]]:
+    """Recent drift rows for trend charts; oldest first so charts plot left-to-right."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT date::text AS date, status, psi, severity, baseline_days,
+                       today_total, today_ratios, baseline_ratios, per_class_delta
+                FROM drift_reports
+                WHERE date >= CURRENT_DATE - %s::int
+                ORDER BY date
                 """,
                 (days,),
             )

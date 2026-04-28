@@ -33,7 +33,7 @@ import mlflow
 import numpy as np
 from loguru import logger
 
-from src.db.queries import fetch_sentiment_trend
+from src.db.queries import fetch_sentiment_trend, upsert_drift_report
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _REPORTS_DIR = _REPO_ROOT / "data" / "drift_reports"
@@ -131,6 +131,8 @@ def run_drift_check(target_date: str, window: int = 30) -> dict:
         report["status"] = "insufficient_data"
         report["reason"] = f"no rows for {target_date}"
         _persist(report)
+        _persist_to_db(report)
+        _emit_step_summary(report)
         return report
 
     if len(baseline_rows) < _BASELINE_MIN_DAYS:
@@ -140,6 +142,8 @@ def run_drift_check(target_date: str, window: int = 30) -> dict:
             f"need ≥ {_BASELINE_MIN_DAYS}"
         )
         _persist(report)
+        _persist_to_db(report)
+        _emit_step_summary(report)
         return report
 
     today_ratios = _ratios(today_row)
@@ -171,6 +175,7 @@ def run_drift_check(target_date: str, window: int = 30) -> dict:
     )
 
     _persist(report)
+    _persist_to_db(report)
     _log_to_mlflow(target_date, psi, severity, per_class_delta)
     _emit_step_summary(report)
 
@@ -195,6 +200,18 @@ def _persist(report: dict) -> Path:
     return out
 
 
+def _persist_to_db(report: dict) -> None:
+    """Mirror the JSON report into Postgres so the API can expose it.
+
+    Fail-soft: a DB hiccup mustn't kill the daily pipeline's drift step.
+    """
+    try:
+        upsert_drift_report(report)
+        logger.info(f"Drift report persisted to DB ({report.get('status')})")
+    except Exception as exc:
+        logger.warning(f"DB persist skipped: {exc}")
+
+
 def _log_to_mlflow(target_date: str, psi: float, severity: str, deltas: dict) -> None:
     try:
         with mlflow.start_run(run_name=f"drift-{target_date}"):
@@ -212,23 +229,37 @@ def _emit_step_summary(report: dict) -> None:
     if not summary_path:
         return
 
-    today = report["today"]["ratios"]
-    base = report["baseline"]["ratios"]
-    md = [
-        f"### Drift report — {report['date']}",
-        "",
-        f"- **PSI**: `{report['psi']}` → **{report['severity'].upper()}**",
-        f"- **Today**: {report['today']['total']} items "
-        f"(neg={today['negative']}, neu={today['neutral']}, pos={today['positive']})",
-        f"- **Baseline**: {report['baseline']['days_used']} day rolling avg "
-        f"(neg={base['negative']}, neu={base['neutral']}, pos={base['positive']})",
-        "",
-        "| Class | Δ vs baseline |",
-        "|---|---|",
-    ]
-    for label, delta in report["per_class_delta"].items():
-        md.append(f"| {label} | {delta:+.4f} |")
-    md.append("")
+    if report.get("status") == "insufficient_data":
+        md = [
+            f"### Drift report — {report['date']}",
+            "",
+            f"- **Status**: `insufficient_data`",
+            f"- **Reason**: {report.get('reason', 'unknown')}",
+            f"- **Baseline available**: {report.get('baseline_days', 0)} day(s)",
+            "",
+            "_PSI is suppressed until the baseline window has enough qualifying days "
+            f"(need ≥ {_BASELINE_MIN_DAYS}). The daily run keeps building history "
+            "automatically; no action required._",
+            "",
+        ]
+    else:
+        today = report["today"]["ratios"]
+        base = report["baseline"]["ratios"]
+        md = [
+            f"### Drift report — {report['date']}",
+            "",
+            f"- **PSI**: `{report['psi']}` → **{report['severity'].upper()}**",
+            f"- **Today**: {report['today']['total']} items "
+            f"(neg={today['negative']}, neu={today['neutral']}, pos={today['positive']})",
+            f"- **Baseline**: {report['baseline']['days_used']} day rolling avg "
+            f"(neg={base['negative']}, neu={base['neutral']}, pos={base['positive']})",
+            "",
+            "| Class | Δ vs baseline |",
+            "|---|---|",
+        ]
+        for label, delta in report["per_class_delta"].items():
+            md.append(f"| {label} | {delta:+.4f} |")
+        md.append("")
 
     with open(summary_path, "a", encoding="utf-8") as fh:
         fh.write("\n".join(md) + "\n")
