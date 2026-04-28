@@ -233,7 +233,7 @@ def _emit_step_summary(report: dict) -> None:
         md = [
             f"### Drift report — {report['date']}",
             "",
-            f"- **Status**: `insufficient_data`",
+            "- **Status**: `insufficient_data`",
             f"- **Reason**: {report.get('reason', 'unknown')}",
             f"- **Baseline available**: {report.get('baseline_days', 0)} day(s)",
             "",
