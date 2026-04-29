@@ -1,10 +1,12 @@
 """FastAPI application for Semantic News TR."""
 
 from collections import Counter, defaultdict
+from contextlib import asynccontextmanager
 from datetime import date
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
+from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
@@ -23,6 +25,18 @@ from src.db.schema import init_db
 # ---------------------------------------------------------------------------
 # App setup
 # ---------------------------------------------------------------------------
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Fail-soft: a transient DB hiccup at boot shouldn't keep the API
+    # offline — the daily pipeline / Render deploy hook already runs
+    # migrations, so missing them here is recoverable on the next request.
+    try:
+        init_db()
+    except Exception as exc:
+        logger.warning(f"DB init on startup failed: {exc}")
+    yield
+
 
 app = FastAPI(
     title="Semantic News TR API",
@@ -48,6 +62,7 @@ Habertürk · Hürriyet · NTV · CNN Türk · Sözcü · Milliyet · Sabah · T
         {"name": "Analiz", "description": "Günlük haber analizi endpoint'leri"},
         {"name": "Sistem", "description": "Sağlık kontrolü ve meta bilgiler"},
     ],
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -60,30 +75,21 @@ app.add_middleware(
 Instrumentator().instrument(app).expose(app)
 
 
-@app.on_event("startup")
-def _startup():
-    try:
-        init_db()
-    except Exception as exc:
-        import logging
-        logging.warning(f"DB init on startup failed: {exc}")
-
-
 # ---------------------------------------------------------------------------
 # Pydantic response models
 # ---------------------------------------------------------------------------
 
 
 class SentimentCounts(BaseModel):
-    positive: int = Field(..., example=264)
-    negative: int = Field(..., example=276)
-    neutral: int = Field(0, example=120)
+    positive: int = Field(..., examples=[264])
+    negative: int = Field(..., examples=[276])
+    neutral: int = Field(0, examples=[120])
 
 
 class SentimentPercentages(BaseModel):
-    positive: float = Field(..., example=48.9)
-    negative: float = Field(..., example=51.1)
-    neutral: float = Field(0.0, example=18.2)
+    positive: float = Field(..., examples=[48.9])
+    negative: float = Field(..., examples=[51.1])
+    neutral: float = Field(0.0, examples=[18.2])
 
 
 class SentimentSummary(BaseModel):
@@ -92,63 +98,63 @@ class SentimentSummary(BaseModel):
 
 
 class ClusterSummary(BaseModel):
-    cluster_id: int = Field(..., example=3)
-    title: str = Field(..., example="Ekonomi · Merkez Bankası")
-    size: int = Field(..., example=47)
-    keywords: list[str] = Field(..., example=["ekonomi", "dolar", "faiz"])
+    cluster_id: int = Field(..., examples=[3])
+    title: str = Field(..., examples=["Ekonomi · Merkez Bankası"])
+    size: int = Field(..., examples=[47])
+    keywords: list[str] = Field(..., examples=[["ekonomi", "dolar", "faiz"]])
 
 
 class TopEntities(BaseModel):
-    PER: list[str] = Field(..., example=["Erdoğan", "Trump"])
-    ORG: list[str] = Field(..., example=["TBMM", "Merkez Bankası"])
-    LOC: list[str] = Field(..., example=["Ankara", "İstanbul"])
+    PER: list[str] = Field(..., examples=[["Erdoğan", "Trump"]])
+    ORG: list[str] = Field(..., examples=[["TBMM", "Merkez Bankası"]])
+    LOC: list[str] = Field(..., examples=[["Ankara", "İstanbul"]])
 
 
 class TodayResponse(BaseModel):
-    date: str = Field(..., example="2026-04-20")
-    total_items: int = Field(..., example=545)
-    turkish_items: int = Field(..., example=540)
-    sources: dict[str, int] = Field(..., example={"Cumhuriyet": 114})
+    date: str = Field(..., examples=["2026-04-20"])
+    total_items: int = Field(..., examples=[545])
+    turkish_items: int = Field(..., examples=[540])
+    sources: dict[str, int] = Field(..., examples=[{"Cumhuriyet": 114}])
     sentiment: SentimentSummary
     top_entities: TopEntities
-    cluster_count: int = Field(..., example=15)
+    cluster_count: int = Field(..., examples=[15])
     top_clusters: list[ClusterSummary]
-    available_dates: list[str] = Field(..., example=["2026-04-20"])
+    available_dates: list[str] = Field(..., examples=[["2026-04-20"]])
 
 
 class NewsItem(BaseModel):
-    title: str = Field(..., example="Kabine toplantısı ne zaman?")
-    source_name: str = Field(..., example="Habertürk")
-    published_date: str = Field(..., example="2026-04-20T07:30:00+00:00")
-    sentiment_label: str | None = Field(None, example="positive")
-    sentiment_score: float | None = Field(None, example=0.977)
+    title: str = Field(..., examples=["Kabine toplantısı ne zaman?"])
+    source_name: str = Field(..., examples=["Habertürk"])
+    published_date: str = Field(..., examples=["2026-04-20T07:30:00+00:00"])
+    sentiment_label: str | None = Field(None, examples=["positive"])
+    sentiment_score: float | None = Field(None, examples=[0.977])
     entities: dict[str, list[str]] | None = Field(None)
     link: str | None = Field(None)
 
 
 class TopicResponse(BaseModel):
-    date: str = Field(..., example="2026-04-20")
-    cluster_id: int = Field(..., example=3)
+    date: str = Field(..., examples=["2026-04-20"])
+    cluster_id: int = Field(..., examples=[3])
     keywords: list[str]
-    size: int = Field(..., example=47)
+    size: int = Field(..., examples=[47])
     sentiment_distribution: dict[str, int]
     news: list[NewsItem]
 
 
 class SourceStats(BaseModel):
-    total: int = Field(..., example=109)
+    total: int = Field(..., examples=[109])
     sentiment_counts: dict[str, int]
     sentiment_percentages: dict[str, float]
-    avg_confidence: float | None = Field(None, example=0.861)
+    avg_confidence: float | None = Field(None, examples=[0.861])
 
 
 class SourceComparisonResponse(BaseModel):
-    date: str = Field(..., example="2026-04-20")
+    date: str = Field(..., examples=["2026-04-20"])
     sources: dict[str, SourceStats]
 
 
 class HealthResponse(BaseModel):
-    status: str = Field(..., example="ok")
+    status: str = Field(..., examples=["ok"])
 
 
 class SimilarNewsItem(BaseModel):
@@ -157,7 +163,7 @@ class SimilarNewsItem(BaseModel):
     date: str
     sentiment_label: str
     link: str | None
-    similarity: float = Field(..., example=0.91)
+    similarity: float = Field(..., examples=[0.91])
 
 
 class SimilarNewsResponse(BaseModel):
@@ -166,11 +172,11 @@ class SimilarNewsResponse(BaseModel):
 
 
 class DatesResponse(BaseModel):
-    dates: list[str] = Field(..., example=["2026-04-20", "2026-04-21"])
+    dates: list[str] = Field(..., examples=[["2026-04-20", "2026-04-21"]])
 
 
 class TrendPoint(BaseModel):
-    date: str = Field(..., example="2026-04-20")
+    date: str = Field(..., examples=["2026-04-20"])
     positive: int
     negative: int
     neutral: int = 0

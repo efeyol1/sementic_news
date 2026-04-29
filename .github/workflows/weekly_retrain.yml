@@ -22,7 +22,10 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        # pipeline = mlflow/sklearn (drift + clustering); training =
+        # accelerate/datasets/dvc; serving = optimum[onnxruntime] for
+        # the post-retrain ONNX export + benchmark gate.
+        run: pip install -e ".[pipeline,training,serving,dev]"
 
       - name: Cache HuggingFace models
         uses: actions/cache@v4
@@ -44,6 +47,30 @@ jobs:
         # must-pass failures = real regression. xfail XPASS = retrain fixed
         # a known bias, time to promote that case to must-pass.
         run: pytest tests/behavioral -m behavioral -v --tb=short
+
+      - name: Export ONNX (fp32 + int8) from freshly promoted model
+        # Keeps models/onnx*/ in sync with the HF model just retrained.
+        # Without this step the int8 artifact drifts a week behind the
+        # PyTorch model the API serves.
+        run: python -m src.serving.onnx_export
+
+      - name: Benchmark inference (CI gate)
+        # Fails the workflow if ONNX prediction agreement vs the PyTorch
+        # baseline drops below 0.99 or if either ONNX backend isn't faster
+        # than PyTorch — a regression in the serving path is a release
+        # blocker.
+        run: python scripts/benchmark_inference.py
+
+      - name: Upload ONNX artifacts
+        # 90-day retention by default; downstream consumers (deploy job,
+        # local dev) can pull the int8 build from the workflow run.
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnx-models
+          path: |
+            models/onnx/
+            models/onnx_int8/
+          if-no-files-found: error
 
       - name: Notify on failure
         if: failure()

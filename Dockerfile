@@ -2,10 +2,12 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
-COPY requirements-api.txt .
-RUN pip install --no-cache-dir -r requirements-api.txt
-
+# Single source of truth = pyproject.toml. Copying src/ before install
+# because hatchling needs the package tree present to build the wheel.
+COPY pyproject.toml ./
 COPY src/ src/
+RUN pip install --no-cache-dir .
+
 COPY data/analyzed/ data/analyzed/
 
 EXPOSE 8000

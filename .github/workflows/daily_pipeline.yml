@@ -25,7 +25,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        # pipeline extra adds feedparser/bs4/langdetect/sklearn/mlflow —
+        # the daily run needs all of them. dev pulls in pytest/ruff/httpx.
+        run: pip install -e ".[pipeline,dev]"
 
       - name: Cache HuggingFace models
         uses: actions/cache@v4
@@ -37,12 +39,9 @@ jobs:
         run: python -m src.db.schema
 
       - name: Run pipeline
-        run: python -m src.pipeline
-
-      - name: Drift check (sentiment distribution PSI)
-        # Fail-soft: drift instrumentation never blocks the daily run.
-        # Writes data/drift_reports/<date>.json and appends a summary
-        # to $GITHUB_STEP_SUMMARY when the baseline has ≥ 7 qualifying days.
+        # Drift instrumentation runs as the final pipeline step (fail-soft);
+        # it writes data/drift_reports/<date>.json and appends to
+        # $GITHUB_STEP_SUMMARY when the baseline has enough qualifying days.
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
-        run: python -m src.monitoring.drift
+        run: python -m src.pipeline

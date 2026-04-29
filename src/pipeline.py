@@ -1,7 +1,11 @@
 """Full daily pipeline orchestrator.
 
 Runs the complete chain for a given date:
-    collect → preprocess → sentiment → ner → clustering
+    collect → preprocess → sentiment → ner → clustering → vector_store → drift
+
+The trailing ``drift`` step is fail-soft instrumentation: it never blocks
+the pipeline, but it writes ``data/drift_reports/<date>.json`` and (under
+GitHub Actions) appends a PSI summary to ``$GITHUB_STEP_SUMMARY``.
 
 Usage:
     python -m src.pipeline                    # run today's full pipeline
@@ -24,6 +28,7 @@ from src.analysis.sentiment import analyze
 from src.analysis.vector_store import index_date
 from src.data.preprocessor import preprocess
 from src.data.rss_collector import collect_all
+from src.monitoring.drift import run_drift_check
 
 # ---------------------------------------------------------------------------
 # Step runner
@@ -39,6 +44,22 @@ def _step(name: str, fn, *args, **kwargs):
     result = fn(*args, **kwargs)
     elapsed = time.perf_counter() - t0
     logger.success(f"✓ {name} completed in {elapsed:.1f}s → {result}")
+    return result
+
+
+def _step_soft(name: str, fn, *args, **kwargs):
+    """Like ``_step`` but swallows exceptions — for instrumentation that
+    must never block the pipeline (e.g. drift check)."""
+    logger.info(f"── Step: {name} (soft) ───────────────────")
+    t0 = time.perf_counter()
+    try:
+        result = fn(*args, **kwargs)
+    except Exception as exc:
+        elapsed = time.perf_counter() - t0
+        logger.warning(f"✗ {name} failed soft after {elapsed:.1f}s: {exc}")
+        return None
+    elapsed = time.perf_counter() - t0
+    logger.success(f"✓ {name} completed in {elapsed:.1f}s")
     return result
 
 
@@ -72,6 +93,7 @@ def run(
     _step("ner", extract_entities, date_str=date_str)
     _step("clustering", cluster_topics, date_str=date_str, n_clusters=n_clusters)
     _step("vector_store", index_date, date_str=date_str)
+    _step_soft("drift", run_drift_check, target_date=date_str)
 
     total = time.perf_counter() - wall_start
     logger.success(f"Pipeline complete — {date_str} finished in {total:.1f}s")

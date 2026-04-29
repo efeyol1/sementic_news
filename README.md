@@ -23,6 +23,24 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sent
 - **PostgreSQL** — Neon hosted, tüm pipeline verisi kalıcı
 - **MLflow** experiment tracking + model registry
 
+## Inference Benchmark — Türkçe Sentiment (CPU)
+
+Fine-tuned BERT (`efeyol11/bert-turkish-sentiment`), `max_length=128`, 100 prediction × 3 backend, Apple M-serisi CPU.
+
+| Backend | p50 (ms) | p95 (ms) | p99 (ms) | QPS | Speedup vs PyTorch | PyTorch ile uyum |
+|---|---|---|---|---|---|---|
+| PyTorch   | 10.74 | 10.87 | 11.05 | 93.0  | 1.00× | _baseline_ |
+| ONNX fp32 | 4.84  | 5.05  | 5.09  | 214.1 | 2.15× | 100.0% |
+| ONNX int8 | 2.47  | 2.86  | 2.97  | 411.0 | **3.80×** | 100.0% |
+
+ONNX export + dynamic int8 quantization HuggingFace `optimum` ile yapılıyor; benchmark script (`scripts/benchmark_inference.py`) CI gate olarak ≥%99 uyumu zorunlu kılıyor.
+
+```bash
+pip install -e ".[serving]"
+python -m src.serving.onnx_export
+python scripts/benchmark_inference.py
+```
+
 ## Kurulum
 
 ```bash
