@@ -1,8 +1,11 @@
 """FastAPI application for Semantic News TR."""
 
+import os
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from datetime import date
+from pathlib import Path as FilePath
+from typing import Callable
 
 from fastapi import FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +24,9 @@ from src.db.queries import (
     fetch_sentiment_trend,
 )
 from src.db.schema import init_db
+
+_REPO_ROOT = FilePath(__file__).resolve().parents[2]
+_DEFAULT_ONNX_DIR = _REPO_ROOT / "models" / "onnx_int8"
 
 # ---------------------------------------------------------------------------
 # App setup
@@ -68,11 +74,74 @@ Habertürk · Hürriyet · NTV · CNN Türk · Sözcü · Milliyet · Sabah · T
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_methods=["GET"],
+    allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )
 
 Instrumentator().instrument(app).expose(app)
+
+
+# ---------------------------------------------------------------------------
+# Sentiment predictor (lazy-loaded ONNX int8)
+# ---------------------------------------------------------------------------
+
+_BACKEND_NAME = "onnx_int8"
+_predictor_fn: Callable[[str], dict] | None = None
+
+
+def _load_onnx_predictor() -> Callable[[str], dict]:
+    """Build a callable that runs ONNX int8 sentiment inference.
+
+    Imports optimum lazily so module import stays light when the endpoint
+    isn't called (e.g. in unit tests that mock the predictor). The ONNX
+    directory is baked at container build time
+    (Dockerfile / render.yaml) — if it's missing we surface a 503 rather
+    than silently fall back to PyTorch, since the deployment is
+    misconfigured.
+    """
+    onnx_dir = FilePath(os.environ.get("SENTIMENT_ONNX_DIR") or _DEFAULT_ONNX_DIR)
+    if not onnx_dir.exists():
+        raise FileNotFoundError(
+            f"ONNX model not found at {onnx_dir}. The container build step "
+            "'python -m src.serving.onnx_export' likely failed or didn't run."
+        )
+
+    import torch
+    from optimum.onnxruntime import ORTModelForSequenceClassification
+    from transformers import AutoTokenizer
+
+    logger.info(f"Loading ONNX int8 sentiment model from {onnx_dir}")
+    tokenizer = AutoTokenizer.from_pretrained(str(onnx_dir))
+    model = ORTModelForSequenceClassification.from_pretrained(str(onnx_dir))
+    id2label = model.config.id2label
+
+    # The fine-tuned model emits raw HF labels (LABEL_0/1/2) from some uploads;
+    # remap to canonical strings so the API contract is stable across model
+    # versions.
+    _label_remap = {"LABEL_0": "negative", "LABEL_1": "neutral", "LABEL_2": "positive"}
+
+    def predict(text: str) -> dict:
+        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=128)
+        with torch.no_grad():
+            logits = model(**inputs).logits[0]
+        probs = torch.softmax(logits, dim=-1).tolist()
+        scores = {
+            _label_remap.get(id2label[i], id2label[i]): round(float(p), 6)
+            for i, p in enumerate(probs)
+        }
+        top = max(scores, key=scores.get)
+        return {"label": top, "score": scores[top], "scores": scores}
+
+    logger.success("ONNX int8 sentiment predictor ready")
+    return predict
+
+
+def _get_predictor() -> Callable[[str], dict]:
+    """Return the cached predictor, building it on first call."""
+    global _predictor_fn
+    if _predictor_fn is None:
+        _predictor_fn = _load_onnx_predictor()
+    return _predictor_fn
 
 
 # ---------------------------------------------------------------------------
@@ -186,6 +255,24 @@ class TrendPoint(BaseModel):
 
 class TrendResponse(BaseModel):
     points: list[TrendPoint]
+
+
+class PredictRequest(BaseModel):
+    text: str = Field(
+        ...,
+        min_length=3,
+        max_length=2000,
+        examples=["Merkez Bankası faiz oranlarını sabit tuttu."],
+    )
+
+
+class PredictResponse(BaseModel):
+    label: str = Field(..., examples=["neutral"])
+    score: float = Field(..., examples=[0.94])
+    scores: dict[str, float] = Field(
+        ..., examples=[{"negative": 0.03, "neutral": 0.94, "positive": 0.03}]
+    )
+    backend: str = Field(..., examples=["onnx_int8"])
 
 
 # ---------------------------------------------------------------------------
@@ -445,6 +532,26 @@ def similar_news(
             for r in results
         ],
     }
+
+
+@app.post(
+    "/api/predict",
+    tags=["Analiz"],
+    summary="Real-time sentiment sınıflandırması",
+    response_model=PredictResponse,
+    responses={
+        503: {"description": "ONNX modeli yüklenemedi (build sırasında export başarısız olmuş olabilir)"},
+    },
+)
+def predict_sentiment(req: PredictRequest):
+    """Run ONNX int8 inference on a single text. p95 ~2.5 ms on CPU."""
+    try:
+        fn = _get_predictor()
+    except FileNotFoundError as exc:
+        logger.error(str(exc))
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    result = fn(req.text)
+    return {**result, "backend": _BACKEND_NAME}
 
 
 @app.get(

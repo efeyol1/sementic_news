@@ -46,6 +46,11 @@ jobs:
         # Runs AFTER retrain so the suite checks whatever was just promoted.
         # must-pass failures = real regression. xfail XPASS = retrain fixed
         # a known bias, time to promote that case to must-pass.
+        # MLFLOW_TRACKING_URI activates the bridge in tests/conftest.py
+        # which logs per-category outcome counts to the
+        # ``news-sentiment-behavioral`` experiment.
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
         run: pytest tests/behavioral -m behavioral -v --tb=short
 
       - name: Export ONNX (fp32 + int8) from freshly promoted model

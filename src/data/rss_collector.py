@@ -21,14 +21,26 @@ from src.db.queries import insert_raw_items
 # RSS feed registry
 # ---------------------------------------------------------------------------
 
+# RSS endpoint'leri 2026-04-30'da audit edildi. Item count'lar hâlihazırda
+# büyük varyans gösteriyor (10–100); çoğu kaynağın tek tip "ana feed"i yok,
+# bu sayılar publisher'ın o günkü yayın yoğunluğuyla değişiyor. Audit
+# notları:
+#   - Milliyet ``gundemrss.xml`` 301 ile ``sondakikarss.xml``e redirect
+#     ediyordu; doğrudan hedefi kullanıyoruz.
+#   - Sabah ``anasayfa.xml`` (10 item) yerine ``sondakika.xml`` (50 item)
+#     kullanıyoruz — 5× daha geniş kapsam.
+#   - CNN Türk ve Yeni Şafak feed'leri zaman zaman gelecek tarihli (negatif
+#     yaş) entry barındırıyor (publisher embargo). Bu davranış collector
+#     seviyesinde clip'lenmiyor; downstream'de ``published_date``'i filtre
+#     olarak kullanırken dikkat.
 RSS_FEEDS: dict[str, str] = {
     "Habertürk": "https://www.haberturk.com/rss",
     "Hürriyet": "https://www.hurriyet.com.tr/rss/anasayfa",
     "NTV": "https://www.ntv.com.tr/gundem.rss",
     "CNN Türk": "https://www.cnnturk.com/feed/rss/news",
     "Sözcü": "https://www.sozcu.com.tr/rss/son-dakika.xml",
-    "Milliyet": "https://www.milliyet.com.tr/rss/rssnew/gundemrss.xml",
-    "Sabah": "https://www.sabah.com.tr/rss/anasayfa.xml",
+    "Milliyet": "https://www.milliyet.com.tr/rss/rssnew/sondakikarss.xml",
+    "Sabah": "https://www.sabah.com.tr/rss/sondakika.xml",
     "TRT Haber": "https://www.trthaber.com/sondakika.rss",
     "Cumhuriyet": "https://www.cumhuriyet.com.tr/rss",
     "Yeni Şafak": "https://www.yenisafak.com/rss",

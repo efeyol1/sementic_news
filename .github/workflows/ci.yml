@@ -22,8 +22,20 @@ jobs:
       - name: Install dependencies
         run: pip install -e ".[dev]"
 
+      - name: Cache HuggingFace models
+        # Behavioral tests load efeyol11/bert-turkish-sentiment (~440MB) every run.
+        # Same cache key as daily_pipeline.yml / weekly_retrain.yml so the artifact
+        # is shared across all workflows.
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/huggingface
+          key: hf-models-${{ runner.os }}-v1
+
       - name: Lint (ruff)
         run: ruff check src/ tests/
 
       - name: Run tests
+        # ``pytest tests/`` runs unit + behavioral together (no marker filter).
+        # Behavioral suite gates on model regressions; if it gets too slow, scope
+        # via ``-m 'not behavioral'`` here and add a separate gated job.
         run: pytest tests/ -v --tb=short
