@@ -8,7 +8,7 @@ from typing import Any
 import psycopg2.extras
 from loguru import logger
 
-from src.db.client import get_conn  # noqa: E402
+from src.db.client import get_conn, retry_on_connection_loss  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # RSS Collector
@@ -115,6 +115,7 @@ def fetch_processed_by_date(date_str: str) -> list[dict[str, Any]]:
             return [dict(row) for row in cur.fetchall()]
 
 
+@retry_on_connection_loss()
 def bulk_update_sentiment(updates: list[dict[str, Any]]) -> None:
     if not updates:
         return
@@ -157,6 +158,7 @@ def fetch_for_ner(date_str: str) -> list[dict[str, Any]]:
             return [dict(row) for row in cur.fetchall()]
 
 
+@retry_on_connection_loss()
 def bulk_update_ner(updates: list[dict[str, Any]]) -> None:
     if not updates:
         return
@@ -201,6 +203,7 @@ def fetch_for_clustering(date_str: str) -> list[dict[str, Any]]:
             return [dict(row) for row in cur.fetchall()]
 
 
+@retry_on_connection_loss()
 def bulk_update_clustering(updates: list[dict[str, Any]]) -> None:
     if not updates:
         return
@@ -286,6 +289,7 @@ def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
     return rows
 
 
+@retry_on_connection_loss()
 def bulk_update_embeddings(updates: list[dict[str, Any]]) -> None:
     """Store sentence-transformer embeddings in the news_items.embedding column.
 

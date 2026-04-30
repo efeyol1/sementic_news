@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import os
+import time
 from contextlib import contextmanager
+from functools import wraps
 
 import psycopg2
 import psycopg2.extras
@@ -79,3 +81,52 @@ def get_conn():
             pool.putconn(conn, close=closed)
         except psycopg2.pool.PoolError:
             pass
+
+
+def retry_on_connection_loss(
+    max_attempts: int = 2, backoff_sec: float = 1.0
+):
+    """Replay a DB callable once if Neon drops the SSL connection mid-op.
+
+    Long sentiment / NER inference (10–20 min) leaves the pool's connection
+    sitting idle long enough for Neon's serverless compute to scale to zero
+    and tear it down server-side. ``_checkout_live_conn`` revalidates with
+    ``SELECT 1`` on checkout, but the kill can also happen *during* a
+    ``cur.executemany``. Wrapping the bulk write in this decorator catches
+    that mid-op failure, drops the dead pool, and replays the entire
+    callable against a fresh connection.
+
+    Only wrap *idempotent* operations (UPDATE-by-id, INSERT-with-ON-CONFLICT).
+    A non-idempotent INSERT replayed after partial commit would double-write.
+    """
+
+    def decorator(fn):
+        @wraps(fn)
+        def wrapper(*args, **kwargs):
+            global _pool
+            last_exc: Exception | None = None
+            for attempt in range(1, max_attempts + 1):
+                try:
+                    return fn(*args, **kwargs)
+                except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+                    last_exc = exc
+                    if attempt >= max_attempts:
+                        raise
+                    logger.warning(
+                        f"DB connection lost in {fn.__name__} "
+                        f"(attempt {attempt}/{max_attempts}): {exc.__class__.__name__}. "
+                        "Recreating pool and retrying."
+                    )
+                    if _pool is not None:
+                        try:
+                            _pool.closeall()
+                        except Exception:
+                            pass
+                        _pool = None
+                    time.sleep(backoff_sec)
+            assert last_exc is not None  # unreachable
+            raise last_exc
+
+        return wrapper
+
+    return decorator
