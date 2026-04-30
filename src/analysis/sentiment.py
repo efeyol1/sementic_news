@@ -1,10 +1,17 @@
 """Multilingual sentiment analysis for news items.
 
-Two modes (controlled by SENTIMENT_MODEL_ID env var):
-  - Zero-shot (default): joeddav/xlm-roberta-large-xnli — no fine-tuning needed,
-    works for any language via SENTIMENT_LABELS candidate labels.
-  - Fine-tuned: set SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment (or local
-    path) to use the domain-adapted BERT model for Turkish news.
+Three backends, picked via env vars:
+  - **Zero-shot** (default): joeddav/xlm-roberta-large-xnli — no fine-tuning,
+    multilingual via SENTIMENT_LABELS candidate labels. Slowest.
+  - **PyTorch fine-tuned**: ``SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment``
+    uses the domain-adapted BERT model directly via transformers.
+  - **ONNX int8** (production): ``SENTIMENT_BACKEND=onnx_int8`` loads the
+    quantized ONNX build from ``$SENTIMENT_ONNX_DIR`` (default
+    ``models/onnx_int8/``). ~3.8× faster than PyTorch on CPU; cuts the
+    daily-pipeline sentiment step from ~16 min to ~4 min and shrinks the
+    Neon SSL idle window. The ONNX build is created by
+    ``python -m src.serving.onnx_export`` — daily_pipeline.yml runs that
+    before the pipeline so the artifact is fresh on every run.
 
 Reads items from PostgreSQL, writes enriched results back to the same rows.
 
@@ -12,6 +19,7 @@ Usage:
     python -m src.analysis.sentiment               # analyze today's items
     python -m src.analysis.sentiment --date 2026-04-17
     SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment python -m src.analysis.sentiment
+    SENTIMENT_BACKEND=onnx_int8 python -m src.analysis.sentiment
 """
 
 import argparse
@@ -76,15 +84,65 @@ mlflow.set_experiment("news-sentiment")
 # ---------------------------------------------------------------------------
 
 
+_DEFAULT_ONNX_DIR = _REPO_ROOT / "models" / "onnx_int8"
+_DEFAULT_FINETUNED_MODEL_ID = "efeyol11/bert-turkish-sentiment"
+
+
+def _is_onnx_mode() -> bool:
+    return os.getenv("SENTIMENT_BACKEND", "").lower() == "onnx_int8"
+
+
 def _is_finetuned_mode() -> bool:
-    return bool(os.getenv("SENTIMENT_MODEL_ID"))
+    """True for any text-classification path (PyTorch fine-tuned OR ONNX).
+    Both share the same label map and prediction post-processing — only the
+    underlying executor differs."""
+    return bool(os.getenv("SENTIMENT_MODEL_ID")) or _is_onnx_mode()
 
 
 def _active_model_id() -> str:
+    """Identifier logged to MLflow. ONNX mode prefixes the source repo so a
+    backend switch is visible in the experiment history."""
+    if _is_onnx_mode():
+        source = os.getenv("SENTIMENT_MODEL_ID") or _DEFAULT_FINETUNED_MODEL_ID
+        return f"onnx_int8:{source}"
     return os.getenv("SENTIMENT_MODEL_ID") or _ZERO_SHOT_MODEL
 
 
+def _onnx_dir() -> Path:
+    return Path(os.getenv("SENTIMENT_ONNX_DIR") or _DEFAULT_ONNX_DIR)
+
+
+def _load_onnx_pipeline():
+    """Build a HF text-classification pipeline backed by ONNX Runtime.
+
+    Uses optimum's ORT model wrapper so the resulting pipe has the same
+    interface as the PyTorch fine-tuned path — ``_predict`` doesn't need
+    to know which backend produced the scores.
+    """
+    onnx_dir = _onnx_dir()
+    if not onnx_dir.exists():
+        raise FileNotFoundError(
+            f"ONNX dir not found: {onnx_dir}. Run "
+            "'python -m src.serving.onnx_export' first, or unset "
+            "SENTIMENT_BACKEND to fall back to PyTorch."
+        )
+
+    # Lazy import: optimum lives in the [serving] extra. Importing here
+    # keeps zero-shot / PyTorch users on a lighter dependency footprint.
+    from optimum.onnxruntime import ORTModelForSequenceClassification
+    from transformers import AutoTokenizer
+
+    logger.info(f"Loading ONNX int8 model from {onnx_dir}")
+    model = ORTModelForSequenceClassification.from_pretrained(str(onnx_dir))
+    tokenizer = AutoTokenizer.from_pretrained(str(onnx_dir))
+    pipe = pipeline("text-classification", model=model, tokenizer=tokenizer, top_k=None)
+    logger.success("ONNX int8 model loaded.")
+    return pipe
+
+
 def _load_pipeline():
+    if _is_onnx_mode():
+        return _load_onnx_pipeline()
     device = 0 if torch.cuda.is_available() else -1
     model_id = _active_model_id()
     if _is_finetuned_mode():

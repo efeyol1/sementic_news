@@ -25,9 +25,10 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        # pipeline extra adds feedparser/bs4/langdetect/sklearn/mlflow —
-        # the daily run needs all of them. dev pulls in pytest/ruff/httpx.
-        run: pip install -e ".[pipeline,dev]"
+        # serving extra adds optimum[onnxruntime] for ONNX int8 sentiment
+        # inference — the path that cuts the daily sentiment step from
+        # ~16 min (PyTorch xlm-roberta) to ~4 min.
+        run: pip install -e ".[pipeline,serving,dev]"
 
       - name: Cache HuggingFace models
         uses: actions/cache@v4
@@ -38,10 +39,18 @@ jobs:
       - name: Initialise database schema
         run: python -m src.db.schema
 
+      - name: Export ONNX int8 sentiment model
+        # Re-derives models/onnx_int8/ from the latest fine-tuned model on
+        # HF Hub. ~1 min when the source weights are cache-warm; the daily
+        # sentiment step then loads this artifact instead of running PyTorch.
+        run: python -m src.serving.onnx_export
+
       - name: Run pipeline
-        # Drift instrumentation runs as the final pipeline step (fail-soft);
-        # it writes data/drift_reports/<date>.json and appends to
-        # $GITHUB_STEP_SUMMARY when the baseline has enough qualifying days.
+        # SENTIMENT_BACKEND=onnx_int8 routes _load_pipeline() in
+        # src/analysis/sentiment.py to the quantized ORT model. Drift
+        # instrumentation runs as the final pipeline step (fail-soft).
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          SENTIMENT_MODEL_ID: efeyol11/bert-turkish-sentiment
+          SENTIMENT_BACKEND: onnx_int8
         run: python -m src.pipeline
