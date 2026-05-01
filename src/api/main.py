@@ -104,6 +104,26 @@ class ClusterSummary(BaseModel):
     keywords: list[str] = Field(..., examples=[["ekonomi", "dolar", "faiz"]])
 
 
+class ClusterDetail(BaseModel):
+    """Full per-cluster stats — used by the dashboard's cluster grid."""
+    cluster_id: int = Field(..., examples=[3])
+    title: str = Field(..., examples=["Ekonomi · Merkez Bankası"])
+    size: int = Field(..., examples=[47])
+    keywords: list[str] = Field(..., examples=[["ekonomi", "dolar", "faiz", "merkez", "banka"]])
+    sources: dict[str, int] = Field(
+        ..., examples=[{"Hürriyet": 12, "Cumhuriyet": 8, "Habertürk": 7}]
+    )
+    sentiment_distribution: dict[str, int] = Field(
+        ..., examples=[{"positive": 5, "neutral": 30, "negative": 12}]
+    )
+
+
+class ClustersResponse(BaseModel):
+    date: str = Field(..., examples=["2026-04-20"])
+    total_clusters: int = Field(..., examples=[15])
+    clusters: list[ClusterDetail]
+
+
 class TopEntities(BaseModel):
     PER: list[str] = Field(..., examples=[["Erdoğan", "Trump"]])
     ORG: list[str] = Field(..., examples=[["TBMM", "Merkez Bankası"]])
@@ -283,6 +303,45 @@ def today(
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
         "available_dates": fetch_available_dates(),
+    }
+
+
+@app.get(
+    "/api/clusters",
+    tags=["Analiz"],
+    summary="Tüm cluster'lar (15) ve istatistikleri",
+    response_model=ClustersResponse,
+    responses={404: {"description": "Belirtilen tarihe ait cluster verisi bulunamadı"}},
+)
+def all_clusters(
+    date_str: str = Query(
+        default=None,
+        alias="date",
+        description="Analiz tarihi (YYYY-MM-DD). Belirtilmezse bugünün verisi döner.",
+        pattern=r"^\d{4}-\d{2}-\d{2}$",
+    ),
+):
+    """Dashboard cluster grid için 15 cluster'ı zengin stats'larla döner.
+
+    Drill-down için ``/api/topic/{cluster_id}`` kullanılır — bu endpoint
+    sadece liste/grid view içindir. Cluster'lar size DESC sıralı.
+    """
+    target = date_str or date.today().isoformat()
+    clusters = _get_clusters(target)
+    return {
+        "date": target,
+        "total_clusters": len(clusters),
+        "clusters": [
+            {
+                "cluster_id": c["cluster_id"],
+                "title": c.get("title") or (c["keywords"][0] if c["keywords"] else ""),
+                "size": c["size"],
+                "keywords": c["keywords"],
+                "sources": c.get("sources") or {},
+                "sentiment_distribution": c.get("sentiment_distribution") or {},
+            }
+            for c in clusters
+        ],
     }
 
 

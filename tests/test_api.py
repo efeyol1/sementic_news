@@ -103,3 +103,28 @@ def test_source_comparison():
     data = r.json()
     assert "Test Kaynak" in data["sources"]
     assert data["sources"]["Test Kaynak"]["total"] == 1
+
+
+def test_clusters():
+    r = client.get("/api/clusters?date=2026-04-20")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["date"] == "2026-04-20"
+    assert data["total_clusters"] == 1
+    cluster = data["clusters"][0]
+    assert cluster["cluster_id"] == 0
+    assert cluster["title"] == "Test · TBMM"
+    assert cluster["size"] == 1
+    assert cluster["keywords"] == ["test", "haber"]
+    assert cluster["sources"] == {"Test Kaynak": 1}
+    assert cluster["sentiment_distribution"] == {
+        "positive": 1, "neutral": 0, "negative": 0,
+    }
+
+
+def test_clusters_empty(monkeypatch):
+    import src.api.main as api_module
+
+    monkeypatch.setattr(api_module, "fetch_cluster_summaries", lambda d: [])
+    r = client.get("/api/clusters?date=1999-01-01")
+    assert r.status_code == 404
