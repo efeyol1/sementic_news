@@ -4,11 +4,7 @@ services:
     runtime: python
     region: frankfurt
     plan: free
-    # [serving] adds optimum[onnxruntime] for /api/predict.
-    # ONNX export bakes models/onnx_int8/ into the slug so cold starts
-    # skip the ~1 min export step. Manual redeploy needed after weekly
-    # retrain promotes a new HF model.
-    buildCommand: pip install ".[serving]" && python -m src.serving.onnx_export
+    buildCommand: pip install .
     startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION

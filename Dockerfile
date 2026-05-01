@@ -6,14 +6,13 @@ WORKDIR /app
 # because hatchling needs the package tree present to build the wheel.
 COPY pyproject.toml ./
 COPY src/ src/
-# [serving] adds optimum[onnxruntime] for the /api/predict endpoint.
-RUN pip install --no-cache-dir ".[serving]"
+RUN pip install --no-cache-dir .
 
-# Bake the ONNX int8 sentiment model into the image so /api/predict has
-# zero export overhead on cold starts. Re-runs on every container build,
-# which means a manual Render redeploy is needed after a weekly retrain
-# pushes a new model to HF Hub.
-RUN python -m src.serving.onnx_export
+# Alembic config + migrations are needed by the API's lifespan init_db
+# (calls ``alembic upgrade head``). Without these the startup hook logs
+# "Path doesn't exist: /app/alembic" and skips migrations.
+COPY alembic.ini ./
+COPY alembic/ alembic/
 
 COPY data/analyzed/ data/analyzed/
 

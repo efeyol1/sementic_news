@@ -50,10 +50,6 @@ def _mock_db(monkeypatch):
     monkeypatch.setattr(api_module, "fetch_cluster_summaries", lambda date_str: [_FAKE_CLUSTER])
     monkeypatch.setattr(api_module, "fetch_available_dates", lambda: ["2026-04-20"])
     monkeypatch.setattr(api_module, "init_db", lambda: None)
-    # Reset predictor cache so each test starts clean (relevant when one
-    # test mocks _get_predictor and another expects the FileNotFoundError
-    # path).
-    monkeypatch.setattr(api_module, "_predictor_fn", None)
 
 
 # ---------------------------------------------------------------------------
@@ -107,49 +103,3 @@ def test_source_comparison():
     data = r.json()
     assert "Test Kaynak" in data["sources"]
     assert data["sources"]["Test Kaynak"]["total"] == 1
-
-
-# ---------------------------------------------------------------------------
-# /api/predict
-# ---------------------------------------------------------------------------
-
-
-def _fake_predictor(text: str) -> dict:
-    # Stable deterministic shape — keeps assertions independent of model output.
-    return {
-        "label": "neutral",
-        "score": 0.85,
-        "scores": {"negative": 0.05, "neutral": 0.85, "positive": 0.10},
-    }
-
-
-def test_predict_happy_path(monkeypatch):
-    import src.api.main as api_module
-
-    monkeypatch.setattr(api_module, "_get_predictor", lambda: _fake_predictor)
-
-    r = client.post("/api/predict", json={"text": "Merkez Bankası faiz oranını sabit tuttu."})
-    assert r.status_code == 200
-    data = r.json()
-    assert data["label"] == "neutral"
-    assert data["score"] == 0.85
-    assert data["backend"] == "onnx_int8"
-    assert set(data["scores"]) == {"negative", "neutral", "positive"}
-
-
-def test_predict_validation_too_short():
-    r = client.post("/api/predict", json={"text": "Hi"})  # < min_length=3
-    assert r.status_code == 422
-
-
-def test_predict_503_when_onnx_missing(monkeypatch):
-    import src.api.main as api_module
-
-    def _raise():
-        raise FileNotFoundError("ONNX model not found at /tmp/missing")
-
-    monkeypatch.setattr(api_module, "_get_predictor", _raise)
-
-    r = client.post("/api/predict", json={"text": "Test cümlesi."})
-    assert r.status_code == 503
-    assert "ONNX" in r.json()["detail"]
