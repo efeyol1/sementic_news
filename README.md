@@ -1,17 +1,20 @@
-# Semantic News TR
+# Semantic News
 
-Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sentiment analizi, NER ve konu kümeleme yapan tam MLOps projesi.
+Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sentiment analizi, NER, konu kümeleme ve drift monitoring yapan tam MLOps projesi.
+
+> **V1 (stable, Turkey-only) — pilot ülke modülü.** Proje şu an V2'ye evrilmekte: çok ülkeli Avrupa medya analiz platformu. Türkiye yeni feature'ların stabilize edildiği baseline kalır; ülke konfigürasyonu, generic pipeline, country-aware schema ve framing analizi için bkz. [V2 roadmap](#v2-roadmap-multi-country-european-media-intelligence).
 
 ## Mevcut Durum
 
 | Blok | İçerik | Durum |
 |------|--------|-------|
-| **Pipeline** | RSS → Preprocess → Sentiment → NER → Clustering → Embedding | ✅ |
-| **Veritabanı** | PostgreSQL (Neon) + pgvector semantik arama | ✅ |
-| **API** | FastAPI, Pydantic modeller, Prometheus metrikleri | ✅ |
-| **Dashboard** | Next.js, Vercel deploy, trend grafikler | ✅ |
-| **CI/CD** | GitHub Actions lint+test+deploy, Render CD | ✅ |
-| **MLOps** | MLflow experiment tracking, weekly retrain | ✅ |
+| **Pipeline** | RSS → Preprocess → Sentiment → NER → Clustering → Embedding → Drift | ✅ V1 |
+| **Veritabanı** | PostgreSQL (Neon) + pgvector + Alembic migrations | ✅ V1 |
+| **API** | FastAPI, Pydantic v2, Prometheus drift gauges, 10 endpoint | ✅ V1 |
+| **Dashboard** | Next.js, Vercel deploy, trend + cluster grid | ✅ V1 |
+| **CI/CD** | GitHub Actions lint+test, Render auto-deploy | ✅ V1 |
+| **MLOps** | MLflow tracking, weekly retrain, ONNX int8 inference, behavioral CheckList | ✅ V1 |
+| **V2 — Multi-country** | Country YAML config, generic pipeline, framing analysis | 🚧 in progress |
 
 ## Özellikler
 
@@ -169,6 +172,34 @@ sementic_news/
 ├── docker-compose.yml
 └── pyproject.toml
 ```
+
+## V2 Roadmap — Multi-Country European Media Intelligence
+
+V1 (Turkey-only) pilot ülke modülü olarak stabil. V2'de proje çok ülkeli Avrupa medya analiz platformuna evriliyor — Almanya, Polonya, Fransa, Yunanistan gibi ülkelerde göç / AB politikaları / ulusal kimlik / din-laiklik / aile politikası / ekonomi gibi konuların **media framing pattern**'lerini ölçmek için.
+
+**Etik kural**: "Country X Catholic'tir" gibi basitleştirici claim'ler değil, observable framing pattern'leri. Doğru yorum: _"Migration konusunda seçilen Polonya kaynakları national-identity ve religious-moral framing'i humanitarian framing'e göre daha yoğun kullanıyor"_. Yanlış: _"Polonya medyası Catholic'tir"_.
+
+**Mimari ilke**: Country-specific bilgi **asla** Python kodunda hardcoded olamaz; sadece `configs/countries/*.yaml`. Yeni ülke eklemek = YAML oluştur + RSS source ekle + `python -m src.pipeline --country <name>`.
+
+**Phase rollout**:
+
+| # | Phase | Status |
+|---|-------|--------|
+| 0 | Repository audit | ✅ done |
+| 1 | Stabilize Turkey baseline | ✅ done |
+| 2 | Country configuration system (`configs/countries/turkey.yaml`) | pending |
+| 4 | Country-aware DB schema (`country_code`, `language` columns) | pending |
+| 3 | Country-aware pipeline (`--country` CLI arg) | pending |
+| 5 | Country-aware FastAPI endpoints (`?country=TR`, `/api/countries`) | pending |
+| 6 | Dashboard country selector | pending |
+| 7 | Add Germany (first non-TR) | pending |
+| 8 | Multi-country GitHub Actions matrix | pending |
+| 9 | Per-country pipeline run reports | pending |
+| 10 | Framing analysis foundation | pending |
+| 11 | Evaluation & quality control | pending |
+| 12 | README + presentation refresh | pending |
+
+V2 her phase ayrı branch (`v2/phase-N-slug`) + main'e merge sonrası tag (`v2-phase-N`).
 
 ## Telif ve Veri Notu
 
