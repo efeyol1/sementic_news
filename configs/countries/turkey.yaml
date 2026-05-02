@@ -197,6 +197,17 @@ sources:
       - "https://www.haberturk.com/rss/kultur-sanat.xml"
       - "https://www.haberturk.com/rss/otomobil.xml"
 
+  - name: Habertürk
+    type: googlenews_sitemap
+    enabled: true
+    category: general
+    # Bonus: Habertürk'ün Google News sitemap'i ~599 article + title
+    # taşıyor. RSS multi-feed ile beraber DB'de ON CONFLICT(link) ile
+    # birleşip toplam ~600+ unique item'a çıkıyor (RSS'in kapsamadığı
+    # daha eski ya da niche article'lar dahil).
+    urls:
+      - "https://www.haberturk.com/sitemap_google_news.xml"
+
   - name: Hürriyet
     type: rss
     enabled: true
@@ -254,8 +265,21 @@ sources:
     type: rss
     enabled: true
     category: general
+    # Sözcü'nün tüm kategori RSS feed'leri aynı 50 item'ı alias gibi
+    # serve ediyor; multi-feed merge faydasız. RSS sadece güvenlik
+    # ağı olarak (sitemap fail ederse).
     urls:
       - "https://www.sozcu.com.tr/rss/son-dakika.xml"
+
+  - name: Sözcü
+    type: googlenews_sitemap
+    enabled: true
+    category: general
+    # Asıl kazanç: Google News sitemap ~536 article + title + tarih
+    # taşıyor. RSS ile birleşip dedupe sonrası ~536 unique item
+    # (RSS'in 50'si büyük ihtimalle subset). 6× artış.
+    urls:
+      - "https://www.sozcu.com.tr/feeds/sitemapgooglenews"
 
   - name: Milliyet
     type: rss
@@ -327,5 +351,18 @@ sources:
     type: rss
     enabled: true
     category: general
+    # RSS hard-cap'lı (15 item, kategori feed'leri 301 ile boş).
+    # Sitemap-based scrape ile ~200 article'a çıkıyor (aşağıdaki entry).
+    # RSS yine de güvenlik ağı: sitemap fail ederse en azından 15 item.
     urls:
       - "https://www.yenisafak.com/rss"
+
+  - name: Yeni Şafak
+    type: html_sitemap
+    enabled: true
+    category: general
+    # Plain sitemap (no news:title). Her URL için article HTML'inden
+    # <title> + og:description çekiliyor, ThreadPool ile 15 paralel
+    # fetch. ~200 article ~10s'de scrape oluyor.
+    urls:
+      - "https://www.yenisafak.com/sitemap?contenttypes=news&contenttypes=official-announcement&name=standart&take=200"
