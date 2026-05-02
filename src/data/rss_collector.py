@@ -1,16 +1,20 @@
-"""RSS feed collector for Turkish news sources.
+"""RSS feed collector for news sources.
 
-Fetches articles from 10 major Turkish news outlets and persists them to
-the PostgreSQL news_items table. Some outlets shard their content across
-category-specific feeds (NTV, Milliyet) — for those we list multiple URLs
-per source and dedupe in-memory by link before insert. Duplicate detection
-is link-based, so re-running on the same day only inserts genuinely new
+V2 Phase 2: feed registry now lives in ``configs/countries/<slug>.yaml``
+under the ``sources`` section. ``collect_all`` defaults to loading
+``turkey.yaml`` so existing callers (pipeline, CLI) keep working without
+arguments. Multi-URL sources are still supported (NTV's 5 category
+feeds, Milliyet's 3) — feeds are aggregated and deduped by link before
+insert. Duplicate detection at DB level via ``ON CONFLICT (link)``
+remains, so re-running on the same day only inserts genuinely new
 articles.
 
 Usage:
-    python -m src.data.rss_collector
+    python -m src.data.rss_collector             # turkey by default
+    python -m src.data.rss_collector --country turkey
 """
 
+import argparse
 import sys
 from datetime import date, datetime, timezone
 from typing import Any
@@ -18,52 +22,38 @@ from typing import Any
 import feedparser
 from loguru import logger
 
+from src.config import load_country_config
 from src.db.queries import insert_raw_items
 
 # ---------------------------------------------------------------------------
-# RSS feed registry
+# Country config → feed registry
 # ---------------------------------------------------------------------------
 
-# RSS endpoint'leri 2026-04-30 → 2026-05-01'de iki kez audit edildi.
-# Item count varyansı (10–100) çoğunlukla publisher tarafından feed-layer
-# kısıtlamasından geliyor. Audit notları:
-#
-#   - **NTV** ana ``gundem.rss``'de 20 item ile cap'lı. Her kategori ayrı
-#     20-item feed sunuyor; 5 kategori birleştirip dedupe ediyoruz → ~80-100.
-#   - **Milliyet** ``sondakikarss.xml`` 20 item, ama ``dunyarss.xml`` 50
-#     item veriyor; üçünü birleştirip dedupe ediyoruz.
-#   - **Yeni Şafak** ana feed'de 15 ile sert sınırlı; kategori feed'leri
-#     301 + boş XML, fonksiyonel değil. Duruyor.
-#   - **CNN Türk** tüm kategori path'leri aynı 35 item'i alias gibi
-#     dönüyor — birleştirmek faydasız. 35'te kalır.
-#   - **Sabah** ``anasayfa.xml`` (10) → ``sondakika.xml`` (50) geçişi
-#     2026-04-30'da yapıldı.
-#   - **CNN Türk + Yeni Şafak** zaman zaman gelecek tarihli (negatif yaş)
-#     entry'ler barındırıyor (publisher embargo / scheduled posts).
-#     Collector seviyesinde clip'lenmiyor; downstream'de ``published_date``
-#     filtre olarak kullanırken dikkat.
-RSS_FEEDS: dict[str, list[str]] = {
-    "Habertürk": ["https://www.haberturk.com/rss"],
-    "Hürriyet":  ["https://www.hurriyet.com.tr/rss/anasayfa"],
-    "NTV": [
-        "https://www.ntv.com.tr/gundem.rss",
-        "https://www.ntv.com.tr/son-dakika.rss",
-        "https://www.ntv.com.tr/turkiye.rss",
-        "https://www.ntv.com.tr/dunya.rss",
-        "https://www.ntv.com.tr/ekonomi.rss",
-    ],
-    "CNN Türk":  ["https://www.cnnturk.com/feed/rss/news"],
-    "Sözcü":     ["https://www.sozcu.com.tr/rss/son-dakika.xml"],
-    "Milliyet": [
-        "https://www.milliyet.com.tr/rss/rssnew/sondakikarss.xml",
-        "https://www.milliyet.com.tr/rss/rssnew/dunyarss.xml",
-        "https://www.milliyet.com.tr/rss/rssnew/ekonomirss.xml",
-    ],
-    "Sabah":      ["https://www.sabah.com.tr/rss/sondakika.xml"],
-    "TRT Haber":  ["https://www.trthaber.com/sondakika.rss"],
-    "Cumhuriyet": ["https://www.cumhuriyet.com.tr/rss"],
-    "Yeni Şafak": ["https://www.yenisafak.com/rss"],
-}
+
+def _feeds_from_config(country_config: dict[str, Any]) -> dict[str, list[str]]:
+    """Translate a country config's ``sources`` block into name → urls.
+
+    Only ``enabled`` sources are returned. URL lists are preserved so
+    multi-feed outlets (NTV, Milliyet) keep their fan-out behavior.
+    """
+    feeds: dict[str, list[str]] = {}
+    for src in country_config.get("sources", []):
+        if not src.get("enabled", True):
+            continue
+        if src.get("type", "rss") != "rss":
+            # Future: HTTP API, sitemap, etc. Skip non-RSS for now.
+            logger.warning(
+                f"Skipping {src.get('name')!r}: unsupported type {src.get('type')!r}"
+            )
+            continue
+        name = src["name"]
+        urls = list(src.get("urls") or [])
+        if name in feeds:
+            feeds[name].extend(urls)
+        else:
+            feeds[name] = urls
+    return feeds
+
 
 # ---------------------------------------------------------------------------
 # Entry parsing helpers
@@ -161,14 +151,29 @@ def fetch_source(source_name: str, urls: list[str]) -> list[dict[str, Any]]:
 def collect_all(
     feeds: dict[str, list[str]] | None = None,
     date_str: str | None = None,
+    country: str = "turkey",
 ) -> int:
-    """Collect news from all configured RSS feeds and persist to PostgreSQL.
+    """Collect news from configured RSS feeds and persist to PostgreSQL.
+
+    Args:
+        feeds: explicit name → urls map. If omitted, loaded from the
+               country config (Phase 2 default behavior).
+        date_str: ISO date; defaults to today.
+        country: country slug or code (default ``"turkey"``). Phase 3
+                 will plumb the real selection through the orchestrator.
 
     Returns:
         Number of new rows inserted.
     """
-    feeds = feeds or RSS_FEEDS
     date_str = date_str or date.today().isoformat()
+
+    if feeds is None:
+        config = load_country_config(country)
+        feeds = _feeds_from_config(config)
+        logger.info(
+            f"Loaded {len(feeds)} sources from country config "
+            f"[{config['country_code']}/{config['country_slug']}]"
+        )
 
     all_items: list[dict[str, Any]] = []
     failed_sources: list[str] = []
@@ -195,6 +200,19 @@ def collect_all(
     return inserted
 
 
+# ---------------------------------------------------------------------------
+# CLI
+# ---------------------------------------------------------------------------
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    p = argparse.ArgumentParser(description="Collect news from a country's RSS feeds")
+    p.add_argument("--country", default="turkey", help="Country slug or code (default: turkey)")
+    p.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
+    return p.parse_args(argv)
+
+
 if __name__ == "__main__":
-    collect_all()
+    args = _parse_args()
+    collect_all(country=args.country, date_str=args.date)
     sys.exit(0)
