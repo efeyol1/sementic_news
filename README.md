@@ -183,7 +183,14 @@ V1 (Turkey-only) pilot ülke modülü olarak stabil. V2'de proje çok ülkeli Av
 
 **Phase 2 done (2026-05-01)**: `configs/countries/turkey.yaml` aktif, `src/config/country_loader.py` slug + ISO code lookup'unu destekler, multi-feed sources (`urls: [list]`) normalize edilir, `rss_collector.py` artık YAML'dan okuyor — RSS_FEEDS sabiti yok. 10 yeni unit test loader'ı validate ediyor.
 
-**Source coverage 6.4× artışı (2026-05-02)**: 8 kaynakta multi-category RSS aggregation + dedupe. Toplam günlük unique corpus **475 → 3,052 item**. Per-source kazanımlar: Cumhuriyet 100→859 (8.6×), Hürriyet 75→680 (9×), Habertürk 100→384 (3.8×), CNN Türk 35→352 (10×), Milliyet 20→315 (15.8×), NTV 20→157 (7.9×), Sabah 10→147 (14.7×), TRT Haber 50→92 (1.8×). Sözcü tüm kategori path'leri aynı 50 item alias — değişmedi. Yeni Şafak RSS 15'te hard-cap; sitemap path mevcut ama HTML scraping gerektiriyor → ileride ayrı phase işi.
+**Source coverage 8.5× artışı (2026-05-02)**: 10 kaynakta multi-category RSS aggregation + 2 kaynakta Google News sitemap handler + 1 kaynakta HTML sitemap scraping. Toplam günlük unique corpus **475 → 4,032 item**. Per-source kazanımlar: Cumhuriyet 100→864 (8.6×), Habertürk 100→718 (7.2×, RSS+sitemap), Hürriyet 75→680 (9.1×), Sözcü 50→523 (10.5×, sitemap), CNN Türk 35→353 (10×), Milliyet 20→315 (15.8×), Yeni Şafak 15→187 (12.5×, html_sitemap), NTV 20→157 (7.9×), Sabah 10→144 (14.4×), TRT Haber 50→91 (1.8×).
+
+**3 source type**: 
+- `rss` — feedparser, default
+- `googlenews_sitemap` — Google News namespace-aware sitemap parse, title + tarih inline (Sözcü, Habertürk)
+- `html_sitemap` — plain sitemap → URL listesi → ThreadPool ile her article'ın HTML'inden `<title>` + `og:description` çek (Yeni Şafak; ~200 article ~50s)
+
+Aynı outlet farklı type'larla listelenince (örn. Habertürk RSS + Habertürk googlenews_sitemap) DB'de `ON CONFLICT(link)` üzerinden dedupe.
 
 **Phase rollout**:
 

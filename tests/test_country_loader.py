@@ -30,13 +30,17 @@ def test_load_turkey_config_returns_required_fields():
 
 def test_load_turkey_config_normalizes_sources():
     cfg = country_loader.load_country_config("turkey")
+    # 10 outlets but multi-type sources (RSS + Google News sitemap for some)
+    # mean total entries >= 10.
     assert isinstance(cfg["sources"], list) and len(cfg["sources"]) >= 10
     for src in cfg["sources"]:
         # Every source should have a normalized urls list (not 'url').
         assert "urls" in src and isinstance(src["urls"], list) and src["urls"]
         assert "url" not in src
         assert "name" in src
-        assert src.get("type", "rss") == "rss"
+        # Currently supported types: rss (default), googlenews_sitemap,
+        # html_sitemap (plain sitemap + per-article HTML scrape).
+        assert src.get("type", "rss") in {"rss", "googlenews_sitemap", "html_sitemap"}
 
 
 def test_load_by_country_code():
