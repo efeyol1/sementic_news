@@ -1,0 +1,331 @@
+# Turkey country configuration — V1 pilot.
+#
+# Schema is shared across all countries. Section semantics:
+#   country_*       - identity / locale (always required)
+#   sentiment.*     - sentiment analysis backend selection per country
+#   ner.*           - named entity recognition; disable for languages
+#                     where we don't have a quality fine-tuned model
+#   clustering.*    - topic clustering parameters incl. stopwords
+#   embeddings.*    - vector embedding model (multilingual works for most)
+#   sources         - RSS feeds; multiple URLs per source supported
+#
+# In V2 Phase 2 the loader (src/config/country_loader.py) only consumes
+# the `sources` section and the country identity fields. Other sections
+# describe the pipeline behavior for downstream phases (3+) but are
+# declared now so the YAML schema stays stable across the rollout.
+
+country_code: TR
+country_name: Turkey
+country_slug: turkey
+language: tr
+timezone: Europe/Istanbul
+
+sentiment:
+  enabled: true
+  # Default: zero-shot xlm-roberta when SENTIMENT_MODEL_ID env not set.
+  zero_shot_model: joeddav/xlm-roberta-large-xnli
+  # Fine-tuned BERT (used by daily pipeline + ONNX int8 path).
+  finetuned_model: efeyol11/bert-turkish-sentiment
+  # Canonical label set the pipeline persists into the DB.
+  labels: [positive, negative, neutral]
+  # Multilingual zero-shot candidate labels per language; only the
+  # current country's language is consumed during inference.
+  candidate_labels:
+    positive: "olumlu haber"
+    negative: "olumsuz haber"
+    neutral:  "tarafsız haber"
+
+ner:
+  enabled: true
+  model: savasy/bert-base-turkish-ner-cased
+  # Subset of HuggingFace NER tags we keep; everything else dropped.
+  keep_labels: [PER, ORG, LOC]
+
+clustering:
+  enabled: true
+  method: kmeans
+  default_n_clusters: 15
+  embedding_model: paraphrase-multilingual-MiniLM-L12-v2
+  # TF-IDF stopword list; Turkish-specific. Other countries supply their
+  # own list, or leave empty for sklearn's English defaults.
+  stopwords:
+    - bir
+    - bu
+    - ve
+    - ile
+    - için
+    - de
+    - da
+    - den
+    - dan
+    - mi
+    - mı
+    - mu
+    - mü
+    - ne
+    - o
+    - ya
+    - ki
+    - ama
+    - en
+    - çok
+    - daha
+    - olan
+    - oldu
+    - olarak
+    - var
+    - yok
+    - gibi
+    - kadar
+    - sonra
+    - önce
+    - her
+    - biz
+    - siz
+    - onlar
+    - ben
+    - sen
+    - şu
+    - hangi
+    - nasıl
+    - neden
+    - çünkü
+    - ancak
+    - fakat
+    - hem
+    - veya
+    - yani
+    - ise
+    - iken
+    - diye
+    - göre
+    - üzere
+    - karşı
+    - doğru
+    - içinde
+    - üzerinde
+    - altında
+    - türkiye
+    - türk
+    - yıl
+    - gün
+    - ay
+    - saat
+    - kişi
+    - kez
+    - ın
+    - in
+    - un
+    - ün
+    - nın
+    - nin
+    - nun
+    - nün
+    - peki
+    - zaman
+    - artık
+    - sadece
+    - bile
+    - hiç
+    - olacak
+    - olup
+    - olmak
+    - olmadan
+    - şimdi
+    - geçen
+    - geldi
+    - gelecek
+    - yapılan
+    - yapıldı
+    - ocak
+    - şubat
+    - mart
+    - nisan
+    - mayıs
+    - haziran
+    - temmuz
+    - ağustos
+    - eylül
+    - ekim
+    - kasım
+    - aralık
+    - "2024"
+    - "2025"
+    - "2026"
+    - son
+    - yeni
+    - büyük
+    - ilk
+    - önemli
+
+embeddings:
+  enabled: true
+  model: paraphrase-multilingual-MiniLM-L12-v2
+  vector_dim: 384
+
+# RSS feed registry. Multi-feed sources (NTV, Milliyet) aggregate via
+# in-memory link dedupe — same source_name in DB, multiple fetch URLs.
+# Audit notes:
+#   - NTV has 5 category feeds (each cap'd at ~20) → ~80 unique items
+#     after dedupe.
+#   - Milliyet's dunyarss.xml gives 50 items vs 20 from sondakika.
+#   - Yeni Şafak RSS hard-cap'd at 15 items; category feeds 301 + empty XML.
+#     SITEMAP path 200 URL veriyor (https://www.yenisafak.com/sitemap?...)
+#     ama sadece URL + lastmod, title/summary için article HTML scrape
+#     gerekecek → ayrı sitemap type handler işi (Phase 2 scope dışı, ileride).
+#   - CNN Türk her kategori 35-item alias değil, gerçekten farklı içerik
+#     veriyor → 11 kategori birleştirip dedupe = ~350 unique item.
+#   - CNN Türk + Yeni Şafak occasionally serve future-dated entries
+#     (publisher embargo / scheduled posts) — clip downstream if needed.
+sources:
+  - name: Habertürk
+    type: rss
+    enabled: true
+    category: general
+    # Ana feed 100 + 10 kategori (her biri ~30 item, %25-100 yeni içerik
+    # baseline'a göre) → ~385 unique item.
+    urls:
+      - "https://www.haberturk.com/rss"
+      - "https://www.haberturk.com/rss/gundem.xml"
+      - "https://www.haberturk.com/rss/ekonomi.xml"
+      - "https://www.haberturk.com/rss/spor.xml"
+      - "https://www.haberturk.com/rss/dunya.xml"
+      - "https://www.haberturk.com/rss/yasam.xml"
+      - "https://www.haberturk.com/rss/saglik.xml"
+      - "https://www.haberturk.com/rss/teknoloji.xml"
+      - "https://www.haberturk.com/rss/magazin.xml"
+      - "https://www.haberturk.com/rss/kultur-sanat.xml"
+      - "https://www.haberturk.com/rss/otomobil.xml"
+
+  - name: Hürriyet
+    type: rss
+    enabled: true
+    category: general
+    # Anasayfa 75 + 8 kategori (her biri 50-100 item) → ~680 unique.
+    # En büyük kazanım kaynağı: 9× artış. saglik/kelebek/sondakika/oto
+    # path'leri 0 item döndüğü için listelenmedi.
+    urls:
+      - "https://www.hurriyet.com.tr/rss/anasayfa"
+      - "https://www.hurriyet.com.tr/rss/gundem"
+      - "https://www.hurriyet.com.tr/rss/ekonomi"
+      - "https://www.hurriyet.com.tr/rss/spor"
+      - "https://www.hurriyet.com.tr/rss/dunya"
+      - "https://www.hurriyet.com.tr/rss/yasam"
+      - "https://www.hurriyet.com.tr/rss/teknoloji"
+      - "https://www.hurriyet.com.tr/rss/magazin"
+      - "https://www.hurriyet.com.tr/rss/seyahat"
+
+  - name: NTV
+    type: rss
+    enabled: true
+    category: general
+    # Her kategori 20 item cap'inde, dedupe sonrası ~177 unique.
+    urls:
+      - "https://www.ntv.com.tr/gundem.rss"
+      - "https://www.ntv.com.tr/son-dakika.rss"
+      - "https://www.ntv.com.tr/turkiye.rss"
+      - "https://www.ntv.com.tr/dunya.rss"
+      - "https://www.ntv.com.tr/ekonomi.rss"
+      - "https://www.ntv.com.tr/saglik.rss"
+      - "https://www.ntv.com.tr/teknoloji.rss"
+      - "https://www.ntv.com.tr/yasam.rss"
+      - "https://www.ntv.com.tr/otomobil.rss"
+
+  - name: CNN Türk
+    type: rss
+    enabled: true
+    category: general
+    # 11 kategori feed birleşip dedupe ile ~350 unique item.
+    # Tek feed cap'i 35'te kilitli, ama her kategori farklı içerik veriyor.
+    urls:
+      - "https://www.cnnturk.com/feed/rss/news"
+      - "https://www.cnnturk.com/feed/rss/turkiye/news"
+      - "https://www.cnnturk.com/feed/rss/dunya/news"
+      - "https://www.cnnturk.com/feed/rss/ekonomi/news"
+      - "https://www.cnnturk.com/feed/rss/spor/news"
+      - "https://www.cnnturk.com/feed/rss/saglik/news"
+      - "https://www.cnnturk.com/feed/rss/teknoloji/news"
+      - "https://www.cnnturk.com/feed/rss/yasam/news"
+      - "https://www.cnnturk.com/feed/rss/kultur-sanat/news"
+      - "https://www.cnnturk.com/feed/rss/magazin/news"
+      - "https://www.cnnturk.com/feed/rss/otomobil/news"
+
+  - name: Sözcü
+    type: rss
+    enabled: true
+    category: general
+    urls:
+      - "https://www.sozcu.com.tr/rss/son-dakika.xml"
+
+  - name: Milliyet
+    type: rss
+    enabled: true
+    category: general
+    # 8 kategori birleşip dedupe → ~335 unique. dunya/yasam/teknoloji/
+    # magazin/otomobil/yazarlar her biri 50 item ve %100 farklı içerik.
+    urls:
+      - "https://www.milliyet.com.tr/rss/rssnew/sondakikarss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/dunyarss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/ekonomirss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/yasamrss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/teknolojirss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/magazinrss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/otomobilrss.xml"
+      - "https://www.milliyet.com.tr/rss/rssnew/yazarlarrss.xml"
+
+  - name: Sabah
+    type: rss
+    enabled: true
+    category: general
+    # 13 kategori feed birleşip dedupe → ~148 unique item.
+    # sondakika.xml en geniş (50), kalanlar 10-23 item arası, hepsi
+    # birbiriyle örtüşmeden farklı içerik veriyor (3× kazanım).
+    urls:
+      - "https://www.sabah.com.tr/rss/sondakika.xml"
+      - "https://www.sabah.com.tr/rss/anasayfa.xml"
+      - "https://www.sabah.com.tr/rss/gundem.xml"
+      - "https://www.sabah.com.tr/rss/ekonomi.xml"
+      - "https://www.sabah.com.tr/rss/spor.xml"
+      - "https://www.sabah.com.tr/rss/dunya.xml"
+      - "https://www.sabah.com.tr/rss/yasam.xml"
+      - "https://www.sabah.com.tr/rss/saglik.xml"
+      - "https://www.sabah.com.tr/rss/magazin.xml"
+      - "https://www.sabah.com.tr/rss/kultur-sanat.xml"
+      - "https://www.sabah.com.tr/rss/egitim.xml"
+      - "https://www.sabah.com.tr/rss/yazarlar.xml"
+      - "https://www.sabah.com.tr/rss/finans.xml"
+
+  - name: TRT Haber
+    type: rss
+    enabled: true
+    category: general
+    # sondakika.rss + manset.rss birleşip ~92 unique. Diğer kategori
+    # path'leri (ekonomi, spor, dunya...) 0 item döndü, eklemedik.
+    urls:
+      - "https://www.trthaber.com/sondakika.rss"
+      - "https://www.trthaber.com/manset.rss"
+
+  - name: Cumhuriyet
+    type: rss
+    enabled: true
+    category: general
+    # Ana feed 100 + 8 kategori (her biri 100 item, çoğu %85-100 yeni
+    # içerik) → ~860 unique. /rss/gundem 301 ile ana feed'e redirect
+    # ediyor (aynı içerik), eklemedik.
+    urls:
+      - "https://www.cumhuriyet.com.tr/rss"
+      - "https://www.cumhuriyet.com.tr/rss/ekonomi"
+      - "https://www.cumhuriyet.com.tr/rss/spor"
+      - "https://www.cumhuriyet.com.tr/rss/dunya"
+      - "https://www.cumhuriyet.com.tr/rss/yasam"
+      - "https://www.cumhuriyet.com.tr/rss/saglik"
+      - "https://www.cumhuriyet.com.tr/rss/bilim-teknoloji"
+      - "https://www.cumhuriyet.com.tr/rss/kultur-sanat"
+      - "https://www.cumhuriyet.com.tr/rss/yazarlar"
+
+  - name: Yeni Şafak
+    type: rss
+    enabled: true
+    category: general
+    urls:
+      - "https://www.yenisafak.com/rss"
