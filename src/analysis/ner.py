@@ -10,7 +10,6 @@ Usage:
 """
 
 import argparse
-import re
 import sys
 import time
 from datetime import date
@@ -22,6 +21,7 @@ import torch
 from loguru import logger
 from transformers import pipeline
 
+from src.analysis.text_inputs import build_ner_text
 from src.db.queries import bulk_update_ner, fetch_for_ner
 
 # ---------------------------------------------------------------------------
@@ -33,8 +33,6 @@ HF_MODEL_ID = "savasy/bert-base-turkish-ner-cased"
 _KEEP_LABELS = {"PER", "ORG", "LOC"}
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
-
-_HTML_TAG_RE = re.compile(r"<[^>]+>")
 
 mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
 mlflow.set_experiment("news-ner")
@@ -57,14 +55,8 @@ def _load_pipeline():
     return pipe
 
 
-def _strip_html(text: str) -> str:
-    return _HTML_TAG_RE.sub(" ", text).strip()
-
-
 def _build_text(item: dict[str, Any]) -> str:
-    title = _strip_html(item.get("title", "") or "")
-    summary = _strip_html(item.get("summary", "") or "")
-    return f"{title}. {summary}".strip()
+    return build_ner_text(item)
 
 
 def _extract_entities(text: str, pipe) -> dict[str, list[str]]:

@@ -35,6 +35,7 @@ import torch
 from loguru import logger
 from transformers import pipeline
 
+from src.analysis.text_inputs import build_sentiment_text
 from src.db.queries import bulk_update_sentiment, fetch_processed_by_date
 
 # ---------------------------------------------------------------------------
@@ -160,9 +161,7 @@ def _get_labels(lang: str) -> dict[str, str]:
 
 
 def _build_text(item: dict[str, Any]) -> str:
-    title = item.get("cleaned_title", "") or ""
-    summary = item.get("cleaned_summary", "") or ""
-    return f"{title}. {summary}".strip()
+    return build_sentiment_text(item)
 
 
 def _predict(text: str, pipe, lang: str) -> dict[str, Any]:

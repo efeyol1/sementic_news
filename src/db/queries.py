@@ -52,6 +52,74 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Article body fetcher
+# ---------------------------------------------------------------------------
+
+def fetch_for_article_fetching(
+    date_str: str,
+    limit: int = 50,
+    retry_failed: bool = False,
+) -> list[dict[str, Any]]:
+    """Return rows whose article body should be fetched."""
+    status_filter = (
+        "AND (parse_status IS NULL OR parse_status IN ('fetch_error', 'parse_error', 'empty'))"
+        if retry_failed
+        else "AND parse_status IS NULL"
+    )
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT id, title, summary, source_name, link, category,
+                       canonical_category, discovery_role, parse_status
+                FROM news_items
+                WHERE collected_date = %s
+                  AND link IS NOT NULL
+                  {status_filter}
+                ORDER BY id
+                LIMIT %s
+                """,
+                (date_str, limit),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def bulk_update_article_parse(updates: list[dict[str, Any]]) -> None:
+    """Persist article body parse results onto ``news_items`` rows."""
+    if not updates:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE news_items SET
+                    article_text         = %s,
+                    cleaned_article_text = %s,
+                    canonical_category   = COALESCE(%s, canonical_category),
+                    discovery_role       = COALESCE(%s, discovery_role),
+                    parse_status         = %s,
+                    parse_error          = %s,
+                    article_fetched_at   = NOW()
+                WHERE id = %s
+                """,
+                [
+                    (
+                        u.get("article_text"),
+                        u.get("cleaned_article_text"),
+                        u.get("canonical_category"),
+                        u.get("discovery_role"),
+                        u.get("parse_status"),
+                        u.get("parse_error"),
+                        u["id"],
+                    )
+                    for u in updates
+                ],
+            )
+            logger.info(f"Updated {cur.rowcount} article parse fields")
+
+
+# ---------------------------------------------------------------------------
 # Preprocessor
 # ---------------------------------------------------------------------------
 
@@ -77,17 +145,19 @@ def bulk_update_preprocessed(updates: list[dict[str, Any]], deletes: list[int]) 
                 cur.executemany(
                     """
                     UPDATE news_items SET
-                        cleaned_title   = %s,
-                        cleaned_summary = %s,
-                        is_turkish      = %s,
-                        char_count      = %s,
-                        published_date  = %s
+                        cleaned_title        = %s,
+                        cleaned_summary      = %s,
+                        cleaned_article_text = %s,
+                        is_turkish           = %s,
+                        char_count           = %s,
+                        published_date       = %s
                     WHERE id = %s
                     """,
                     [
                         (
                             u["cleaned_title"],
                             u["cleaned_summary"],
+                            u.get("cleaned_article_text"),
                             u["is_turkish"],
                             u["char_count"],
                             u["published_date"],
@@ -108,7 +178,7 @@ def fetch_processed_by_date(date_str: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, cleaned_title, cleaned_summary, is_turkish"
+                "SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish"
                 " FROM news_items WHERE collected_date = %s ORDER BY id",
                 (date_str,),
             )
@@ -152,7 +222,12 @@ def fetch_for_ner(date_str: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, title, summary, is_turkish FROM news_items WHERE collected_date = %s ORDER BY id",
+                """
+                SELECT id, title, summary, article_text, cleaned_article_text, is_turkish
+                FROM news_items
+                WHERE collected_date = %s
+                ORDER BY id
+                """,
                 (date_str,),
             )
             return [dict(row) for row in cur.fetchall()]
@@ -192,7 +267,7 @@ def fetch_for_clustering(date_str: str) -> list[dict[str, Any]]:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, cleaned_title, cleaned_summary, is_turkish,
+                SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish,
                        source_name, entities, sentiment_label
                 FROM news_items
                 WHERE collected_date = %s
@@ -273,7 +348,7 @@ def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, title, cleaned_title, cleaned_summary, source_name,
+                SELECT id, title, cleaned_title, cleaned_summary, cleaned_article_text, source_name,
                        link, sentiment_label, sentiment_score, cluster_id
                 FROM news_items
                 WHERE collected_date = %s

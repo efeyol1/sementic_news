@@ -4,12 +4,12 @@ Reads raw items from PostgreSQL, applies cleaning and enrichment, and writes
 the result back to the same rows.
 
 Processing pipeline (per item):
-    1. HTML tag removal from title and summary
+    1. HTML tag removal from title, summary, and article body
     2. Whitespace normalization
     3. Short-item filtering: delete if title and summary together are too short
     4. ISO-8601 date normalization
     5. Turkish language detection (is_turkish flag)
-    6. char_count = len(cleaned_title) + len(cleaned_summary)
+    6. char_count = len(cleaned_title + cleaned_summary + cleaned_article_text)
 
 Usage:
     python -m src.data.preprocessor               # process today's items
@@ -119,11 +119,13 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
     """
     raw_title: str = item.get("title", "") or ""
     raw_summary: str = item.get("summary", "") or ""
+    raw_article_text: str = item.get("article_text", "") or ""
 
     cleaned_title = _clean(raw_title)
     cleaned_summary = _clean(raw_summary)
+    cleaned_article_text = _clean(raw_article_text)
 
-    combined = f"{cleaned_title} {cleaned_summary}".strip()
+    combined = f"{cleaned_title} {cleaned_summary} {cleaned_article_text}".strip()
     if len(combined) < MIN_CHARS:
         return None
 
@@ -134,6 +136,7 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
         "id": item["id"],
         "cleaned_title": cleaned_title.lower(),
         "cleaned_summary": cleaned_summary.lower(),
+        "cleaned_article_text": cleaned_article_text.lower(),
         "is_turkish": turkish,
         "char_count": len(combined),
         "published_date": normalized_date,
