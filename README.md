@@ -179,6 +179,8 @@ V1 (Turkey-only) pilot ülke modülü olarak stabil. V2'de proje çok ülkeli Av
 
 **Etik kural**: "Country X Catholic'tir" gibi basitleştirici claim'ler değil, observable framing pattern'leri. Doğru yorum: _"Migration konusunda seçilen Polonya kaynakları national-identity ve religious-moral framing'i humanitarian framing'e göre daha yoğun kullanıyor"_. Yanlış: _"Polonya medyası Catholic'tir"_.
 
+**Future framing dimensions**: Sentiment'ten ayrı bir `framing` adımı olarak observable frame yoğunlukları ölçülecek. İlk aday frame seti: `religious_moral_frame`, `secular_institutional_frame`, `liberal_rights_frame`, `national_identity_frame`, `security_order_frame`, `economic_cost_frame`, `humanitarian_frame`. Planlanan pipeline yeri: `collect → article_fetch → preprocess → sentiment → framing → NER → clustering → vector_store`.
+
 **Mimari ilke**: Country-specific bilgi **asla** Python kodunda hardcoded olamaz; sadece `configs/countries/*.yaml`. Yeni ülke eklemek = YAML oluştur + RSS source ekle + `python -m src.pipeline --country <name>`.
 
 **Phase 2 done (2026-05-01)**: `configs/countries/turkey.yaml` aktif, `src/config/country_loader.py` slug + ISO code lookup'unu destekler, multi-feed sources (`urls: [list]`) normalize edilir, `rss_collector.py` artık YAML'dan okuyor — RSS_FEEDS sabiti yok. 10 yeni unit test loader'ı validate ediyor.
