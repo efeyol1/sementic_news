@@ -32,6 +32,7 @@ from sklearn.cluster import KMeans
 from sklearn.feature_extraction.text import TfidfVectorizer
 from sklearn.metrics import silhouette_score
 
+from src.analysis.text_inputs import build_clustering_text
 from src.db.queries import (
     bulk_update_clustering,
     fetch_for_clustering,
@@ -80,9 +81,7 @@ def _build_corpus(items: list[dict[str, Any]]) -> tuple[list[int], list[str]]:
     for i, item in enumerate(items):
         if not item.get("is_turkish", True):
             continue
-        title = item.get("cleaned_title", "") or ""
-        summary = item.get("cleaned_summary", "") or ""
-        text = f"{title} {summary}".strip()
+        text = build_clustering_text(item)
         if len(text) >= 20:
             indices.append(i)
             texts.append(text)

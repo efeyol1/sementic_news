@@ -145,17 +145,19 @@ def bulk_update_preprocessed(updates: list[dict[str, Any]], deletes: list[int]) 
                 cur.executemany(
                     """
                     UPDATE news_items SET
-                        cleaned_title   = %s,
-                        cleaned_summary = %s,
-                        is_turkish      = %s,
-                        char_count      = %s,
-                        published_date  = %s
+                        cleaned_title        = %s,
+                        cleaned_summary      = %s,
+                        cleaned_article_text = %s,
+                        is_turkish           = %s,
+                        char_count           = %s,
+                        published_date       = %s
                     WHERE id = %s
                     """,
                     [
                         (
                             u["cleaned_title"],
                             u["cleaned_summary"],
+                            u.get("cleaned_article_text"),
                             u["is_turkish"],
                             u["char_count"],
                             u["published_date"],
@@ -176,7 +178,7 @@ def fetch_processed_by_date(date_str: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, cleaned_title, cleaned_summary, is_turkish"
+                "SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish"
                 " FROM news_items WHERE collected_date = %s ORDER BY id",
                 (date_str,),
             )
@@ -220,7 +222,12 @@ def fetch_for_ner(date_str: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, title, summary, is_turkish FROM news_items WHERE collected_date = %s ORDER BY id",
+                """
+                SELECT id, title, summary, article_text, cleaned_article_text, is_turkish
+                FROM news_items
+                WHERE collected_date = %s
+                ORDER BY id
+                """,
                 (date_str,),
             )
             return [dict(row) for row in cur.fetchall()]
@@ -260,7 +267,7 @@ def fetch_for_clustering(date_str: str) -> list[dict[str, Any]]:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, cleaned_title, cleaned_summary, is_turkish,
+                SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish,
                        source_name, entities, sentiment_label
                 FROM news_items
                 WHERE collected_date = %s
@@ -341,7 +348,7 @@ def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT id, title, cleaned_title, cleaned_summary, source_name,
+                SELECT id, title, cleaned_title, cleaned_summary, cleaned_article_text, source_name,
                        link, sentiment_label, sentiment_score, cluster_id
                 FROM news_items
                 WHERE collected_date = %s

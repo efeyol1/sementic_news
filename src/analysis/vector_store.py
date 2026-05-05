@@ -18,6 +18,7 @@ from typing import Any
 from loguru import logger
 from sentence_transformers import SentenceTransformer
 
+from src.analysis.text_inputs import build_embedding_text
 from src.db.queries import (
     bulk_update_embeddings,
     fetch_for_indexing,
@@ -46,9 +47,7 @@ def _get_embed_model() -> SentenceTransformer:
 
 
 def _build_text(item: dict[str, Any]) -> str:
-    title = item.get("cleaned_title", "") or item.get("title", "") or ""
-    summary = item.get("cleaned_summary", "") or ""
-    return f"{title}. {summary}".strip()
+    return build_embedding_text(item)
 
 
 def index_date(date_str: str) -> int:
