@@ -163,6 +163,11 @@ embeddings:
   model: paraphrase-multilingual-MiniLM-L12-v2
   vector_dim: 384
 
+discovery:
+  report_dir: data/discovery
+  default_min_expected_items: 10
+  category_strategy: infer_from_url
+
 # RSS feed registry. Multi-feed sources (NTV, Milliyet) aggregate via
 # in-memory link dedupe — same source_name in DB, multiple fetch URLs.
 # Audit notes:
@@ -182,6 +187,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # Ana feed 100 + 10 kategori (her biri ~30 item, %25-100 yeni içerik
     # baseline'a göre) → ~385 unique item.
     urls:
@@ -201,6 +209,9 @@ sources:
     type: googlenews_sitemap
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: general_discovery
+    min_expected_items: 100
     # Bonus: Habertürk'ün Google News sitemap'i ~599 article + title
     # taşıyor. RSS multi-feed ile beraber DB'de ON CONFLICT(link) ile
     # birleşip toplam ~600+ unique item'a çıkıyor (RSS'in kapsamadığı
@@ -212,6 +223,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # Anasayfa 75 + 8 kategori (her biri 50-100 item) → ~680 unique.
     # En büyük kazanım kaynağı: 9× artış. saglik/kelebek/sondakika/oto
     # path'leri 0 item döndüğü için listelenmedi.
@@ -230,6 +244,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # Her kategori 20 item cap'inde, dedupe sonrası ~177 unique.
     urls:
       - "https://www.ntv.com.tr/gundem.rss"
@@ -246,6 +263,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # 11 kategori feed birleşip dedupe ile ~350 unique item.
     # Tek feed cap'i 35'te kilitli, ama her kategori farklı içerik veriyor.
     urls:
@@ -265,6 +285,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: general_discovery
+    min_expected_items: 20
     # Sözcü'nün tüm kategori RSS feed'leri aynı 50 item'ı alias gibi
     # serve ediyor; multi-feed merge faydasız. RSS sadece güvenlik
     # ağı olarak (sitemap fail ederse).
@@ -275,6 +298,9 @@ sources:
     type: googlenews_sitemap
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: general_discovery
+    min_expected_items: 100
     # Asıl kazanç: Google News sitemap ~536 article + title + tarih
     # taşıyor. RSS ile birleşip dedupe sonrası ~536 unique item
     # (RSS'in 50'si büyük ihtimalle subset). 6× artış.
@@ -285,6 +311,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # 8 kategori birleşip dedupe → ~335 unique. dunya/yasam/teknoloji/
     # magazin/otomobil/yazarlar her biri 50 item ve %100 farklı içerik.
     urls:
@@ -301,6 +330,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 10
     # 13 kategori feed birleşip dedupe → ~148 unique item.
     # sondakika.xml en geniş (50), kalanlar 10-23 item arası, hepsi
     # birbiriyle örtüşmeden farklı içerik veriyor (3× kazanım).
@@ -323,6 +355,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # sondakika.rss + manset.rss birleşip ~92 unique. Diğer kategori
     # path'leri (ekonomi, spor, dunya...) 0 item döndü, eklemedik.
     urls:
@@ -333,6 +368,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
     # Ana feed 100 + 8 kategori (her biri 100 item, çoğu %85-100 yeni
     # içerik) → ~860 unique. /rss/gundem 301 ile ana feed'e redirect
     # ediyor (aynı içerik), eklemedik.
@@ -351,6 +389,9 @@ sources:
     type: rss
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: general_discovery
+    min_expected_items: 10
     # RSS hard-cap'lı (15 item, kategori feed'leri 301 ile boş).
     # Sitemap-based scrape ile ~200 article'a çıkıyor (aşağıdaki entry).
     # RSS yine de güvenlik ağı: sitemap fail ederse en azından 15 item.
@@ -361,6 +402,9 @@ sources:
     type: html_sitemap
     enabled: true
     category: general
+    category_strategy: infer_from_url
+    discovery_role: general_discovery
+    min_expected_items: 100
     # Plain sitemap (no news:title). Her URL için article HTML'inden
     # <title> + og:description çekiliyor, ThreadPool ile 15 paralel
     # fetch. ~200 article ~10s'de scrape oluyor.

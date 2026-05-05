@@ -44,6 +44,19 @@ import feedparser
 from loguru import logger
 
 from src.config import load_country_config
+from src.data.canonical_categories import (
+    infer_category_from_url,
+    infer_discovery_role,
+    normalize_article_url,
+    validate_category,
+    validate_discovery_role,
+)
+from src.data.rss_validator import (
+    build_discovery_record,
+    build_feed_health,
+    latest_item_date,
+    write_discovery_reports,
+)
 from src.db.queries import insert_raw_items
 
 _HTTP_USER_AGENT = (
@@ -102,6 +115,10 @@ def _sources_from_config(country_config: dict[str, Any]) -> list[dict[str, Any]]
                 "name": src["name"],
                 "type": src.get("type", "rss"),
                 "urls": list(src.get("urls") or []),
+                "category_strategy": src.get("category_strategy", "infer_from_url"),
+                "canonical_category": src.get("canonical_category"),
+                "discovery_role": src.get("discovery_role", "auto"),
+                "min_expected_items": src.get("min_expected_items", 10),
             }
         )
     return descriptors
@@ -163,23 +180,72 @@ def _entry_to_item(entry: Any, source_name: str) -> dict[str, Any]:
 def fetch_feed(source_name: str, url: str) -> list[dict[str, Any]]:
     """Fetch a single RSS URL. Returns parsed items or [] on failure."""
     logger.info(f"Fetching  [{source_name}]  {url}")
+    items, _health = _fetch_rss_with_health(
+        source_name=source_name,
+        url=url,
+        discovery_role="auto",
+        canonical_category="other",
+        min_expected_items=0,
+    )
+    return items
+
+
+def _fetch_rss_with_health(
+    *,
+    source_name: str,
+    url: str,
+    discovery_role: str,
+    canonical_category: str,
+    min_expected_items: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fetch one RSS URL and return items plus a feed-health record."""
+    error = None
+    warning = None
+    http_status = None
+    parse_ok = True
     try:
         feed = feedparser.parse(url)
+        http_status = getattr(feed, "status", None)
         if feed.bozo and feed.bozo_exception:
+            warning = f"{type(feed.bozo_exception).__name__}: {feed.bozo_exception}"
             logger.warning(
                 f"[{source_name}] Malformed feed "
-                f"({type(feed.bozo_exception).__name__}: {feed.bozo_exception})"
+                f"({warning})"
                 " — continuing with partial results"
             )
         if not feed.entries:
+            if warning:
+                parse_ok = False
+                error = warning
+                warning = None
             logger.warning(f"[{source_name}] Feed parsed but contained 0 entries")
-            return []
-        items = [_entry_to_item(e, source_name) for e in feed.entries]
-        logger.success(f"[{source_name}] {len(items)} items fetched")
-        return items
+            items = []
+        else:
+            items = [_entry_to_item(e, source_name) for e in feed.entries]
+            logger.success(f"[{source_name}] {len(items)} items fetched")
     except Exception as exc:
+        parse_ok = False
+        error = str(exc)
         logger.error(f"[{source_name}] Unrecoverable error: {exc}")
-        return []
+        items = []
+
+    unique_count = len({normalize_article_url(item.get("link") or "") for item in items if item.get("link")})
+    health = build_feed_health(
+        source_name=source_name,
+        source_type="rss",
+        discovery_url=url,
+        discovery_role=discovery_role,
+        canonical_category=canonical_category,
+        min_expected_items=min_expected_items,
+        http_status=http_status,
+        parse_ok=parse_ok,
+        item_count=len(items),
+        unique_url_count=unique_count,
+        latest_date=latest_item_date(items),
+        error=error,
+        warning=warning,
+    )
+    return items, health
 
 
 # ---------------------------------------------------------------------------
@@ -187,10 +253,18 @@ def fetch_feed(source_name: str, url: str) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def _http_get_bytes(url: str, timeout: int = _SITEMAP_TIMEOUT_SEC) -> bytes:
+def _http_get_bytes_with_status(
+    url: str,
+    timeout: int = _SITEMAP_TIMEOUT_SEC,
+) -> tuple[bytes, int | None]:
     req = urllib.request.Request(url, headers={"User-Agent": _HTTP_USER_AGENT})
     with urllib.request.urlopen(req, timeout=timeout) as resp:
-        return resp.read()
+        return resp.read(), getattr(resp, "status", None) or resp.getcode()
+
+
+def _http_get_bytes(url: str, timeout: int = _SITEMAP_TIMEOUT_SEC) -> bytes:
+    body, _status = _http_get_bytes_with_status(url, timeout=timeout)
+    return body
 
 
 def _sitemap_entry_to_item(url_el: ET.Element, source_name: str) -> dict[str, Any] | None:
@@ -233,27 +307,67 @@ def fetch_sitemap(source_name: str, url: str) -> list[dict[str, Any]]:
     ``fetch_html_sitemap`` instead — it pays the per-article HTML cost.
     """
     logger.info(f"Fetching sitemap [{source_name}]  {url}")
+    items, _health = _fetch_sitemap_with_health(
+        source_name=source_name,
+        url=url,
+        discovery_role="general_discovery",
+        canonical_category="other",
+        min_expected_items=0,
+    )
+    return items
+
+
+def _fetch_sitemap_with_health(
+    *,
+    source_name: str,
+    url: str,
+    discovery_role: str,
+    canonical_category: str,
+    min_expected_items: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fetch a Google News sitemap and return items plus health."""
+    http_status = None
+    error = None
+    parse_ok = True
     try:
-        body = _http_get_bytes(url)
+        body, http_status = _http_get_bytes_with_status(url)
         root = ET.fromstring(body)
     except Exception as exc:
+        parse_ok = False
+        error = str(exc)
         logger.error(f"[{source_name}] Sitemap fetch/parse failed: {exc}")
-        return []
-
-    items: list[dict[str, Any]] = []
-    for url_el in root.findall(".//sm:url", _SITEMAP_NS):
-        item = _sitemap_entry_to_item(url_el, source_name)
-        if item is not None:
-            items.append(item)
-
-    if not items:
-        logger.warning(
-            f"[{source_name}] Sitemap parsed but contained 0 news-extended entries — "
-            "likely a plain sitemap without news:title fields"
-        )
+        items: list[dict[str, Any]] = []
     else:
-        logger.success(f"[{source_name}] {len(items)} items from Google News sitemap")
-    return items
+        items = []
+        for url_el in root.findall(".//sm:url", _SITEMAP_NS):
+            item = _sitemap_entry_to_item(url_el, source_name)
+            if item is not None:
+                items.append(item)
+
+        if not items:
+            logger.warning(
+                f"[{source_name}] Sitemap parsed but contained 0 news-extended entries — "
+                "likely a plain sitemap without news:title fields"
+            )
+        else:
+            logger.success(f"[{source_name}] {len(items)} items from Google News sitemap")
+
+    unique_count = len({normalize_article_url(item.get("link") or "") for item in items if item.get("link")})
+    health = build_feed_health(
+        source_name=source_name,
+        source_type="googlenews_sitemap",
+        discovery_url=url,
+        discovery_role=discovery_role,
+        canonical_category=canonical_category,
+        min_expected_items=min_expected_items,
+        http_status=http_status,
+        parse_ok=parse_ok,
+        item_count=len(items),
+        unique_url_count=unique_count,
+        latest_date=latest_item_date(items),
+        error=error,
+    )
+    return items, health
 
 
 # ---------------------------------------------------------------------------
@@ -350,12 +464,51 @@ def fetch_html_sitemap(source_name: str, sitemap_url: str) -> list[dict[str, Any
     are silently dropped (returned count < discovered count).
     """
     logger.info(f"Discovering URLs [{source_name}]  {sitemap_url}")
+    items, _health = _fetch_html_sitemap_with_health(
+        source_name=source_name,
+        sitemap_url=sitemap_url,
+        discovery_role="general_discovery",
+        canonical_category="other",
+        min_expected_items=0,
+    )
+    return items
+
+
+def _fetch_html_sitemap_with_health(
+    *,
+    source_name: str,
+    sitemap_url: str,
+    discovery_role: str,
+    canonical_category: str,
+    min_expected_items: int,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """Fetch a plain sitemap, scrape article metadata, and return health."""
+    http_status = None
+    error = None
+    parse_ok = True
     try:
-        body = _http_get_bytes(sitemap_url)
+        body, http_status = _http_get_bytes_with_status(sitemap_url)
         root = ET.fromstring(body)
     except Exception as exc:
+        parse_ok = False
+        error = str(exc)
         logger.error(f"[{source_name}] sitemap fetch/parse failed: {exc}")
-        return []
+        items: list[dict[str, Any]] = []
+        health = build_feed_health(
+            source_name=source_name,
+            source_type="html_sitemap",
+            discovery_url=sitemap_url,
+            discovery_role=discovery_role,
+            canonical_category=canonical_category,
+            min_expected_items=min_expected_items,
+            http_status=http_status,
+            parse_ok=parse_ok,
+            item_count=0,
+            unique_url_count=0,
+            latest_date=None,
+            error=error,
+        )
+        return items, health
 
     entries: list[dict[str, str]] = []
     for url_el in root.findall(".//sm:url", _SITEMAP_NS):
@@ -374,7 +527,21 @@ def fetch_html_sitemap(source_name: str, sitemap_url: str) -> list[dict[str, Any
 
     if not entries:
         logger.warning(f"[{source_name}] sitemap had 0 URL entries")
-        return []
+        health = build_feed_health(
+            source_name=source_name,
+            source_type="html_sitemap",
+            discovery_url=sitemap_url,
+            discovery_role=discovery_role,
+            canonical_category=canonical_category,
+            min_expected_items=min_expected_items,
+            http_status=http_status,
+            parse_ok=parse_ok,
+            item_count=0,
+            unique_url_count=0,
+            latest_date=None,
+            error=None,
+        )
+        return [], health
 
     logger.info(
         f"[{source_name}] scraping {len(entries)} articles "
@@ -395,7 +562,22 @@ def fetch_html_sitemap(source_name: str, sitemap_url: str) -> list[dict[str, Any
         )
     else:
         logger.success(f"[{source_name}] {len(items)} articles scraped from sitemap")
-    return items
+    unique_count = len({normalize_article_url(item.get("link") or "") for item in items if item.get("link")})
+    health = build_feed_health(
+        source_name=source_name,
+        source_type="html_sitemap",
+        discovery_url=sitemap_url,
+        discovery_role=discovery_role,
+        canonical_category=canonical_category,
+        min_expected_items=min_expected_items,
+        http_status=http_status,
+        parse_ok=parse_ok,
+        item_count=len(items),
+        unique_url_count=unique_count,
+        latest_date=latest_item_date(items),
+        error=error,
+    )
+    return items, health
 
 
 # ---------------------------------------------------------------------------
@@ -449,6 +631,109 @@ def fetch_source(
     return aggregated
 
 
+def _feed_metadata(src: dict[str, Any], url: str) -> dict[str, Any]:
+    category = src.get("canonical_category")
+    if category is None or src.get("category_strategy") == "infer_from_url":
+        category = infer_category_from_url(url)
+    category = validate_category(category)
+
+    role = src.get("discovery_role", "auto")
+    if role == "auto":
+        role = infer_discovery_role(url)
+    role = validate_discovery_role(role)
+
+    return {
+        "source_name": src["name"],
+        "source_type": src.get("type", "rss"),
+        "discovery_url": url,
+        "discovery_role": role,
+        "canonical_category": category,
+        "min_expected_items": int(src.get("min_expected_items", 10)),
+    }
+
+
+def _fetch_url_with_health(
+    src: dict[str, Any],
+    url: str,
+) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    meta = _feed_metadata(src, url)
+    source_type = meta["source_type"]
+
+    if source_type == "googlenews_sitemap":
+        items, health = _fetch_sitemap_with_health(
+            source_name=meta["source_name"],
+            url=url,
+            discovery_role=meta["discovery_role"],
+            canonical_category=meta["canonical_category"],
+            min_expected_items=meta["min_expected_items"],
+        )
+    elif source_type == "html_sitemap":
+        items, health = _fetch_html_sitemap_with_health(
+            source_name=meta["source_name"],
+            sitemap_url=url,
+            discovery_role=meta["discovery_role"],
+            canonical_category=meta["canonical_category"],
+            min_expected_items=meta["min_expected_items"],
+        )
+    else:
+        items, health = _fetch_rss_with_health(
+            source_name=meta["source_name"],
+            url=url,
+            discovery_role=meta["discovery_role"],
+            canonical_category=meta["canonical_category"],
+            min_expected_items=meta["min_expected_items"],
+        )
+
+    discovered: list[dict[str, Any]] = []
+    for item in items:
+        canonical_url = normalize_article_url(item.get("link") or "")
+        if canonical_url:
+            item["link"] = canonical_url
+        discovered.append(
+            build_discovery_record(
+                item=item,
+                source_name=meta["source_name"],
+                source_type=source_type,
+                discovery_url=url,
+                discovery_role=meta["discovery_role"],
+                canonical_category=meta["canonical_category"],
+                canonical_url=canonical_url,
+            )
+        )
+
+    return items, health, discovered
+
+
+def fetch_source_with_health(
+    src: dict[str, Any],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Fetch a configured source descriptor with per-feed health records."""
+    aggregated: list[dict[str, Any]] = []
+    health_records: list[dict[str, Any]] = []
+    discovered_records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+
+    for url in src.get("urls", []):
+        items, health, discovered = _fetch_url_with_health(src, url)
+        health_records.append(health)
+        discovered_records.extend(discovered)
+        for item in items:
+            link = item.get("link") or ""
+            if link and link in seen:
+                continue
+            if link:
+                seen.add(link)
+            aggregated.append(item)
+
+    if len(src.get("urls", [])) > 1:
+        logger.success(
+            f"[{src['name']}] {len(aggregated)} unique items "
+            f"after canonical dedupe across {len(src['urls'])} {src.get('type', 'rss')} feeds"
+        )
+
+    return aggregated, health_records, discovered_records
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -474,10 +759,16 @@ def collect_all(
         Number of new rows inserted.
     """
     date_str = date_str or date.today().isoformat()
+    country_code = "UNKNOWN"
+    country_slug = country
+    report_dir: str | None = None
 
     if feeds is None:
         config = load_country_config(country)
         sources = _sources_from_config(config)
+        country_code = config["country_code"]
+        country_slug = config["country_slug"]
+        report_dir = (config.get("discovery") or {}).get("report_dir")
         logger.info(
             f"Loaded {len(sources)} source descriptors from country config "
             f"[{config['country_code']}/{config['country_slug']}]"
@@ -485,16 +776,27 @@ def collect_all(
     else:
         # Backward-compat: dict path implies all-RSS, single descriptor per name.
         sources = [
-            {"name": name, "type": "rss", "urls": list(urls)}
+            {
+                "name": name,
+                "type": "rss",
+                "urls": list(urls),
+                "category_strategy": "infer_from_url",
+                "discovery_role": "auto",
+                "min_expected_items": 0,
+            }
             for name, urls in feeds.items()
         ]
 
     all_items: list[dict[str, Any]] = []
     failed: list[str] = []
     seen_names: set[str] = set()
+    feed_health: list[dict[str, Any]] = []
+    discovered_records: list[dict[str, Any]] = []
 
     for src in sources:
-        items = fetch_source(src["name"], src["urls"], src["type"])
+        items, health_records, discovered = fetch_source_with_health(src)
+        feed_health.extend(health_records)
+        discovered_records.extend(discovered)
         if items:
             all_items.extend(items)
             seen_names.add(src["name"])
@@ -507,11 +809,22 @@ def collect_all(
         )
 
     inserted = insert_raw_items(all_items, date_str)
+    discovered_path, health_path = write_discovery_reports(
+        date_str=date_str,
+        country_code=country_code,
+        country_slug=country_slug,
+        feed_health=feed_health,
+        discovered_records=discovered_records,
+        inserted_count=inserted,
+        report_dir=report_dir,
+    )
 
     logger.success(
         f"Collection complete — {inserted} new items inserted "
         f"from {len(seen_names)} distinct sources"
     )
+    logger.info(f"Discovery URL pool written to {discovered_path}")
+    logger.info(f"Source health report written to {health_path}")
     return inserted
 
 
