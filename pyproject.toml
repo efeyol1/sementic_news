@@ -41,7 +41,6 @@ pipeline = [
 training = [
     "accelerate>=1.1.0",
     "datasets>=2.19.0",
-    "dvc>=3.50.0",
 ]
 # ONNX export + dynamic int8 quantization for the sentiment model.
 # Install only on the box doing the export or benchmark; the daily
