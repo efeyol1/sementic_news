@@ -6,7 +6,7 @@ the result back to the same rows.
 Processing pipeline (per item):
     1. HTML tag removal from title and summary
     2. Whitespace normalization
-    3. Short-item filtering: delete if title or summary < MIN_CHARS characters
+    3. Short-item filtering: delete if title and summary together are too short
     4. ISO-8601 date normalization
     5. Turkish language detection (is_turkish flag)
     6. char_count = len(cleaned_title) + len(cleaned_summary)
@@ -123,11 +123,11 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
     cleaned_title = _clean(raw_title)
     cleaned_summary = _clean(raw_summary)
 
-    if len(cleaned_title) < MIN_CHARS or len(cleaned_summary) < MIN_CHARS:
+    combined = f"{cleaned_title} {cleaned_summary}".strip()
+    if len(combined) < MIN_CHARS:
         return None
 
     normalized_date = _normalize_date(item.get("published_date"))
-    combined = f"{cleaned_title} {cleaned_summary}"
     turkish = _is_turkish(combined)
 
     return {
@@ -135,7 +135,7 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
         "cleaned_title": cleaned_title.lower(),
         "cleaned_summary": cleaned_summary.lower(),
         "is_turkish": turkish,
-        "char_count": len(cleaned_title) + len(cleaned_summary),
+        "char_count": len(combined),
         "published_date": normalized_date,
     }
 

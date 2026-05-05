@@ -17,6 +17,11 @@ from typing import Any
 
 import yaml
 
+from src.data.canonical_categories import (
+    validate_category,
+    validate_discovery_role,
+)
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _CONFIGS_DIR = _REPO_ROOT / "configs" / "countries"
 
@@ -97,6 +102,19 @@ def _normalize_sources(sources: list[dict[str, Any]], filename: str) -> list[dic
         canonical.setdefault("type", "rss")
         canonical.setdefault("enabled", True)
         canonical.setdefault("category", "general")
+        canonical.setdefault("category_strategy", "infer_from_url")
+        canonical.setdefault("discovery_role", "auto")
+        canonical.setdefault("min_expected_items", 10)
+
+        if canonical.get("canonical_category") is not None:
+            validate_category(canonical["canonical_category"])
+        if canonical.get("discovery_role") != "auto":
+            validate_discovery_role(canonical["discovery_role"])
+        if not isinstance(canonical["min_expected_items"], int) or canonical["min_expected_items"] < 0:
+            raise ValueError(
+                f"{filename}: source {src['name']!r} 'min_expected_items' "
+                "must be a non-negative integer"
+            )
         normalized.append(canonical)
     return normalized
 
