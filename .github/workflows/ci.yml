@@ -20,7 +20,7 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev]"
+        run: pip install -e ".[dev,pipeline]"
 
       - name: Cache HuggingFace models
         # Behavioral tests load efeyol11/bert-turkish-sentiment (~440MB) every run.
