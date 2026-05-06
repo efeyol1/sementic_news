@@ -201,8 +201,8 @@ Aynı outlet farklı type'larla listelenince (örn. Habertürk RSS + Habertürk 
 | 0 | Repository audit | ✅ done |
 | 1 | Stabilize Turkey baseline | ✅ done |
 | 2 | Country configuration system (`configs/countries/turkey.yaml`) | ✅ done |
-| 4 | Country-aware DB schema (`country_code`, `language` columns) | pending |
 | 3 | Country-aware pipeline (`--country` CLI arg) | pending |
+| 4 | Country-aware DB schema (`country_code`, `language` columns) | pending |
 | 5 | Country-aware FastAPI endpoints (`?country=TR`, `/api/countries`) | pending |
 | 6 | Dashboard country selector | pending |
 | 7 | Add Germany (first non-TR) | pending |
@@ -213,6 +213,16 @@ Aynı outlet farklı type'larla listelenince (örn. Habertürk RSS + Habertürk 
 | 12 | README + presentation refresh | pending |
 
 V2 her phase ayrı branch (`v2/phase-N-slug`) + main'e merge sonrası tag (`v2-phase-N`).
+
+### Next Steps — Article Body Quality & V2
+
+1. **Article parser quality report** — kaynak bazında `parsed / empty / fetch_error / parse_error` oranlarını çıkar; hangi kaynakta generic parser iyi/kötü çalışıyor netleşsin.
+2. **Source-specific parser improvements** — generic parser zayıf kalan kaynaklara özel selector ekle; öncelik düşük parse başarısı veya stratejik kaynaklar (örn. Sözcü, TRT Haber, Yeni Şafak, Sabah).
+3. **Controlled article backfill** — tek tarih için `--article-limit 100 → 300 → 500` şeklinde kademeli ilerle; her artışta parse status, süre ve DB etkisini ölç.
+4. **Body-aware analysis QA** — body ile clustering daha anlamlı mı, sentiment dağılımı aşırı kayıyor mu, source comparison mantıklı kalıyor mu kontrol et; gerekirse body snippet limitlerini ayarla.
+5. **Daily pipeline rollout** — kalite yeterliyse production daily pipeline'da önce küçük limit ile `--fetch-articles --article-limit 300` aç, sonra ölçerek artır.
+6. **Country-aware DB/pipeline** — `country_code`, `language`, `src.pipeline --country <slug>` ve ardından ilk non-TR ülke.
+7. **Framing foundation** — sentiment'ten ayrı `src/analysis/framing.py`; frame dağılımlarını ülke/kaynak/kategori bazında ölç, API/dashboard katmanına daha sonra taşı.
 
 ## Telif ve Veri Notu
 

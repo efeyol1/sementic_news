@@ -59,6 +59,7 @@ def fetch_for_article_fetching(
     date_str: str,
     limit: int = 50,
     retry_failed: bool = False,
+    per_source_limit: int | None = None,
 ) -> list[dict[str, Any]]:
     """Return rows whose article body should be fetched."""
     status_filter = (
@@ -68,19 +69,41 @@ def fetch_for_article_fetching(
     )
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
-            cur.execute(
-                f"""
-                SELECT id, title, summary, source_name, link, category,
-                       canonical_category, discovery_role, parse_status
-                FROM news_items
-                WHERE collected_date = %s
-                  AND link IS NOT NULL
-                  {status_filter}
-                ORDER BY id
-                LIMIT %s
-                """,
-                (date_str, limit),
-            )
+            if per_source_limit is not None:
+                cur.execute(
+                    f"""
+                    SELECT id, title, summary, source_name, link, category,
+                           canonical_category, discovery_role, parse_status
+                    FROM (
+                        SELECT
+                            id, title, summary, source_name, link, category,
+                            canonical_category, discovery_role, parse_status,
+                            ROW_NUMBER() OVER (PARTITION BY source_name ORDER BY id) AS source_rank
+                        FROM news_items
+                        WHERE collected_date = %s
+                          AND link IS NOT NULL
+                          {status_filter}
+                    ) ranked
+                    WHERE source_rank <= %s
+                    ORDER BY source_name, id
+                    LIMIT %s
+                    """,
+                    (date_str, per_source_limit, limit),
+                )
+            else:
+                cur.execute(
+                    f"""
+                    SELECT id, title, summary, source_name, link, category,
+                           canonical_category, discovery_role, parse_status
+                    FROM news_items
+                    WHERE collected_date = %s
+                      AND link IS NOT NULL
+                      {status_filter}
+                    ORDER BY id
+                    LIMIT %s
+                    """,
+                    (date_str, limit),
+                )
             return [dict(row) for row in cur.fetchall()]
 
 
@@ -117,6 +140,26 @@ def bulk_update_article_parse(updates: list[dict[str, Any]]) -> None:
                 ],
             )
             logger.info(f"Updated {cur.rowcount} article parse fields")
+
+
+def fetch_article_parse_quality_rows(date_str: str) -> list[dict[str, Any]]:
+    """Return row-level article parse quality signals for one collection date."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    source_name,
+                    COALESCE(canonical_category, 'unknown') AS category,
+                    COALESCE(parse_status, 'unfetched') AS parse_status,
+                    LENGTH(COALESCE(cleaned_article_text, '')) AS article_chars
+                FROM news_items
+                WHERE collected_date = %s
+                ORDER BY source_name, category, parse_status
+                """,
+                (date_str,),
+            )
+            return [dict(row) for row in cur.fetchall()]
 
 
 # ---------------------------------------------------------------------------

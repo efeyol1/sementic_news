@@ -7,6 +7,7 @@ main daily pipeline behavior.
 Usage:
     python -m src.data.article_fetcher --date 2026-05-05 --limit 20
     python -m src.data.article_fetcher --date 2026-05-05 --limit 100 --workers 8
+    python -m src.data.article_fetcher --date 2026-05-05 --per-source-limit 5
 """
 
 from __future__ import annotations
@@ -147,6 +148,7 @@ def fetch_articles(
     workers: int = 8,
     timeout: int = _DEFAULT_TIMEOUT_SEC,
     retry_failed: bool = False,
+    per_source_limit: int | None = None,
     discovery_file: str | Path | None = None,
     ensure_schema: bool = True,
 ) -> dict[str, int]:
@@ -156,7 +158,12 @@ def fetch_articles(
         init_db()
 
     metadata_by_url = load_discovery_metadata(date_str, discovery_file)
-    rows = fetch_for_article_fetching(date_str, limit=limit, retry_failed=retry_failed)
+    rows = fetch_for_article_fetching(
+        date_str,
+        limit=limit,
+        retry_failed=retry_failed,
+        per_source_limit=per_source_limit,
+    )
     if not rows:
         logger.warning(f"No article rows to fetch for {date_str}")
         return {}
@@ -182,6 +189,12 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--limit", type=int, default=50)
     parser.add_argument("--workers", type=int, default=8)
     parser.add_argument("--timeout", type=int, default=_DEFAULT_TIMEOUT_SEC)
+    parser.add_argument(
+        "--per-source-limit",
+        type=int,
+        default=None,
+        help="Maximum rows to fetch per source before applying --limit.",
+    )
     parser.add_argument("--retry-failed", action="store_true")
     parser.add_argument("--discovery-file", default=None)
     parser.add_argument(
@@ -192,6 +205,8 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.limit < 1 or args.workers < 1 or args.timeout < 1:
         parser.error("--limit, --workers, and --timeout must be positive integers")
+    if args.per_source_limit is not None and args.per_source_limit < 1:
+        parser.error("--per-source-limit must be a positive integer")
     return args
 
 
@@ -203,6 +218,7 @@ if __name__ == "__main__":
         workers=args.workers,
         timeout=args.timeout,
         retry_failed=args.retry_failed,
+        per_source_limit=args.per_source_limit,
         discovery_file=args.discovery_file,
         ensure_schema=not args.skip_init_db,
     )
