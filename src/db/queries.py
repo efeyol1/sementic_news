@@ -14,8 +14,18 @@ from src.db.client import get_conn, retry_on_connection_loss  # noqa: E402
 # RSS Collector
 # ---------------------------------------------------------------------------
 
-def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
-    """Bulk-insert raw RSS items; skip duplicates by link. Returns rows inserted."""
+def insert_raw_items(
+    items: list[dict[str, Any]],
+    date_str: str,
+    country_code: str = "TR",
+    language: str = "tr",
+) -> int:
+    """Bulk-insert raw RSS items; skip duplicates by link. Returns rows inserted.
+
+    ``country_code`` / ``language`` default to the V1 Turkey pilot values so
+    legacy callers stay correct; Phase 3 will plumb the real selection through
+    from the country config.
+    """
     if not items:
         return 0
     rows = [
@@ -27,6 +37,8 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
             item.get("published_date") or None,
             item.get("link") or None,  # empty string → NULL (avoids false conflicts)
             item.get("category") or None,
+            country_code,
+            language,
         )
         for item in items
     ]
@@ -38,7 +50,8 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
                 cur,
                 """
                 INSERT INTO news_items
-                    (collected_date, title, summary, source_name, published_date, link, category)
+                    (collected_date, title, summary, source_name, published_date, link, category,
+                     country_code, language)
                 VALUES %s
                 ON CONFLICT (link) DO NOTHING
                 """,
@@ -47,7 +60,10 @@ def insert_raw_items(items: list[dict[str, Any]], date_str: str) -> int:
             cur.execute("SELECT count(*) FROM news_items WHERE collected_date = %s", (date_str,))
             after = cur.fetchone()[0]
     inserted = after - before
-    logger.info(f"Inserted {inserted}/{len(rows)} items for {date_str} (total in DB: {after})")
+    logger.info(
+        f"Inserted {inserted}/{len(rows)} items for {date_str} "
+        f"[{country_code}/{language}] (total in DB: {after})"
+    )
     return inserted
 
 
