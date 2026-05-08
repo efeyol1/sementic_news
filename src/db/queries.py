@@ -216,13 +216,77 @@ def bulk_update_preprocessed(updates: list[dict[str, Any]], deletes: list[int]) 
 # Sentiment
 # ---------------------------------------------------------------------------
 
-def fetch_processed_by_date(date_str: str) -> list[dict[str, Any]]:
+def fetch_processed_by_date(
+    date_str: str,
+    only_missing: bool = False,
+    only_stale_after_body: bool = False,
+    only_with_body: bool = False,
+    limit: int | None = None,
+) -> list[dict[str, Any]]:
     """Return items with cleaned fields needed for sentiment analysis."""
+    filters = ["collected_date = %s"]
+    params: list[Any] = [date_str]
+    if only_missing:
+        filters.append("sentiment_label IS NULL")
+        filters.append("is_turkish = true")
+    if only_stale_after_body:
+        filters.extend(
+            [
+                "is_turkish = true",
+                "sentiment_label IS NOT NULL",
+                "article_fetched_at IS NOT NULL",
+                "analyzed_at IS NOT NULL",
+                "analyzed_at < article_fetched_at",
+            ]
+        )
+    if only_with_body:
+        filters.append("LENGTH(COALESCE(cleaned_article_text, '')) > 0")
+        filters.append("is_turkish = true")
+    limit_clause = ""
+    if limit is not None:
+        limit_clause = " LIMIT %s"
+        params.append(limit)
+    order_clause = "analyzed_at NULLS FIRST, id" if only_with_body else "id"
+
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish"
-                " FROM news_items WHERE collected_date = %s ORDER BY id",
+                f"""
+                SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish
+                FROM news_items
+                WHERE {" AND ".join(filters)}
+                ORDER BY {order_clause}
+                {limit_clause}
+                """,
+                params,
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+def fetch_sentiment_quality_rows(date_str: str) -> list[dict[str, Any]]:
+    """Return row-level sentiment QA signals for one collection date."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    id,
+                    source_name,
+                    link,
+                    COALESCE(canonical_category, 'unknown') AS category,
+                    cleaned_title,
+                    cleaned_summary,
+                    cleaned_article_text,
+                    sentiment_label,
+                    sentiment_score,
+                    sentiment_scores,
+                    analyzed_at,
+                    article_fetched_at,
+                    is_turkish
+                FROM news_items
+                WHERE collected_date = %s
+                ORDER BY source_name, id
+                """,
                 (date_str,),
             )
             return [dict(row) for row in cur.fetchall()]
@@ -506,7 +570,7 @@ def fetch_high_confidence_items(min_confidence: float = 0.85, max_samples: int =
     """Return high-confidence Turkish news items for retraining.
 
     Returns id, cleaned_title, cleaned_summary, sentiment_label, sentiment_score.
-    Ordered oldest-first so recency cap (LIMIT) keeps the most recent examples.
+    Ordered newest-first so the recency cap (LIMIT) keeps the most recent examples.
     """
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:

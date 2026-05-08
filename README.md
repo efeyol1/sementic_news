@@ -224,6 +224,22 @@ V2 her phase ayrı branch (`v2/phase-N-slug`) + main'e merge sonrası tag (`v2-p
 6. **Country-aware DB/pipeline** — `country_code`, `language`, `src.pipeline --country <slug>` ve ardından ilk non-TR ülke.
 7. **Framing foundation** — sentiment'ten ayrı `src/analysis/framing.py`; frame dağılımlarını ülke/kaynak/kategori bazında ölç, API/dashboard katmanına daha sonra taşı.
 
+### Sentiment QA Workflow
+
+Body parsing sonrası model kalitesini doğrulamak için sentiment skorları önce freshness ve dağılım açısından audit edilir:
+
+```bash
+python scripts/audit_sentiment_quality.py --date 2026-05-06
+python -m src.analysis.sentiment --date 2026-05-06 --only-missing --limit 200
+python -m src.analysis.sentiment --date 2026-05-06 --only-stale-after-body --limit 100
+python scripts/export_sentiment_review_sample.py --date 2026-05-06 --per-source-label 2
+python scripts/evaluate_sentiment_review.py data/qa/sentiment_review_2026-05-06.csv
+```
+
+Audit'te `stale_after_body`, düşük neutral oranı ve yüksek güvenli bariz cue mismatch örnekleri izlenir. Model kalitesi için asıl gate, manuel doldurulmuş `reviewed_label` üzerinden `accuracy`, `macro_f1` ve özellikle `neutral recall` değerleridir.
+
+`--only-with-body` flag'i body'si olan satırları **mevcut skorlara bakmadan yeniden yazar**; yalnızca günü kasten baştan rescore ederken kullan, normal akışta `--only-missing` ve `--only-stale-after-body` yeterli.
+
 ## Telif ve Veri Notu
 
 **Bu repo yalnızca kaynak kodu içerir, haber verisi içermez.**

@@ -18,6 +18,8 @@ Reads items from PostgreSQL, writes enriched results back to the same rows.
 Usage:
     python -m src.analysis.sentiment               # analyze today's items
     python -m src.analysis.sentiment --date 2026-04-17
+    python -m src.analysis.sentiment --date 2026-05-06 --only-stale-after-body --limit 100
+    python -m src.analysis.sentiment --date 2026-05-06 --only-with-body --limit 100
     SENTIMENT_MODEL_ID=efeyol11/bert-turkish-sentiment python -m src.analysis.sentiment
     SENTIMENT_BACKEND=onnx_int8 python -m src.analysis.sentiment
 """
@@ -167,7 +169,10 @@ def _build_text(item: dict[str, Any]) -> str:
 def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
     if _is_finetuned_mode():
         # Fine-tuned text-classification pipeline returns list of {label, score} dicts
-        raw = pipe(text, truncation=True, max_length=128)[0]
+        # 256 captures title + summary + 800-char body (~230-300 Turkish tokens
+        # for typical news items) while keeping CPU attention cost ~2× the
+        # title-only baseline rather than the ~5× hit of max_length=512.
+        raw = pipe(text, truncation=True, max_length=256)[0]
         scores: dict[str, float] = {
             _FINETUNED_LABEL_MAP.get(r["label"], r["label"]): round(r["score"], 6)
             for r in raw
@@ -222,19 +227,43 @@ def _to_analyzed(item: dict[str, Any], pipe, lang: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def analyze(date_str: str | None = None, lang: str = DEFAULT_LANG) -> int:
+def analyze(
+    date_str: str | None = None,
+    lang: str = DEFAULT_LANG,
+    only_missing: bool = False,
+    only_stale_after_body: bool = False,
+    only_with_body: bool = False,
+    limit: int | None = None,
+) -> int:
     """Run sentiment analysis for a single day's items.
 
     Returns:
         Number of Turkish items analyzed.
     """
+    scoped_modes = [only_missing, only_stale_after_body, only_with_body]
+    if sum(bool(mode) for mode in scoped_modes) > 1:
+        raise ValueError("only_missing, only_stale_after_body, and only_with_body are mutually exclusive")
+    if limit is not None and limit < 1:
+        raise ValueError("limit must be a positive integer")
+    if (only_missing or only_stale_after_body or only_with_body) and not _is_finetuned_mode():
+        raise ValueError(
+            "scoped sentiment writes require SENTIMENT_MODEL_ID or SENTIMENT_BACKEND=onnx_int8 "
+            "to avoid writing with the default zero-shot model"
+        )
+
     date_str = date_str or date.today().isoformat()
 
     if lang not in SENTIMENT_LABELS:
         logger.warning(f"Lang '{lang}' not in SENTIMENT_LABELS, falling back to English")
         lang = "en"
 
-    items = fetch_processed_by_date(date_str)
+    items = fetch_processed_by_date(
+        date_str,
+        only_missing=only_missing,
+        only_stale_after_body=only_stale_after_body,
+        only_with_body=only_with_body,
+        limit=limit,
+    )
     if not items:
         logger.warning(f"No preprocessed items found for {date_str}")
         return 0
@@ -272,6 +301,10 @@ def analyze(date_str: str | None = None, lang: str = DEFAULT_LANG) -> int:
             "date": date_str,
             "total_items": len(items),
             "analyzed_items": n_tr,
+            "only_missing": only_missing,
+            "only_stale_after_body": only_stale_after_body,
+            "only_with_body": only_with_body,
+            "limit": limit,
         })
         mlflow.log_metrics({
             "negative_pct": label_counts["negative"] / n_tr if n_tr else 0.0,
@@ -300,10 +333,46 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         metavar="LANG",
         help=f"Language code: {list(SENTIMENT_LABELS.keys())} (default: {DEFAULT_LANG})",
     )
-    return parser.parse_args(argv)
+    parser.add_argument(
+        "--only-missing",
+        action="store_true",
+        help="Analyze only rows that do not have a sentiment label yet.",
+    )
+    parser.add_argument(
+        "--only-stale-after-body",
+        action="store_true",
+        help="Re-score rows whose sentiment was produced before article body fetch.",
+    )
+    parser.add_argument(
+        "--only-with-body",
+        action="store_true",
+        help=(
+            "Re-score every body-bearing row, OVERWRITING existing sentiment. "
+            "Destructive — prefer --only-missing or --only-stale-after-body for incremental work."
+        ),
+    )
+    parser.add_argument("--limit", type=int, default=None, help="Maximum rows to analyze.")
+    args = parser.parse_args(argv)
+    scoped_modes = [args.only_missing, args.only_stale_after_body, args.only_with_body]
+    if sum(bool(mode) for mode in scoped_modes) > 1:
+        parser.error("--only-missing, --only-stale-after-body, and --only-with-body are mutually exclusive")
+    if args.limit is not None and args.limit < 1:
+        parser.error("--limit must be a positive integer")
+    if (args.only_missing or args.only_stale_after_body or args.only_with_body) and not _is_finetuned_mode():
+        parser.error(
+            "scoped sentiment writes require SENTIMENT_MODEL_ID or SENTIMENT_BACKEND=onnx_int8"
+        )
+    return args
 
 
 if __name__ == "__main__":
     args = _parse_args()
-    analyze(date_str=args.date, lang=args.lang)
+    analyze(
+        date_str=args.date,
+        lang=args.lang,
+        only_missing=args.only_missing,
+        only_stale_after_body=args.only_stale_after_body,
+        only_with_body=args.only_with_body,
+        limit=args.limit,
+    )
     sys.exit(0)
