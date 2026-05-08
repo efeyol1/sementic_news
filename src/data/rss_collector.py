@@ -759,7 +759,10 @@ def collect_all(
         Number of new rows inserted.
     """
     date_str = date_str or date.today().isoformat()
-    country_code = "UNKNOWN"
+    # Defaults match the V1 Turkey pilot so the dict-path / backward-compat
+    # caller (no country config) keeps writing TR/tr rows.
+    country_code = "TR"
+    language = "tr"
     country_slug = country
     report_dir: str | None = None
 
@@ -767,6 +770,7 @@ def collect_all(
         config = load_country_config(country)
         sources = _sources_from_config(config)
         country_code = config["country_code"]
+        language = config["language"]
         country_slug = config["country_slug"]
         report_dir = (config.get("discovery") or {}).get("report_dir")
         logger.info(
@@ -808,7 +812,12 @@ def collect_all(
             f"{len(failed)} source feed(s) returned no items: " + ", ".join(failed)
         )
 
-    inserted = insert_raw_items(all_items, date_str)
+    inserted = insert_raw_items(
+        all_items,
+        date_str,
+        country_code=country_code,
+        language=language,
+    )
     discovered_path, health_path = write_discovery_reports(
         date_str=date_str,
         country_code=country_code,
