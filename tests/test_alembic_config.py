@@ -43,6 +43,12 @@ def test_baseline_revision_present(script_dir: ScriptDirectory):
     assert "0001_baseline" in revisions
 
 
+def test_country_derived_revision_present(script_dir: ScriptDirectory):
+    """Prod DBs may already be stamped with this revision; keep it reachable."""
+    revisions = {r.revision for r in script_dir.walk_revisions()}
+    assert "0004_country_derived" in revisions
+
+
 def test_baseline_is_root(script_dir: ScriptDirectory):
     """Baseline must have no down_revision (it's the schema starting
     point). Anything else means we accidentally chained off the wrong
