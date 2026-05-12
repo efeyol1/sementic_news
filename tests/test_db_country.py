@@ -31,6 +31,12 @@ class _FakeCursor:
     def fetchone(self):
         return (next(self._counts),)
 
+    def fetchall(self):
+        return []
+
+    def executemany(self, query: str, params: Any) -> None:
+        self.executed.append((query, params))
+
 
 class _FakeConnection:
     def __init__(self, cursor: _FakeCursor) -> None:
@@ -116,3 +122,55 @@ def test_insert_raw_items_skips_when_empty(captured_insert):
 
     assert inserted == 0
     assert captured == {}
+
+
+def test_fetch_raw_by_date_filters_by_country(monkeypatch):
+    import src.db.queries as queries
+
+    cursor = _FakeCursor()
+    monkeypatch.setattr(queries, "get_conn", lambda: _FakeConnection(cursor))
+
+    rows = queries.fetch_raw_by_date("2026-05-08", country_code="DE")
+
+    assert rows == []
+    assert "country_code = %s" in cursor.executed[0][0]
+    assert cursor.executed[0][1] == ("2026-05-08", "DE")
+
+
+def test_fetch_sentiment_trend_filters_by_country(monkeypatch):
+    import src.db.queries as queries
+
+    cursor = _FakeCursor()
+    monkeypatch.setattr(queries, "get_conn", lambda: _FakeConnection(cursor))
+
+    rows = queries.fetch_sentiment_trend(days=14, country_code="DE")
+
+    assert rows == []
+    assert "country_code = %s" in cursor.executed[0][0]
+    assert cursor.executed[0][1] == ("DE", 14)
+
+
+def test_upsert_cluster_summaries_is_country_scoped(monkeypatch):
+    import src.db.queries as queries
+
+    cursor = _FakeCursor()
+    monkeypatch.setattr(queries, "get_conn", lambda: _FakeConnection(cursor))
+
+    queries.upsert_cluster_summaries(
+        [
+            {
+                "cluster_id": 1,
+                "title": "Economy",
+                "size": 2,
+                "keywords": ["rates"],
+                "sources": {"Example": 2},
+                "sentiment_distribution": {"neutral": 2},
+            }
+        ],
+        "2026-05-08",
+        country_code="DE",
+    )
+
+    sql, params = cursor.executed[0]
+    assert "ON CONFLICT (country_code, date, cluster_id)" in sql
+    assert params[0][0] == "DE"

@@ -182,6 +182,7 @@ def _build_cluster_summaries(
 def cluster_topics(
     date_str: str | None = None,
     n_clusters: int = DEFAULT_N_CLUSTERS,
+    country_code: str = "TR",
 ) -> int:
     """Run topic clustering for a single day's items.
 
@@ -190,7 +191,7 @@ def cluster_topics(
     """
     date_str = date_str or date.today().isoformat()
 
-    items = fetch_for_clustering(date_str)
+    items = fetch_for_clustering(date_str, country_code=country_code)
     if not items:
         logger.warning(f"No items found for clustering on {date_str}")
         return 0
@@ -235,11 +236,12 @@ def cluster_topics(
                 })
 
     bulk_update_clustering(cluster_updates)
-    upsert_cluster_summaries(summaries, date_str)
+    upsert_cluster_summaries(summaries, date_str, country_code=country_code)
 
     with mlflow.start_run(run_name=f"clustering-{date_str}"):
         mlflow.log_params({
             "date": date_str,
+            "country_code": country_code,
             "n_clusters": n_clusters,
             "corpus_size": len(texts),
             "embed_model": _EMBED_MODEL,

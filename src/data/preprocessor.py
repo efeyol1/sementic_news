@@ -8,7 +8,7 @@ Processing pipeline (per item):
     2. Whitespace normalization
     3. Short-item filtering: delete if title and summary together are too short
     4. ISO-8601 date normalization
-    5. Turkish language detection (is_turkish flag)
+    5. Target-language detection (legacy is_turkish flag)
     6. char_count = len(cleaned_title + cleaned_summary + cleaned_article_text)
 
 Usage:
@@ -97,12 +97,12 @@ def _normalize_date(raw) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _is_turkish(text: str) -> bool:
+def _is_target_language(text: str, target_language: str = "tr") -> bool:
     sample = text[:300].strip()
     if not sample:
         return True
     try:
-        return detect(sample) == "tr"
+        return detect(sample) == target_language
     except LangDetectException:
         return True
 
@@ -112,7 +112,10 @@ def _is_turkish(text: str) -> bool:
 # ---------------------------------------------------------------------------
 
 
-def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
+def process_item(
+    item: dict[str, Any],
+    target_language: str = "tr",
+) -> dict[str, Any] | None:
     """Apply the full preprocessing pipeline to a single news item.
 
     Returns None if the item should be discarded (too short).
@@ -130,14 +133,16 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
         return None
 
     normalized_date = _normalize_date(item.get("published_date"))
-    turkish = _is_turkish(combined)
+    is_target_language = _is_target_language(combined, target_language)
 
     return {
         "id": item["id"],
         "cleaned_title": cleaned_title.lower(),
         "cleaned_summary": cleaned_summary.lower(),
         "cleaned_article_text": cleaned_article_text.lower(),
-        "is_turkish": turkish,
+        # Legacy DB column name. Until the schema is renamed, callers should
+        # treat this as "matches the configured country language".
+        "is_turkish": is_target_language,
         "char_count": len(combined),
         "published_date": normalized_date,
     }
@@ -148,7 +153,11 @@ def process_item(item: dict[str, Any]) -> dict[str, Any] | None:
 # ---------------------------------------------------------------------------
 
 
-def preprocess(date_str: str | None = None) -> int:
+def preprocess(
+    date_str: str | None = None,
+    country_code: str = "TR",
+    target_language: str = "tr",
+) -> int:
     """Run the full preprocessing pipeline for a single day's raw items.
 
     Returns:
@@ -156,29 +165,29 @@ def preprocess(date_str: str | None = None) -> int:
     """
     date_str = date_str or date.today().isoformat()
 
-    raw_items = fetch_raw_by_date(date_str)
+    raw_items = fetch_raw_by_date(date_str, country_code=country_code)
     if not raw_items:
         logger.warning(f"No raw items found for {date_str} — run rss_collector first")
         return 0
 
     updates: list[dict[str, Any]] = []
     deletes: list[int] = []
-    non_turkish = 0
+    non_target_language = 0
 
     for item in raw_items:
-        result = process_item(item)
+        result = process_item(item, target_language=target_language)
         if result is None:
             deletes.append(item["id"])
         else:
             if not result["is_turkish"]:
-                non_turkish += 1
+                non_target_language += 1
             updates.append(result)
 
     bulk_update_preprocessed(updates, deletes)
 
     logger.info(
         f"Preprocessing done — {len(updates)} kept, {len(deletes)} deleted (too short), "
-        f"{non_turkish} flagged as non-Turkish"
+        f"{non_target_language} flagged as non-target-language [{country_code}/{target_language}]"
     )
     return len(updates)
 

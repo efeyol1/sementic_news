@@ -42,10 +42,18 @@ def test_analyze_forwards_stale_filter_and_limit(monkeypatch):
     captured = {}
     monkeypatch.setenv("SENTIMENT_MODEL_ID", "efeyol11/bert-turkish-sentiment")
 
-    def fake_fetch_processed_by_date(date_str, only_missing, only_stale_after_body, only_with_body, limit):
+    def fake_fetch_processed_by_date(
+        date_str,
+        only_missing,
+        only_stale_after_body,
+        only_with_body,
+        limit,
+        country_code,
+    ):
         captured.update(
             {
                 "date_str": date_str,
+                "country_code": country_code,
                 "only_missing": only_missing,
                 "only_stale_after_body": only_stale_after_body,
                 "only_with_body": only_with_body,
@@ -65,6 +73,7 @@ def test_analyze_forwards_stale_filter_and_limit(monkeypatch):
     assert result == 0
     assert captured == {
         "date_str": "2026-05-06",
+        "country_code": "TR",
         "only_missing": False,
         "only_stale_after_body": True,
         "only_with_body": False,
@@ -172,6 +181,29 @@ def test_fetch_processed_by_date_orders_body_rescore_by_oldest_analysis(monkeypa
 
     assert rows == []
     assert "LENGTH(COALESCE(cleaned_article_text, '')) > 0" in cursor.query
-    assert "is_turkish = true" in cursor.query
+    # country_code drives multi-country filter; legacy is_turkish must NOT
+    # be in the WHERE clause or DE/FR pipelines would return zero rows.
+    assert "country_code = %s" in cursor.query
+    assert "is_turkish = true" not in cursor.query
     assert "ORDER BY analyzed_at NULLS FIRST, id" in cursor.query
-    assert cursor.params == ["2026-05-06", 50]
+    assert cursor.params == ["2026-05-06", "TR", 50]
+
+
+def test_fetch_processed_by_date_filters_by_non_turkey_country(monkeypatch):
+    """DE pipeline must reach scoping queries — regression for the
+    is_turkish=true bug that silently zeroed non-TR scoping runs."""
+    import src.db.queries as queries
+
+    cursor = _FakeCursor()
+    monkeypatch.setattr(queries, "get_conn", lambda: _FakeConnection(cursor))
+
+    rows = queries.fetch_processed_by_date(
+        "2026-05-06", only_missing=True, country_code="DE"
+    )
+
+    assert rows == []
+    assert "country_code = %s" in cursor.query
+    # is_turkish appears in the SELECT list (returned for downstream gating)
+    # but must NOT be in the WHERE clause as a filter.
+    assert "is_turkish = true" not in cursor.query
+    assert cursor.params == ["2026-05-06", "DE"]

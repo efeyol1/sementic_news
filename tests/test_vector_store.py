@@ -50,9 +50,9 @@ class _FakeModel:
 @pytest.fixture(autouse=True)
 def mock_db(monkeypatch):
     import src.analysis.vector_store as vs
-    monkeypatch.setattr(vs, "fetch_for_indexing", lambda date_str: _FAKE_ITEMS)
+    monkeypatch.setattr(vs, "fetch_for_indexing", lambda date_str, country_code="TR": _FAKE_ITEMS)
     monkeypatch.setattr(vs, "bulk_update_embeddings", lambda updates: None)
-    monkeypatch.setattr(vs, "find_similar_pgvector", lambda emb, n=5: _FAKE_SIMILAR[:n])
+    monkeypatch.setattr(vs, "find_similar_pgvector", lambda emb, n=5, country_code="TR": _FAKE_SIMILAR[:n])
     monkeypatch.setattr(vs, "_get_embed_model", lambda: _FakeModel())
 
 
@@ -73,6 +73,6 @@ def test_find_similar():
 
 def test_index_date_no_items(monkeypatch):
     import src.analysis.vector_store as vs
-    monkeypatch.setattr(vs, "fetch_for_indexing", lambda date_str: [])
+    monkeypatch.setattr(vs, "fetch_for_indexing", lambda date_str, country_code="TR": [])
     count = vs.index_date("1999-01-01")
     assert count == 0

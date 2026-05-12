@@ -2,7 +2,7 @@
 
 Compares today's sentiment-label distribution against a rolling 30-day
 baseline using Population Stability Index (PSI). Writes a JSON artifact
-to ``data/drift_reports/<date>.json`` and, when running under GitHub
+to ``data/drift_reports/<country_code>_<date>.json`` and, when running under GitHub
 Actions, appends a one-screen summary to ``$GITHUB_STEP_SUMMARY``.
 
 Designed to fail-soft: if the baseline is too thin (cold start, after a
@@ -108,20 +108,25 @@ def _split_today_vs_baseline(
 # ---------------------------------------------------------------------------
 
 
-def run_drift_check(target_date: str, window: int = 30) -> dict:
+def run_drift_check(
+    target_date: str,
+    window: int = 30,
+    country_code: str = "TR",
+) -> dict:
     """Compute drift for *target_date* against the prior *window* days.
 
     Returns a JSON-serializable report dict. Always writes the report to
-    ``data/drift_reports/<target_date>.json``; never raises on data
+    ``data/drift_reports/<country_code>_<target_date>.json``; never raises on data
     issues — instead reports ``status='insufficient_data'``.
     """
-    logger.info(f"Drift check — target={target_date}, window={window}d")
+    logger.info(f"Drift check — target={target_date}, country={country_code}, window={window}d")
 
-    rows = fetch_sentiment_trend(days=window + 1)
+    rows = fetch_sentiment_trend(days=window + 1, country_code=country_code)
     today_row, baseline_rows = _split_today_vs_baseline(rows, target_date, window)
 
     report: dict = {
         "date": target_date,
+        "country_code": country_code,
         "window_days": window,
         "baseline_days": len(baseline_rows),
         "computed_at": datetime.now(UTC).isoformat(),
@@ -194,7 +199,7 @@ def run_drift_check(target_date: str, window: int = 30) -> dict:
 
 def _persist(report: dict) -> Path:
     _REPORTS_DIR.mkdir(parents=True, exist_ok=True)
-    out = _REPORTS_DIR / f"{report['date']}.json"
+    out = _REPORTS_DIR / f"{report.get('country_code', 'TR')}_{report['date']}.json"
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False))
     logger.info(f"Wrote drift report → {out.relative_to(_REPO_ROOT)}")
     return out
@@ -206,7 +211,7 @@ def _persist_to_db(report: dict) -> None:
     Fail-soft: a DB hiccup mustn't kill the daily pipeline's drift step.
     """
     try:
-        upsert_drift_report(report)
+        upsert_drift_report(report, country_code=report.get("country_code", "TR"))
         logger.info(f"Drift report persisted to DB ({report.get('status')})")
     except Exception as exc:
         logger.warning(f"DB persist skipped: {exc}")
@@ -231,7 +236,7 @@ def _emit_step_summary(report: dict) -> None:
 
     if report.get("status") == "insufficient_data":
         md = [
-            f"### Drift report — {report['date']}",
+            f"### Drift report — {report.get('country_code', 'TR')} {report['date']}",
             "",
             "- **Status**: `insufficient_data`",
             f"- **Reason**: {report.get('reason', 'unknown')}",
@@ -246,7 +251,7 @@ def _emit_step_summary(report: dict) -> None:
         today = report["today"]["ratios"]
         base = report["baseline"]["ratios"]
         md = [
-            f"### Drift report — {report['date']}",
+            f"### Drift report — {report.get('country_code', 'TR')} {report['date']}",
             "",
             f"- **PSI**: `{report['psi']}` → **{report['severity'].upper()}**",
             f"- **Today**: {report['today']['total']} items "

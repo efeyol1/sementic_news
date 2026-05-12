@@ -50,12 +50,12 @@ def _build_text(item: dict[str, Any]) -> str:
     return build_embedding_text(item)
 
 
-def index_date(date_str: str) -> int:
+def index_date(date_str: str, country_code: str = "TR") -> int:
     """Embed all analyzed items for *date_str* and store in PostgreSQL.
 
     Returns count of items indexed.
     """
-    items = fetch_for_indexing(date_str)
+    items = fetch_for_indexing(date_str, country_code=country_code)
     if not items:
         logger.warning(f"No items to index for {date_str}")
         return 0
@@ -80,11 +80,11 @@ def index_date(date_str: str) -> int:
 # ---------------------------------------------------------------------------
 
 
-def find_similar(text: str, n: int = 5) -> list[dict[str, Any]]:
+def find_similar(text: str, n: int = 5, country_code: str = "TR") -> list[dict[str, Any]]:
     """Return top-n semantically similar news items to *text*."""
     model = _get_embed_model()
     embedding = model.encode([text])[0].tolist()
-    results = find_similar_pgvector(embedding, n=n)
+    results = find_similar_pgvector(embedding, n=n, country_code=country_code)
     for r in results:
         r["similarity"] = round(float(r["similarity"]), 4)
     return results

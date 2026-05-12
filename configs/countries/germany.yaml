@@ -1,0 +1,154 @@
+# Germany country configuration — first non-TR pilot.
+#
+# This starts intentionally small: enough source coverage to exercise the
+# country-aware pipeline without making Germany quality depend on a large,
+# unvalidated feed registry. Phase 7 should expand and audit source coverage.
+
+country_code: DE
+country_name: Germany
+country_slug: germany
+language: de
+timezone: Europe/Berlin
+
+sentiment:
+  enabled: true
+  zero_shot_model: joeddav/xlm-roberta-large-xnli
+  # Keep unset for Germany until a German/multilingual fine-tuned classifier
+  # is selected. The Turkish fine-tuned model should not be used for DE.
+  finetuned_model: null
+  labels: [positive, negative, neutral]
+  candidate_labels:
+    positive: "positive Nachricht"
+    negative: "negative Nachricht"
+    neutral:  "neutrale Nachricht"
+
+ner:
+  # The current NER module still uses the Turkish model globally. Keep this
+  # disabled at config level until Phase 7/10 wires model selection per country.
+  enabled: false
+  model: null
+  keep_labels: [PER, ORG, LOC]
+
+clustering:
+  enabled: true
+  method: kmeans
+  default_n_clusters: 15
+  embedding_model: paraphrase-multilingual-MiniLM-L12-v2
+  stopwords:
+    - der
+    - die
+    - das
+    - den
+    - dem
+    - des
+    - ein
+    - eine
+    - einer
+    - eines
+    - einem
+    - und
+    - oder
+    - aber
+    - mit
+    - für
+    - von
+    - in
+    - im
+    - am
+    - an
+    - auf
+    - aus
+    - zu
+    - zum
+    - zur
+    - ist
+    - sind
+    - war
+    - waren
+    - wird
+    - werden
+    - hat
+    - haben
+    - nach
+    - bei
+    - über
+    - mehr
+    - deutschland
+    - deutsche
+    - deutschen
+    - jahr
+    - jahre
+    - heute
+
+embeddings:
+  enabled: true
+  model: paraphrase-multilingual-MiniLM-L12-v2
+  vector_dim: 384
+
+discovery:
+  report_dir: data/discovery
+  default_min_expected_items: 10
+  category_strategy: infer_from_url
+
+sources:
+  - name: tagesschau
+    type: rss
+    enabled: true
+    category_strategy: infer_from_url
+    discovery_role: auto
+    min_expected_items: 20
+    urls:
+      - "https://www.tagesschau.de/infoservices/alle-meldungen-100~rss2.xml"
+
+  - name: tagesschau
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.tagesschau.de/inland/index~rss2.xml"
+      - "https://www.tagesschau.de/inland/innenpolitik/index~rss2.xml"
+
+  - name: tagesschau
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.tagesschau.de/ausland/index~rss2.xml"
+      - "https://www.tagesschau.de/ausland/europa/index~rss2.xml"
+
+  - name: tagesschau
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.tagesschau.de/wirtschaft/index~rss2.xml"
+
+  - name: tagesschau
+    type: rss
+    enabled: true
+    canonical_category: science_technology
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 5
+    urls:
+      - "https://www.tagesschau.de/wissen/index~rss2.xml"
+
+  - name: Deutsche Welle
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 10
+    urls:
+      - "https://rss.dw.com/xml/rss-de-all"
+      - "https://rss.dw.com/xml/rss-de-news"

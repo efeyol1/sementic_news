@@ -9,6 +9,7 @@ GitHub Actions) appends a PSI summary to ``$GITHUB_STEP_SUMMARY``.
 
 Usage:
     python -m src.pipeline                    # run today's full pipeline
+    python -m src.pipeline --country turkey
     python -m src.pipeline --date 2026-04-20
     python -m src.pipeline --skip-collect     # skip RSS fetch (raw file exists)
     python -m src.pipeline --fetch-articles --article-limit 100
@@ -16,6 +17,7 @@ Usage:
 """
 
 import argparse
+import os
 import sys
 import time
 from datetime import date
@@ -27,6 +29,7 @@ from src.analysis.clustering import cluster_topics
 from src.analysis.ner import extract_entities
 from src.analysis.sentiment import analyze
 from src.analysis.vector_store import index_date
+from src.config import load_country_config
 from src.data.article_fetcher import fetch_articles
 from src.data.preprocessor import preprocess
 from src.data.rss_collector import collect_all
@@ -37,6 +40,7 @@ from src.monitoring.drift import run_drift_check
 # ---------------------------------------------------------------------------
 
 _REPO_ROOT = Path(__file__).resolve().parents[1]
+_DEFAULT_COUNTRY = "turkey"
 
 
 def _step(name: str, fn, *args, **kwargs):
@@ -65,6 +69,28 @@ def _step_soft(name: str, fn, *args, **kwargs):
     return result
 
 
+def _section_enabled(country_config: dict, section: str, default: bool = True) -> bool:
+    payload = country_config.get(section) or {}
+    return bool(payload.get("enabled", default))
+
+
+def _validate_sentiment_backend(country_config: dict) -> None:
+    """Prevent accidental cross-language use of a fine-tuned sentiment model."""
+    sentiment_cfg = country_config.get("sentiment") or {}
+    configured_finetuned = sentiment_cfg.get("finetuned_model")
+    env_model = os.getenv("SENTIMENT_MODEL_ID")
+    env_backend = os.getenv("SENTIMENT_BACKEND", "").lower()
+    if configured_finetuned:
+        return
+    if env_model or env_backend == "onnx_int8":
+        raise RuntimeError(
+            "Sentiment fine-tuned backend is active, but this country config "
+            "does not declare sentiment.finetuned_model. Unset SENTIMENT_MODEL_ID/"
+            "SENTIMENT_BACKEND to use zero-shot, or configure a country-specific "
+            "fine-tuned model."
+        )
+
+
 # ---------------------------------------------------------------------------
 # Public API
 # ---------------------------------------------------------------------------
@@ -72,6 +98,7 @@ def _step_soft(name: str, fn, *args, **kwargs):
 
 def run(
     date_str: str | None = None,
+    country: str = _DEFAULT_COUNTRY,
     skip_collect: bool = False,
     fetch_article_bodies: bool = False,
     article_limit: int = 100,
@@ -82,6 +109,7 @@ def run(
 
     Args:
         date_str: ISO date string (``"YYYY-MM-DD"``).  Defaults to today.
+        country: Country slug or ISO code from ``configs/countries/*.yaml``.
         skip_collect: If True, skip RSS collection (raw file must exist).
         fetch_article_bodies: If True, fetch article body text before preprocessing.
         article_limit: Max article bodies to fetch in this run.
@@ -89,12 +117,19 @@ def run(
         n_clusters: Number of topic clusters for the clustering step.
     """
     date_str = date_str or date.today().isoformat()
+    country_config = load_country_config(country)
+    country_code = country_config["country_code"]
+    country_slug = country_config["country_slug"]
+    language = country_config["language"]
 
-    logger.info(f"Pipeline start — date={date_str}, skip_collect={skip_collect}")
+    logger.info(
+        f"Pipeline start — date={date_str}, country={country_slug} "
+        f"[{country_code}/{language}], skip_collect={skip_collect}"
+    )
     wall_start = time.perf_counter()
 
     if not skip_collect:
-        _step("collect", collect_all, date_str=date_str)
+        _step("collect", collect_all, date_str=date_str, country=country_slug)
 
     if fetch_article_bodies:
         _step(
@@ -104,17 +139,56 @@ def run(
             limit=article_limit,
             workers=article_workers,
             ensure_schema=True,
+            country_code=country_code,
+            country_slug=country_slug,
         )
 
-    _step("preprocess", preprocess, date_str=date_str)
-    _step("sentiment", analyze, date_str=date_str)
-    _step("ner", extract_entities, date_str=date_str)
-    _step("clustering", cluster_topics, date_str=date_str, n_clusters=n_clusters)
-    _step("vector_store", index_date, date_str=date_str)
-    _step_soft("drift", run_drift_check, target_date=date_str)
+    _step(
+        "preprocess",
+        preprocess,
+        date_str=date_str,
+        country_code=country_code,
+        target_language=language,
+    )
+    if _section_enabled(country_config, "sentiment"):
+        _validate_sentiment_backend(country_config)
+        _step(
+            "sentiment",
+            analyze,
+            date_str=date_str,
+            lang=language,
+            country_code=country_code,
+        )
+    else:
+        logger.info("Skipping sentiment — disabled in country config")
+
+    if _section_enabled(country_config, "ner"):
+        _step("ner", extract_entities, date_str=date_str, country_code=country_code)
+    else:
+        logger.info("Skipping ner — disabled in country config")
+
+    if _section_enabled(country_config, "clustering"):
+        _step(
+            "clustering",
+            cluster_topics,
+            date_str=date_str,
+            n_clusters=n_clusters,
+            country_code=country_code,
+        )
+    else:
+        logger.info("Skipping clustering — disabled in country config")
+
+    if _section_enabled(country_config, "embeddings"):
+        _step("vector_store", index_date, date_str=date_str, country_code=country_code)
+    else:
+        logger.info("Skipping vector_store — embeddings disabled in country config")
+    _step_soft("drift", run_drift_check, target_date=date_str, country_code=country_code)
 
     total = time.perf_counter() - wall_start
-    logger.success(f"Pipeline complete — {date_str} finished in {total:.1f}s")
+    logger.success(
+        f"Pipeline complete — {date_str} [{country_code}/{country_slug}] "
+        f"finished in {total:.1f}s"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -131,6 +205,11 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         default=date.today().isoformat(),
         metavar="YYYY-MM-DD",
         help="Date to process (default: today)",
+    )
+    parser.add_argument(
+        "--country",
+        default=_DEFAULT_COUNTRY,
+        help="Country slug or ISO code from configs/countries/*.yaml (default: turkey)",
     )
     parser.add_argument(
         "--skip-collect",
@@ -174,6 +253,7 @@ if __name__ == "__main__":
     try:
         run(
             date_str=args.date,
+            country=args.country,
             skip_collect=args.skip_collect,
             fetch_article_bodies=args.fetch_articles,
             article_limit=args.article_limit,

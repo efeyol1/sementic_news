@@ -94,7 +94,7 @@ def _to_ner(item: dict[str, Any], pipe) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def extract_entities(date_str: str | None = None) -> int:
+def extract_entities(date_str: str | None = None, country_code: str = "TR") -> int:
     """Run NER pipeline for a single day's items.
 
     Returns:
@@ -102,7 +102,7 @@ def extract_entities(date_str: str | None = None) -> int:
     """
     date_str = date_str or date.today().isoformat()
 
-    items = fetch_for_ner(date_str)
+    items = fetch_for_ner(date_str, country_code=country_code)
     if not items:
         logger.warning(f"No items found for NER on {date_str}")
         return 0
@@ -134,6 +134,7 @@ def extract_entities(date_str: str | None = None) -> int:
         mlflow.log_params({
             "model_id": HF_MODEL_ID,
             "date": date_str,
+            "country_code": country_code,
             "total_items": len(items),
             "turkish_items": n_tr,
         })

@@ -76,6 +76,7 @@ def fetch_for_article_fetching(
     limit: int = 50,
     retry_failed: bool = False,
     per_source_limit: int | None = None,
+    country_code: str = "TR",
 ) -> list[dict[str, Any]]:
     """Return rows whose article body should be fetched."""
     status_filter = (
@@ -97,6 +98,7 @@ def fetch_for_article_fetching(
                             ROW_NUMBER() OVER (PARTITION BY source_name ORDER BY id) AS source_rank
                         FROM news_items
                         WHERE collected_date = %s
+                          AND country_code = %s
                           AND link IS NOT NULL
                           {status_filter}
                     ) ranked
@@ -104,7 +106,7 @@ def fetch_for_article_fetching(
                     ORDER BY source_name, id
                     LIMIT %s
                     """,
-                    (date_str, per_source_limit, limit),
+                    (date_str, country_code, per_source_limit, limit),
                 )
             else:
                 cur.execute(
@@ -113,12 +115,13 @@ def fetch_for_article_fetching(
                            canonical_category, discovery_role, parse_status
                     FROM news_items
                     WHERE collected_date = %s
+                      AND country_code = %s
                       AND link IS NOT NULL
                       {status_filter}
                     ORDER BY id
                     LIMIT %s
                     """,
-                    (date_str, limit),
+                    (date_str, country_code, limit),
                 )
             return [dict(row) for row in cur.fetchall()]
 
@@ -158,7 +161,10 @@ def bulk_update_article_parse(updates: list[dict[str, Any]]) -> None:
             logger.info(f"Updated {cur.rowcount} article parse fields")
 
 
-def fetch_article_parse_quality_rows(date_str: str) -> list[dict[str, Any]]:
+def fetch_article_parse_quality_rows(
+    date_str: str,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     """Return row-level article parse quality signals for one collection date."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -171,9 +177,10 @@ def fetch_article_parse_quality_rows(date_str: str) -> list[dict[str, Any]]:
                     LENGTH(COALESCE(cleaned_article_text, '')) AS article_chars
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                 ORDER BY source_name, category, parse_status
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -182,13 +189,19 @@ def fetch_article_parse_quality_rows(date_str: str) -> list[dict[str, Any]]:
 # Preprocessor
 # ---------------------------------------------------------------------------
 
-def fetch_raw_by_date(date_str: str) -> list[dict[str, Any]]:
+def fetch_raw_by_date(date_str: str, country_code: str = "TR") -> list[dict[str, Any]]:
     """Return all items collected on *date_str* with their raw fields."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
-                "SELECT * FROM news_items WHERE collected_date = %s ORDER BY id",
-                (date_str,),
+                """
+                SELECT *
+                FROM news_items
+                WHERE collected_date = %s
+                  AND country_code = %s
+                ORDER BY id
+                """,
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -238,17 +251,21 @@ def fetch_processed_by_date(
     only_stale_after_body: bool = False,
     only_with_body: bool = False,
     limit: int | None = None,
+    country_code: str = "TR",
 ) -> list[dict[str, Any]]:
     """Return items with cleaned fields needed for sentiment analysis."""
-    filters = ["collected_date = %s"]
-    params: list[Any] = [date_str]
+    # ``country_code`` is the multi-country filter; the legacy ``is_turkish``
+    # langdetect flag is intentionally NOT used here — DE/FR rows would be
+    # is_turkish=false and the scoping queries would return zero rows. Per-row
+    # language gating still happens downstream in ``_to_analyzed`` for the
+    # zero-shot path.
+    filters = ["collected_date = %s", "country_code = %s"]
+    params: list[Any] = [date_str, country_code]
     if only_missing:
         filters.append("sentiment_label IS NULL")
-        filters.append("is_turkish = true")
     if only_stale_after_body:
         filters.extend(
             [
-                "is_turkish = true",
                 "sentiment_label IS NOT NULL",
                 "article_fetched_at IS NOT NULL",
                 "analyzed_at IS NOT NULL",
@@ -257,7 +274,6 @@ def fetch_processed_by_date(
         )
     if only_with_body:
         filters.append("LENGTH(COALESCE(cleaned_article_text, '')) > 0")
-        filters.append("is_turkish = true")
     limit_clause = ""
     if limit is not None:
         limit_clause = " LIMIT %s"
@@ -279,7 +295,10 @@ def fetch_processed_by_date(
             return [dict(row) for row in cur.fetchall()]
 
 
-def fetch_sentiment_quality_rows(date_str: str) -> list[dict[str, Any]]:
+def fetch_sentiment_quality_rows(
+    date_str: str,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     """Return row-level sentiment QA signals for one collection date."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -301,9 +320,10 @@ def fetch_sentiment_quality_rows(date_str: str) -> list[dict[str, Any]]:
                     is_turkish
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                 ORDER BY source_name, id
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -341,7 +361,7 @@ def bulk_update_sentiment(updates: list[dict[str, Any]]) -> None:
 # NER
 # ---------------------------------------------------------------------------
 
-def fetch_for_ner(date_str: str) -> list[dict[str, Any]]:
+def fetch_for_ner(date_str: str, country_code: str = "TR") -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -349,9 +369,10 @@ def fetch_for_ner(date_str: str) -> list[dict[str, Any]]:
                 SELECT id, title, summary, article_text, cleaned_article_text, is_turkish
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                 ORDER BY id
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -385,7 +406,7 @@ def bulk_update_ner(updates: list[dict[str, Any]]) -> None:
 # Clustering
 # ---------------------------------------------------------------------------
 
-def fetch_for_clustering(date_str: str) -> list[dict[str, Any]]:
+def fetch_for_clustering(date_str: str, country_code: str = "TR") -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -394,9 +415,10 @@ def fetch_for_clustering(date_str: str) -> list[dict[str, Any]]:
                        source_name, entities, sentiment_label
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                 ORDER BY id
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -428,7 +450,11 @@ def bulk_update_clustering(updates: list[dict[str, Any]]) -> None:
             logger.info(f"Updated {cur.rowcount} clustering fields")
 
 
-def upsert_cluster_summaries(summaries: list[dict[str, Any]], date_str: str) -> None:
+def upsert_cluster_summaries(
+    summaries: list[dict[str, Any]],
+    date_str: str,
+    country_code: str = "TR",
+) -> None:
     if not summaries:
         return
     with get_conn() as conn:
@@ -436,9 +462,9 @@ def upsert_cluster_summaries(summaries: list[dict[str, Any]], date_str: str) -> 
             cur.executemany(
                 """
                 INSERT INTO cluster_summaries
-                    (date, cluster_id, title, size, keywords, sources, sentiment_distribution)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date, cluster_id) DO UPDATE SET
+                    (country_code, date, cluster_id, title, size, keywords, sources, sentiment_distribution)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (country_code, date, cluster_id) DO UPDATE SET
                     title                  = EXCLUDED.title,
                     size                   = EXCLUDED.size,
                     keywords               = EXCLUDED.keywords,
@@ -447,6 +473,7 @@ def upsert_cluster_summaries(summaries: list[dict[str, Any]], date_str: str) -> 
                 """,
                 [
                     (
+                        country_code,
                         date_str,
                         s["cluster_id"],
                         s.get("title", ""),
@@ -465,7 +492,7 @@ def upsert_cluster_summaries(summaries: list[dict[str, Any]], date_str: str) -> 
 # Vector store (pgvector)
 # ---------------------------------------------------------------------------
 
-def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
+def fetch_for_indexing(date_str: str, country_code: str = "TR") -> list[dict[str, Any]]:
     """Return Turkish items with sentiment to be embedded."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -475,11 +502,12 @@ def fetch_for_indexing(date_str: str) -> list[dict[str, Any]]:
                        link, sentiment_label, sentiment_score, cluster_id
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                   AND is_turkish = true
                   AND sentiment_label IS NOT NULL
                 ORDER BY id
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             rows = [dict(row) for row in cur.fetchall()]
     for row in rows:
@@ -511,6 +539,7 @@ def bulk_update_embeddings(updates: list[dict[str, Any]]) -> None:
 def find_similar_pgvector(
     query_embedding: list[float],
     n: int = 5,
+    country_code: str = "TR",
 ) -> list[dict[str, Any]]:
     """Return top-n news items by cosine similarity to *query_embedding*."""
     vec_str = "[" + ",".join(str(x) for x in query_embedding) + "]"
@@ -527,10 +556,11 @@ def find_similar_pgvector(
                     1 - (embedding <=> %s::vector) AS similarity
                 FROM news_items
                 WHERE embedding IS NOT NULL
+                  AND country_code = %s
                 ORDER BY embedding <=> %s::vector
                 LIMIT %s
                 """,
-                (vec_str, vec_str, n),
+                (vec_str, country_code, vec_str, n),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -539,7 +569,7 @@ def find_similar_pgvector(
 # API
 # ---------------------------------------------------------------------------
 
-def fetch_all_for_api(date_str: str) -> list[dict[str, Any]]:
+def fetch_all_for_api(date_str: str, country_code: str = "TR") -> list[dict[str, Any]]:
     """Fetch all items for a date with every field the API needs."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -551,14 +581,18 @@ def fetch_all_for_api(date_str: str) -> list[dict[str, Any]]:
                     entities, cluster_id, cluster_title, cluster_keywords
                 FROM news_items
                 WHERE collected_date = %s
+                  AND country_code = %s
                 ORDER BY id
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
 
-def fetch_cluster_summaries(date_str: str) -> list[dict[str, Any]]:
+def fetch_cluster_summaries(
+    date_str: str,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
@@ -566,23 +600,34 @@ def fetch_cluster_summaries(date_str: str) -> list[dict[str, Any]]:
                 SELECT cluster_id, title, size, keywords, sources, sentiment_distribution
                 FROM cluster_summaries
                 WHERE date = %s
+                  AND country_code = %s
                 ORDER BY size DESC
                 """,
-                (date_str,),
+                (date_str, country_code),
             )
             return [dict(row) for row in cur.fetchall()]
 
 
-def fetch_available_dates() -> list[str]:
+def fetch_available_dates(country_code: str = "TR") -> list[str]:
     with get_conn() as conn:
         with conn.cursor() as cur:
             cur.execute(
-                "SELECT DISTINCT collected_date FROM news_items ORDER BY collected_date"
+                """
+                SELECT DISTINCT collected_date
+                FROM news_items
+                WHERE country_code = %s
+                ORDER BY collected_date
+                """,
+                (country_code,),
             )
             return [str(row[0]) for row in cur.fetchall()]
 
 
-def fetch_high_confidence_items(min_confidence: float = 0.85, max_samples: int = 50_000) -> list[dict[str, Any]]:
+def fetch_high_confidence_items(
+    min_confidence: float = 0.85,
+    max_samples: int = 50_000,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     """Return high-confidence Turkish news items for retraining.
 
     Returns id, cleaned_title, cleaned_summary, sentiment_label, sentiment_score.
@@ -595,17 +640,21 @@ def fetch_high_confidence_items(min_confidence: float = 0.85, max_samples: int =
                 SELECT cleaned_title, cleaned_summary, sentiment_label, sentiment_score
                 FROM news_items
                 WHERE is_turkish = true
+                  AND country_code = %s
                   AND sentiment_label IS NOT NULL
                   AND sentiment_score >= %s
                 ORDER BY collected_date DESC
                 LIMIT %s
                 """,
-                (min_confidence, max_samples),
+                (country_code, min_confidence, max_samples),
             )
             return [dict(row) for row in cur.fetchall()]
 
 
-def fetch_sentiment_trend(days: int = 30) -> list[dict[str, Any]]:
+def fetch_sentiment_trend(
+    days: int = 30,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     """Return daily sentiment counts for the last *days* days, ordered ascending."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
@@ -619,12 +668,13 @@ def fetch_sentiment_trend(days: int = 30) -> list[dict[str, Any]]:
                     COUNT(*) AS total
                 FROM news_items
                 WHERE is_turkish = true
+                  AND country_code = %s
                   AND sentiment_label IS NOT NULL
                   AND collected_date >= CURRENT_DATE - %s::int
                 GROUP BY collected_date
                 ORDER BY collected_date
                 """,
-                (days,),
+                (country_code, days),
             )
             return [dict(row) for row in cur.fetchall()]
 
@@ -634,11 +684,11 @@ def fetch_sentiment_trend(days: int = 30) -> list[dict[str, Any]]:
 # ---------------------------------------------------------------------------
 
 
-def upsert_drift_report(report: dict[str, Any]) -> None:
+def upsert_drift_report(report: dict[str, Any], country_code: str = "TR") -> None:
     """Persist a drift report so the API can expose it as a Prometheus gauge.
 
-    Idempotent on ``(date)``. Re-running the daily drift step overwrites the
-    prior row for that day, which matches our daily-pipeline semantics.
+    Idempotent on ``(country_code, date)``. Re-running the daily drift step
+    overwrites the prior row for that country/day.
     """
     today = report.get("today") or {}
     baseline = report.get("baseline") or {}
@@ -647,11 +697,11 @@ def upsert_drift_report(report: dict[str, Any]) -> None:
             cur.execute(
                 """
                 INSERT INTO drift_reports (
-                    date, status, psi, severity, baseline_days,
+                    country_code, date, status, psi, severity, baseline_days,
                     today_total, today_ratios, baseline_ratios, per_class_delta
                 )
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (date) DO UPDATE SET
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (country_code, date) DO UPDATE SET
                     status          = EXCLUDED.status,
                     psi             = EXCLUDED.psi,
                     severity        = EXCLUDED.severity,
@@ -663,6 +713,7 @@ def upsert_drift_report(report: dict[str, Any]) -> None:
                     computed_at     = NOW()
                 """,
                 (
+                    country_code,
                     report["date"],
                     report.get("status"),
                     report.get("psi"),
@@ -676,36 +727,42 @@ def upsert_drift_report(report: dict[str, Any]) -> None:
             )
 
 
-def fetch_latest_drift_report() -> dict[str, Any] | None:
+def fetch_latest_drift_report(country_code: str = "TR") -> dict[str, Any] | None:
     """Most recent drift row, or None if the table is empty."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT date::text AS date, status, psi, severity, baseline_days,
+                SELECT date::text AS date, country_code, status, psi, severity, baseline_days,
                        today_total, today_ratios, baseline_ratios, per_class_delta,
                        computed_at
                 FROM drift_reports
+                WHERE country_code = %s
                 ORDER BY date DESC
                 LIMIT 1
                 """,
+                (country_code,),
             )
             row = cur.fetchone()
             return dict(row) if row else None
 
 
-def fetch_drift_history(days: int = 30) -> list[dict[str, Any]]:
+def fetch_drift_history(
+    days: int = 30,
+    country_code: str = "TR",
+) -> list[dict[str, Any]]:
     """Recent drift rows for trend charts; oldest first so charts plot left-to-right."""
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(
                 """
-                SELECT date::text AS date, status, psi, severity, baseline_days,
+                SELECT date::text AS date, country_code, status, psi, severity, baseline_days,
                        today_total, today_ratios, baseline_ratios, per_class_delta
                 FROM drift_reports
                 WHERE date >= CURRENT_DATE - %s::int
+                  AND country_code = %s
                 ORDER BY date
                 """,
-                (days,),
+                (days, country_code),
             )
             return [dict(row) for row in cur.fetchall()]

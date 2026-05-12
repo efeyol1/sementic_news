@@ -28,7 +28,9 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sent
 
 ## Inference Benchmark — Türkçe Sentiment (CPU)
 
-Fine-tuned BERT (`efeyol11/bert-turkish-sentiment`), `max_length=128`, 100 prediction × 3 backend, Apple M-serisi CPU.
+Fine-tuned BERT (`efeyol11/bert-turkish-sentiment`), 100 prediction × 3 backend, Apple M-serisi CPU.
+
+> **Not**: Aşağıdaki tablo `max_length=128` ölçümleridir. Pipeline body coverage için `max_length=256`'ya geçti; CPU latency yaklaşık 2× artar (re-benchmark Phase 11'de yapılacak). Backend-arası **göreceli** speedup (PyTorch ↔ ONNX) ve PyTorch uyum (%100) değişmez.
 
 | Backend | p50 (ms) | p95 (ms) | p99 (ms) | QPS | Speedup vs PyTorch | PyTorch ile uyum |
 |---|---|---|---|---|---|---|
@@ -185,6 +187,12 @@ V1 (Turkey-only) pilot ülke modülü olarak stabil. V2'de proje çok ülkeli Av
 
 **Phase 2 done (2026-05-01)**: `configs/countries/turkey.yaml` aktif, `src/config/country_loader.py` slug + ISO code lookup'unu destekler, multi-feed sources (`urls: [list]`) normalize edilir, `rss_collector.py` artık YAML'dan okuyor — RSS_FEEDS sabiti yok. 10 yeni unit test loader'ı validate ediyor.
 
+**Phase 4 done before Phase 3 (2026-05-08)**: `news_items.country_code` ve `news_items.language` eklendi; derived artifact tabloları (`cluster_summaries`, `drift_reports`) country-scoped hale getirildi.
+
+**Phase 3 done (2026-05-08)**: `src.pipeline --country <slug|code>` ülke config'ini yükler ve `country_code`, `country_slug`, `language` değerlerini collect → article_fetch → preprocess → sentiment → NER → clustering → vector_store → drift boyunca taşır. Default hâlâ `turkey/TR/tr`.
+
+**Germany smoke config added (2026-05-08)**: `configs/countries/germany.yaml` minimal Tagesschau + Deutsche Welle RSS kaynaklarıyla eklendi. Ama Phase 7 hâlâ pending: Almanya kaynak kapsamı, parser kalitesi, sentiment/NER model seçimi ve corpus QA ayrıca yapılacak.
+
 **Source coverage 8.5× artışı (2026-05-02)**: 10 kaynakta multi-category RSS aggregation + 2 kaynakta Google News sitemap handler + 1 kaynakta HTML sitemap scraping. Toplam günlük unique corpus **475 → 4,032 item**. Per-source kazanımlar: Cumhuriyet 100→864 (8.6×), Habertürk 100→718 (7.2×, RSS+sitemap), Hürriyet 75→680 (9.1×), Sözcü 50→523 (10.5×, sitemap), CNN Türk 35→353 (10×), Milliyet 20→315 (15.8×), Yeni Şafak 15→187 (12.5×, html_sitemap), NTV 20→157 (7.9×), Sabah 10→144 (14.4×), TRT Haber 50→91 (1.8×).
 
 **3 source type**: 
@@ -201,8 +209,8 @@ Aynı outlet farklı type'larla listelenince (örn. Habertürk RSS + Habertürk 
 | 0 | Repository audit | ✅ done |
 | 1 | Stabilize Turkey baseline | ✅ done |
 | 2 | Country configuration system (`configs/countries/turkey.yaml`) | ✅ done |
-| 3 | Country-aware pipeline (`--country` CLI arg) | pending |
-| 4 | Country-aware DB schema (`country_code`, `language` columns) | pending |
+| 3 | Country-aware pipeline (`--country` CLI arg) | ✅ done |
+| 4 | Country-aware DB schema (`country_code`, `language` columns) | ✅ done |
 | 5 | Country-aware FastAPI endpoints (`?country=TR`, `/api/countries`) | pending |
 | 6 | Dashboard country selector | pending |
 | 7 | Add Germany (first non-TR) | pending |
