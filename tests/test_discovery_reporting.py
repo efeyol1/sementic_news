@@ -70,6 +70,8 @@ def test_write_discovery_reports(tmp_path):
 
     discovered_payload = json.loads(discovered_path.read_text(encoding="utf-8"))
     health_payload = json.loads(health_path.read_text(encoding="utf-8"))
+    assert discovered_path.name == "discovered_urls_turkey_2026-05-05.json"
+    assert health_path.name == "source_health_turkey_2026-05-05.json"
     assert discovered_payload["unique_urls"] == 1
     assert health_payload["sources"]["Example"]["low_categories"] == ["economy_finance"]
     assert health_payload["sources"]["Example"]["final_parsed_article_count"] == 1

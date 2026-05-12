@@ -230,6 +230,7 @@ def _to_analyzed(item: dict[str, Any], pipe, lang: str) -> dict[str, Any]:
 def analyze(
     date_str: str | None = None,
     lang: str = DEFAULT_LANG,
+    country_code: str = "TR",
     only_missing: bool = False,
     only_stale_after_body: bool = False,
     only_with_body: bool = False,
@@ -263,6 +264,7 @@ def analyze(
         only_stale_after_body=only_stale_after_body,
         only_with_body=only_with_body,
         limit=limit,
+        country_code=country_code,
     )
     if not items:
         logger.warning(f"No preprocessed items found for {date_str}")
@@ -298,6 +300,7 @@ def analyze(
             "model_id": _active_model_id(),
             "finetuned": _is_finetuned_mode(),
             "lang": lang,
+            "country_code": country_code,
             "date": date_str,
             "total_items": len(items),
             "analyzed_items": n_tr,

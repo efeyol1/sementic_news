@@ -37,7 +37,10 @@ _HTTP_USER_AGENT = (
 _DEFAULT_TIMEOUT_SEC = 12
 
 
-def _default_discovery_file(date_str: str) -> Path:
+def _default_discovery_file(date_str: str, country_slug: str = "turkey") -> Path:
+    scoped = _DISCOVERY_DIR / f"discovered_urls_{country_slug}_{date_str}.json"
+    if scoped.exists():
+        return scoped
     return _DISCOVERY_DIR / f"discovered_urls_{date_str}.json"
 
 
@@ -56,9 +59,13 @@ def _prefer_metadata(current: dict[str, Any] | None, candidate: dict[str, Any]) 
     return current
 
 
-def load_discovery_metadata(date_str: str, path: str | Path | None = None) -> dict[str, dict[str, Any]]:
+def load_discovery_metadata(
+    date_str: str,
+    path: str | Path | None = None,
+    country_slug: str = "turkey",
+) -> dict[str, dict[str, Any]]:
     """Load URL-level discovery metadata keyed by canonical article URL."""
-    report_path = Path(path) if path else _default_discovery_file(date_str)
+    report_path = Path(path) if path else _default_discovery_file(date_str, country_slug)
     if not report_path.exists():
         logger.warning(f"Discovery URL report not found: {report_path}")
         return {}
@@ -151,18 +158,25 @@ def fetch_articles(
     per_source_limit: int | None = None,
     discovery_file: str | Path | None = None,
     ensure_schema: bool = True,
+    country_code: str = "TR",
+    country_slug: str = "turkey",
 ) -> dict[str, int]:
     """Fetch and persist article bodies for one date. Returns status counts."""
     date_str = date_str or date.today().isoformat()
     if ensure_schema:
         init_db()
 
-    metadata_by_url = load_discovery_metadata(date_str, discovery_file)
+    metadata_by_url = load_discovery_metadata(
+        date_str,
+        discovery_file,
+        country_slug=country_slug,
+    )
     rows = fetch_for_article_fetching(
         date_str,
         limit=limit,
         retry_failed=retry_failed,
         per_source_limit=per_source_limit,
+        country_code=country_code,
     )
     if not rows:
         logger.warning(f"No article rows to fetch for {date_str}")

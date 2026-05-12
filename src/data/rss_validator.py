@@ -173,8 +173,8 @@ def write_discovery_reports(
         out_dir = _REPO_ROOT / out_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    discovered_path = out_dir / f"discovered_urls_{date_str}.json"
-    health_path = out_dir / f"source_health_{date_str}.json"
+    discovered_path = out_dir / f"discovered_urls_{country_slug}_{date_str}.json"
+    health_path = out_dir / f"source_health_{country_slug}_{date_str}.json"
 
     discovered_payload = {
         "date": date_str,

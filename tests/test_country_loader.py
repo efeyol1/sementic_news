@@ -28,6 +28,14 @@ def test_load_turkey_config_returns_required_fields():
     assert cfg["country_name"] == "Turkey"
 
 
+def test_load_germany_config_returns_required_fields():
+    cfg = country_loader.load_country_config("germany")
+    assert cfg["country_code"] == "DE"
+    assert cfg["country_slug"] == "germany"
+    assert cfg["language"] == "de"
+    assert cfg["country_name"] == "Germany"
+
+
 def test_load_turkey_config_normalizes_sources():
     cfg = country_loader.load_country_config("turkey")
     # 10 outlets but multi-type sources (RSS + Google News sitemap for some)
@@ -43,11 +51,23 @@ def test_load_turkey_config_normalizes_sources():
         assert src.get("type", "rss") in {"rss", "googlenews_sitemap", "html_sitemap"}
 
 
+def test_load_germany_config_normalizes_sources():
+    cfg = country_loader.load_country_config("DE")
+    assert isinstance(cfg["sources"], list) and len(cfg["sources"]) >= 2
+    assert all(src["urls"] for src in cfg["sources"])
+    assert {src["name"] for src in cfg["sources"]} >= {"tagesschau", "Deutsche Welle"}
+    assert cfg["ner"]["enabled"] is False
+
+
 def test_load_by_country_code():
     """Lookup should accept ISO code in addition to slug."""
     cfg_by_code = country_loader.load_country_config("TR")
     cfg_by_slug = country_loader.load_country_config("turkey")
     assert cfg_by_code["country_code"] == cfg_by_slug["country_code"]
+
+    de_by_code = country_loader.load_country_config("DE")
+    de_by_slug = country_loader.load_country_config("germany")
+    assert de_by_code["country_code"] == de_by_slug["country_code"]
 
 
 def test_load_is_case_insensitive():
@@ -56,16 +76,25 @@ def test_load_is_case_insensitive():
     assert cfg_upper["country_slug"] == cfg_lower["country_slug"]
 
 
-def test_list_available_countries_includes_turkey():
+def test_list_available_countries_includes_bundled_configs():
     countries = country_loader.list_available_countries()
     codes = [c["code"] for c in countries]
     assert "TR" in codes
+    assert "DE" in codes
     tr = next(c for c in countries if c["code"] == "TR")
     assert tr == {
         "code": "TR",
         "slug": "turkey",
         "name": "Turkey",
         "language": "tr",
+        "status": "active",
+    }
+    de = next(c for c in countries if c["code"] == "DE")
+    assert de == {
+        "code": "DE",
+        "slug": "germany",
+        "name": "Germany",
+        "language": "de",
         "status": "active",
     }
 

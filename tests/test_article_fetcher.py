@@ -35,10 +35,17 @@ def test_load_discovery_metadata_prefers_category_over_general(tmp_path):
 def test_fetch_articles_forwards_per_source_limit(monkeypatch):
     captured = {}
 
-    def fake_fetch_for_article_fetching(date_str, limit, retry_failed, per_source_limit):
+    def fake_fetch_for_article_fetching(
+        date_str,
+        limit,
+        retry_failed,
+        per_source_limit,
+        country_code,
+    ):
         captured.update(
             {
                 "date_str": date_str,
+                "country_code": country_code,
                 "limit": limit,
                 "retry_failed": retry_failed,
                 "per_source_limit": per_source_limit,
@@ -60,6 +67,7 @@ def test_fetch_articles_forwards_per_source_limit(monkeypatch):
     assert result == {}
     assert captured == {
         "date_str": "2026-05-05",
+        "country_code": "TR",
         "limit": 50,
         "retry_failed": True,
         "per_source_limit": 5,
