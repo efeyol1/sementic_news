@@ -3,7 +3,12 @@ name: Daily Pipeline
 on:
   schedule:
     - cron: "0 4 * * *"   # Her gün 04:00 UTC (Türkiye 07:00)
-  workflow_dispatch:        # Manuel tetikleme için
+  workflow_dispatch:
+    inputs:
+      date:
+        description: "Date to process (YYYY-MM-DD). Leave empty for today. When set, RSS collect is skipped (incident recovery mode)."
+        required: false
+        default: ""
 
 permissions:
   contents: read
@@ -49,8 +54,16 @@ jobs:
         # SENTIMENT_BACKEND=onnx_int8 routes _load_pipeline() in
         # src/analysis/sentiment.py to the quantized ORT model. Drift
         # instrumentation runs as the final pipeline step (fail-soft).
+        # When `date` workflow input is set, run in incident-recovery
+        # mode: skip RSS collect (historical content unavailable) and
+        # rebuild downstream artifacts for that specific date.
         env:
           MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
           SENTIMENT_MODEL_ID: efeyol11/bert-turkish-sentiment
           SENTIMENT_BACKEND: onnx_int8
-        run: python -m src.pipeline
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m src.pipeline --date "${{ inputs.date }}" --skip-collect
+          else
+            python -m src.pipeline
+          fi
