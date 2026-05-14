@@ -1,5 +1,6 @@
 "use client";
 
+import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, BarChart3, Globe2 } from "lucide-react";
@@ -40,7 +41,9 @@ export function Navbar() {
         </div>
 
         <div className="flex items-center gap-4">
-          <CountrySelector />
+          <Suspense fallback={null}>
+            <CountrySelector />
+          </Suspense>
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
             <span>Güncel</span>
