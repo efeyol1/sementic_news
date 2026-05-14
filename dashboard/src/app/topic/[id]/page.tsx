@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { api, todayDate, type SimilarNewsItem } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, todayDate, type SimilarNewsItem } from "@/lib/api";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
 import { ArrowLeft, ExternalLink, Hash, Sparkles } from "lucide-react";
@@ -8,13 +8,13 @@ import { sentimentColor, sentimentLabel } from "@/lib/utils";
 
 interface Props {
   params: { id: string };
-  searchParams: { date?: string };
+  searchParams: { date?: string; country?: string };
 }
 
-async function TopicContent({ id, date }: { id: number; date: string }) {
-  const data = await api.topic(id, date).catch(() => null);
+async function TopicContent({ id, date, country }: { id: number; date: string; country: string }) {
+  const data = await api.topic(id, date, country).catch(() => null);
   const similarData = data
-    ? await api.similar(data.keywords.slice(0, 2).join(" "), 4).catch(() => null)
+    ? await api.similar(data.keywords.slice(0, 2).join(" "), 4, country).catch(() => null)
     : null;
 
   if (!data) {
@@ -186,6 +186,7 @@ async function TopicContent({ id, date }: { id: number; date: string }) {
 export default function TopicPage({ params, searchParams }: Props) {
   const id = parseInt(params.id, 10);
   const date = searchParams.date || todayDate();
+  const country = searchParams.country || DEFAULT_COUNTRY;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -197,7 +198,7 @@ export default function TopicPage({ params, searchParams }: Props) {
           </div>
         }
       >
-        <TopicContent id={id} date={date} />
+        <TopicContent id={id} date={date} country={country} />
       </Suspense>
     </div>
   );

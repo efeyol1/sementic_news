@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { LayoutDashboard, BarChart3, Globe2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { CountrySelector } from "@/components/ui/CountrySelector";
 
 const links = [
   { href: "/", label: "Genel Bakış", icon: LayoutDashboard },
@@ -38,9 +39,12 @@ export function Navbar() {
           ))}
         </div>
 
-        <div className="flex items-center gap-2 text-xs text-slate-500">
-          <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
-          <span>Güncel</span>
+        <div className="flex items-center gap-4">
+          <CountrySelector />
+          <div className="flex items-center gap-2 text-xs text-slate-500">
+            <div className="w-1.5 h-1.5 rounded-full bg-green-500" />
+            <span>Güncel</span>
+          </div>
         </div>
       </div>
     </nav>
