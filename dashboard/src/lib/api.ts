@@ -82,6 +82,27 @@ async function apiFetch<T>(path: string, params?: Record<string, string>): Promi
   return res.json();
 }
 
+// Default country — Phase 6 introduces multi-country selection; until a
+// user picks one (or until Phase 7 ships Germany), every call defaults to
+// the V1 Turkey pilot so existing bookmarks and the no-param case keep
+// returning the same data as before.
+export const DEFAULT_COUNTRY = "turkey";
+
+export interface CountryInfo {
+  code: string;     // "TR"
+  slug: string;     // "turkey"
+  name: string;     // "Turkey"
+  language: string; // "tr"
+  status: string;   // "active"
+}
+
+function withCountry(
+  country: string | undefined,
+  params?: Record<string, string>,
+): Record<string, string> {
+  return { ...(params ?? {}), country: country || DEFAULT_COUNTRY };
+}
+
 export interface DatesResponse {
   dates: string[];
 }
@@ -100,22 +121,25 @@ export interface TrendResponse {
 }
 
 export const api = {
-  today: (date?: string) =>
-    apiFetch<TodayResponse>("/api/today", date ? { date } : undefined),
+  today: (date?: string, country?: string) =>
+    apiFetch<TodayResponse>("/api/today", withCountry(country, date ? { date } : undefined)),
 
-  topic: (id: number, date?: string) =>
-    apiFetch<TopicResponse>(`/api/topic/${id}`, date ? { date } : undefined),
+  topic: (id: number, date?: string, country?: string) =>
+    apiFetch<TopicResponse>(`/api/topic/${id}`, withCountry(country, date ? { date } : undefined)),
 
-  sources: (date?: string) =>
-    apiFetch<SourceComparison>("/api/source-comparison", date ? { date } : undefined),
+  sources: (date?: string, country?: string) =>
+    apiFetch<SourceComparison>("/api/source-comparison", withCountry(country, date ? { date } : undefined)),
 
-  similar: (q: string, n = 5) =>
-    apiFetch<SimilarNewsResponse>("/api/similar", { q, n: String(n) }),
+  similar: (q: string, n = 5, country?: string) =>
+    apiFetch<SimilarNewsResponse>("/api/similar", withCountry(country, { q, n: String(n) })),
 
-  dates: () => apiFetch<DatesResponse>("/api/dates"),
+  dates: (country?: string) =>
+    apiFetch<DatesResponse>("/api/dates", withCountry(country)),
 
-  trend: (days = 30) =>
-    apiFetch<TrendResponse>("/api/trend", { days: String(days) }),
+  trend: (days = 30, country?: string) =>
+    apiFetch<TrendResponse>("/api/trend", withCountry(country, { days: String(days) })),
+
+  countries: () => apiFetch<CountryInfo[]>("/api/countries"),
 };
 
 export function todayDate(): string {

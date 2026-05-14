@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { api, todayDate } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, todayDate } from "@/lib/api";
 import { StatCard } from "@/components/ui/StatCard";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
@@ -10,13 +10,13 @@ import { SentimentTrendChart } from "@/components/charts/SentimentTrendChart";
 import { Globe2 } from "lucide-react";
 
 interface Props {
-  searchParams: { date?: string };
+  searchParams: { date?: string; country?: string };
 }
 
-async function DashboardContent({ date }: { date: string }) {
+async function DashboardContent({ date, country }: { date: string; country: string }) {
   const [data, trendData] = await Promise.all([
-    api.today(date).catch(() => null),
-    api.trend(30).catch(() => null),
+    api.today(date, country).catch(() => null),
+    api.trend(30, country).catch(() => null),
   ]);
 
   if (!data) {
@@ -149,11 +149,12 @@ async function DashboardContent({ date }: { date: string }) {
 
 export default function HomePage({ searchParams }: Props) {
   const date = searchParams.date || todayDate();
+  const country = searchParams.country || DEFAULT_COUNTRY;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
       <Suspense fallback={<DashboardSkeleton />}>
-        <DashboardContent date={date} />
+        <DashboardContent date={date} country={country} />
       </Suspense>
     </div>
   );

@@ -1,17 +1,17 @@
 import { Suspense } from "react";
-import { api, todayDate } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, todayDate } from "@/lib/api";
 import { SourceHeatmap } from "@/components/charts/SourceHeatmap";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { BarChart3, TrendingDown, TrendingUp, Minus } from "lucide-react";
 
 interface Props {
-  searchParams: { date?: string };
+  searchParams: { date?: string; country?: string };
 }
 
-async function SourcesContent({ date }: { date: string }) {
+async function SourcesContent({ date, country }: { date: string; country: string }) {
   const [data, datesData] = await Promise.all([
-    api.sources(date).catch(() => null),
-    api.dates().catch(() => null),
+    api.sources(date, country).catch(() => null),
+    api.dates(country).catch(() => null),
   ]);
 
   if (!data) {
@@ -136,6 +136,7 @@ async function SourcesContent({ date }: { date: string }) {
 
 export default function SourcesPage({ searchParams }: Props) {
   const date = searchParams.date || todayDate();
+  const country = searchParams.country || DEFAULT_COUNTRY;
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-8">
@@ -147,7 +148,7 @@ export default function SourcesPage({ searchParams }: Props) {
           </div>
         }
       >
-        <SourcesContent date={date} />
+        <SourcesContent date={date} country={country} />
       </Suspense>
     </div>
   );
