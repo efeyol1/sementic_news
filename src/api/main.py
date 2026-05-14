@@ -4,7 +4,7 @@ from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
 from datetime import date
 
-from fastapi import FastAPI, HTTPException, Path, Query
+from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
 from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
@@ -12,6 +12,8 @@ from pydantic import BaseModel, Field
 
 from src.analysis.vector_store import find_similar
 from src.api import drift_metrics  # noqa: F401  registers Prometheus collector on import
+from src.api.dependencies import resolve_country
+from src.config.country_loader import list_available_countries
 from src.db.queries import (
     fetch_all_for_api,
     fetch_available_dates,
@@ -208,13 +210,21 @@ class TrendResponse(BaseModel):
     points: list[TrendPoint]
 
 
+class CountryInfo(BaseModel):
+    code: str = Field(..., examples=["TR"])
+    slug: str = Field(..., examples=["turkey"])
+    name: str = Field(..., examples=["Turkey"])
+    language: str = Field(..., examples=["tr"])
+    status: str = Field("active", examples=["active"])
+
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
 
 
-def _get_items(date_str: str) -> list[dict]:
-    items = fetch_all_for_api(date_str)
+def _get_items(date_str: str, country_code: str = "TR") -> list[dict]:
+    items = fetch_all_for_api(date_str, country_code=country_code)
     if not items:
         raise HTTPException(
             status_code=404,
@@ -223,8 +233,8 @@ def _get_items(date_str: str) -> list[dict]:
     return items
 
 
-def _get_clusters(date_str: str) -> list[dict]:
-    clusters = fetch_cluster_summaries(date_str)
+def _get_clusters(date_str: str, country_code: str = "TR") -> list[dict]:
+    clusters = fetch_cluster_summaries(date_str, country_code=country_code)
     if not clusters:
         raise HTTPException(
             status_code=404,
@@ -257,10 +267,12 @@ def today(
         description="Analiz tarihi (YYYY-MM-DD). Belirtilmezse bugünün verisi döner.",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
+    country_config: dict = Depends(resolve_country),
 ):
     target = date_str or date.today().isoformat()
-    items = _get_items(target)
-    clusters = fetch_cluster_summaries(target)
+    cc = country_config["country_code"]
+    items = _get_items(target, country_code=cc)
+    clusters = fetch_cluster_summaries(target, country_code=cc)
 
     turkish = [i for i in items if i.get("is_turkish")]
     n = len(turkish)
@@ -302,7 +314,7 @@ def today(
             }
             for c in sorted(clusters, key=lambda x: x["size"], reverse=True)[:5]
         ],
-        "available_dates": fetch_available_dates(),
+        "available_dates": fetch_available_dates(country_code=cc),
     }
 
 
@@ -320,6 +332,7 @@ def all_clusters(
         description="Analiz tarihi (YYYY-MM-DD). Belirtilmezse bugünün verisi döner.",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
+    country_config: dict = Depends(resolve_country),
 ):
     """Dashboard cluster grid için 15 cluster'ı zengin stats'larla döner.
 
@@ -327,7 +340,7 @@ def all_clusters(
     sadece liste/grid view içindir. Cluster'lar size DESC sıralı.
     """
     target = date_str or date.today().isoformat()
-    clusters = _get_clusters(target)
+    clusters = _get_clusters(target, country_code=country_config["country_code"])
     return {
         "date": target,
         "total_clusters": len(clusters),
@@ -359,10 +372,12 @@ def topic(
         alias="date",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
+    country_config: dict = Depends(resolve_country),
 ):
     target = date_str or date.today().isoformat()
-    items = _get_items(target)
-    clusters = fetch_cluster_summaries(target)
+    cc = country_config["country_code"]
+    items = _get_items(target, country_code=cc)
+    clusters = fetch_cluster_summaries(target, country_code=cc)
 
     cluster_meta = next((c for c in clusters if c["cluster_id"] == cluster_id), None)
     if cluster_meta is None:
@@ -405,9 +420,10 @@ def source_comparison(
         alias="date",
         pattern=r"^\d{4}-\d{2}-\d{2}$",
     ),
+    country_config: dict = Depends(resolve_country),
 ):
     target = date_str or date.today().isoformat()
-    items = _get_items(target)
+    items = _get_items(target, country_code=country_config["country_code"])
 
     sources: dict[str, dict] = defaultdict(lambda: {
         "total": 0, "sentiment_counts": Counter(), "scores": [],
@@ -448,8 +464,8 @@ def source_comparison(
     summary="Mevcut analiz tarihleri",
     response_model=DatesResponse,
 )
-def available_dates():
-    return {"dates": fetch_available_dates()}
+def available_dates(country_config: dict = Depends(resolve_country)):
+    return {"dates": fetch_available_dates(country_code=country_config["country_code"])}
 
 
 @app.get(
@@ -460,8 +476,9 @@ def available_dates():
 )
 def sentiment_trend(
     days: int = Query(default=30, ge=7, le=90, description="Kaç günlük veri"),
+    country_config: dict = Depends(resolve_country),
 ):
-    rows = fetch_sentiment_trend(days)
+    rows = fetch_sentiment_trend(days, country_code=country_config["country_code"])
     points = [
         {
             "date": r["date"],
@@ -486,8 +503,9 @@ def sentiment_trend(
 def similar_news(
     q: str = Query(..., description="Aranacak haber başlığı veya metin", min_length=5),
     n: int = Query(default=5, ge=1, le=20),
+    country_config: dict = Depends(resolve_country),
 ):
-    results = find_similar(q, n=n)
+    results = find_similar(q, n=n, country_code=country_config["country_code"])
     if not results:
         raise HTTPException(status_code=404, detail="Henüz hiç embedding yok — pipeline çalıştırın.")
     return {
@@ -512,8 +530,8 @@ def similar_news(
     summary="En son drift raporu (PSI + per-class delta)",
     responses={404: {"description": "Henüz drift raporu üretilmedi"}},
 )
-def latest_drift():
-    row = fetch_latest_drift_report()
+def latest_drift(country_config: dict = Depends(resolve_country)):
+    row = fetch_latest_drift_report(country_code=country_config["country_code"])
     if not row:
         raise HTTPException(
             status_code=404,
@@ -529,5 +547,22 @@ def latest_drift():
 )
 def drift_history(
     days: int = Query(default=30, ge=7, le=180, description="Kaç günlük geriye"),
+    country_config: dict = Depends(resolve_country),
 ):
-    return {"reports": fetch_drift_history(days)}
+    return {"reports": fetch_drift_history(days, country_code=country_config["country_code"])}
+
+
+@app.get(
+    "/api/countries",
+    tags=["Sistem"],
+    summary="Yapılandırılmış ülkelerin listesi",
+    response_model=list[CountryInfo],
+)
+def list_countries():
+    """``configs/countries/*.yaml``'dan okunan tüm ülkeler.
+
+    Dashboard country selector'ı bu endpoint'i çağırır (Phase 6). Yeni
+    ülke eklemek = ``configs/countries/<slug>.yaml`` dosyası eklemek;
+    Python kodu değişmez.
+    """
+    return list_available_countries()
