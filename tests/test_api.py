@@ -41,14 +41,35 @@ _FAKE_CLUSTER = {
 # ---------------------------------------------------------------------------
 
 
+_FAKE_CALLS: dict[str, list[dict]] = {}
+
+
 @pytest.fixture(autouse=True)
 def _mock_db(monkeypatch):
-    """Replace DB query functions with in-memory fakes."""
+    """Replace DB query functions with in-memory fakes that record
+    ``country_code`` so country-aware tests can assert propagation."""
     import src.api.main as api_module
 
-    monkeypatch.setattr(api_module, "fetch_all_for_api", lambda date_str: [_FAKE_ITEM])
-    monkeypatch.setattr(api_module, "fetch_cluster_summaries", lambda date_str: [_FAKE_CLUSTER])
-    monkeypatch.setattr(api_module, "fetch_available_dates", lambda: ["2026-04-20"])
+    _FAKE_CALLS.clear()
+
+    def _record(name, **kwargs):
+        _FAKE_CALLS.setdefault(name, []).append(kwargs)
+
+    def fake_fetch_all_for_api(date_str, country_code="TR"):
+        _record("fetch_all_for_api", date_str=date_str, country_code=country_code)
+        return [_FAKE_ITEM]
+
+    def fake_fetch_cluster_summaries(date_str, country_code="TR"):
+        _record("fetch_cluster_summaries", date_str=date_str, country_code=country_code)
+        return [_FAKE_CLUSTER]
+
+    def fake_fetch_available_dates(country_code="TR"):
+        _record("fetch_available_dates", country_code=country_code)
+        return ["2026-04-20"]
+
+    monkeypatch.setattr(api_module, "fetch_all_for_api", fake_fetch_all_for_api)
+    monkeypatch.setattr(api_module, "fetch_cluster_summaries", fake_fetch_cluster_summaries)
+    monkeypatch.setattr(api_module, "fetch_available_dates", fake_fetch_available_dates)
     monkeypatch.setattr(api_module, "init_db", lambda: None)
 
 
@@ -74,13 +95,13 @@ def test_today():
     assert "top_entities" in data
 
 
-def test_today_missing_date():
-    from unittest.mock import patch
-
+def test_today_missing_date(monkeypatch):
     import src.api.main as api_module
 
-    with patch.object(api_module, "fetch_all_for_api", return_value=[]):
-        r = client.get("/api/today?date=1999-01-01")
+    monkeypatch.setattr(
+        api_module, "fetch_all_for_api", lambda date_str, country_code="TR": []
+    )
+    r = client.get("/api/today?date=1999-01-01")
     assert r.status_code == 404
 
 
@@ -125,6 +146,64 @@ def test_clusters():
 def test_clusters_empty(monkeypatch):
     import src.api.main as api_module
 
-    monkeypatch.setattr(api_module, "fetch_cluster_summaries", lambda d: [])
+    monkeypatch.setattr(
+        api_module, "fetch_cluster_summaries", lambda d, country_code="TR": []
+    )
     r = client.get("/api/clusters?date=1999-01-01")
     assert r.status_code == 404
+
+
+# ---------------------------------------------------------------------------
+# Country-aware endpoint tests (Phase 5)
+# ---------------------------------------------------------------------------
+
+
+def test_countries_endpoint_lists_active_countries():
+    r = client.get("/api/countries")
+    assert r.status_code == 200
+    data = r.json()
+    assert isinstance(data, list)
+    assert any(c["slug"] == "turkey" and c["code"] == "TR" for c in data), data
+    for c in data:
+        assert {"code", "slug", "name", "language", "status"} <= c.keys()
+
+
+def test_today_default_country_is_turkey():
+    """No ?country param → resolve_country defaults to turkey, propagates TR."""
+    _FAKE_CALLS.clear()
+    r = client.get("/api/today?date=2026-04-20")
+    assert r.status_code == 200
+    calls = _FAKE_CALLS.get("fetch_all_for_api", [])
+    assert calls and calls[-1]["country_code"] == "TR"
+
+
+def test_today_with_explicit_slug():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/today?date=2026-04-20&country=turkey")
+    assert r.status_code == 200
+    assert _FAKE_CALLS["fetch_all_for_api"][-1]["country_code"] == "TR"
+
+
+def test_today_with_iso_code():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/today?date=2026-04-20&country=TR")
+    assert r.status_code == 200
+    assert _FAKE_CALLS["fetch_all_for_api"][-1]["country_code"] == "TR"
+
+
+def test_today_invalid_country_returns_404():
+    r = client.get("/api/today?date=2026-04-20&country=mars")
+    assert r.status_code == 404
+    assert "mars" in r.json()["detail"].lower()
+
+
+def test_clusters_propagates_country_code():
+    _FAKE_CALLS.clear()
+    client.get("/api/clusters?date=2026-04-20&country=turkey")
+    assert _FAKE_CALLS["fetch_cluster_summaries"][-1]["country_code"] == "TR"
+
+
+def test_dates_propagates_country_code():
+    _FAKE_CALLS.clear()
+    client.get("/api/dates?country=turkey")
+    assert _FAKE_CALLS["fetch_available_dates"][-1]["country_code"] == "TR"
