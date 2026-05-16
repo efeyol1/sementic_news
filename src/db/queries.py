@@ -14,6 +14,7 @@ from src.db.client import get_conn, retry_on_connection_loss  # noqa: E402
 # RSS Collector
 # ---------------------------------------------------------------------------
 
+@retry_on_connection_loss()
 def insert_raw_items(
     items: list[dict[str, Any]],
     date_str: str,
@@ -44,7 +45,10 @@ def insert_raw_items(
     ]
     with get_conn() as conn:
         with conn.cursor() as cur:
-            cur.execute("SELECT count(*) FROM news_items WHERE collected_date = %s", (date_str,))
+            cur.execute(
+                "SELECT count(*) FROM news_items WHERE collected_date = %s AND country_code = %s",
+                (date_str, country_code),
+            )
             before = cur.fetchone()[0]
             psycopg2.extras.execute_values(
                 cur,
@@ -57,7 +61,10 @@ def insert_raw_items(
                 """,
                 rows,
             )
-            cur.execute("SELECT count(*) FROM news_items WHERE collected_date = %s", (date_str,))
+            cur.execute(
+                "SELECT count(*) FROM news_items WHERE collected_date = %s AND country_code = %s",
+                (date_str, country_code),
+            )
             after = cur.fetchone()[0]
     inserted = after - before
     logger.info(
@@ -206,6 +213,7 @@ def fetch_raw_by_date(date_str: str, country_code: str = "TR") -> list[dict[str,
             return [dict(row) for row in cur.fetchall()]
 
 
+@retry_on_connection_loss()
 def bulk_update_preprocessed(updates: list[dict[str, Any]], deletes: list[int]) -> None:
     """Apply preprocessor results: update valid items, delete too-short ones."""
     with get_conn() as conn:
@@ -315,6 +323,10 @@ def fetch_sentiment_quality_rows(
                     sentiment_label,
                     sentiment_score,
                     sentiment_scores,
+                    raw_sentiment_score,
+                    calibrated_sentiment_score,
+                    calibrated_sentiment_scores,
+                    calibration_method,
                     analyzed_at,
                     article_fetched_at,
                     is_turkish
@@ -337,10 +349,14 @@ def bulk_update_sentiment(updates: list[dict[str, Any]]) -> None:
             cur.executemany(
                 """
                 UPDATE news_items SET
-                    sentiment_label  = %s,
-                    sentiment_score  = %s,
-                    sentiment_scores = %s,
-                    analyzed_at      = %s
+                    sentiment_label              = %s,
+                    sentiment_score              = %s,
+                    sentiment_scores             = %s,
+                    raw_sentiment_score          = %s,
+                    calibrated_sentiment_score   = %s,
+                    calibrated_sentiment_scores  = %s,
+                    calibration_method           = %s,
+                    analyzed_at                  = %s
                 WHERE id = %s
                 """,
                 [
@@ -348,6 +364,10 @@ def bulk_update_sentiment(updates: list[dict[str, Any]]) -> None:
                         u.get("sentiment_label"),
                         u.get("sentiment_score"),
                         psycopg2.extras.Json(u.get("sentiment_scores")),
+                        u.get("raw_sentiment_score"),
+                        u.get("calibrated_sentiment_score"),
+                        psycopg2.extras.Json(u.get("calibrated_sentiment_scores")),
+                        u.get("calibration_method"),
                         u.get("analyzed_at"),
                         u["id"],
                     )
@@ -355,6 +375,36 @@ def bulk_update_sentiment(updates: list[dict[str, Any]]) -> None:
                 ],
             )
             logger.info(f"Updated {cur.rowcount} sentiment fields")
+
+
+@retry_on_connection_loss()
+def bulk_update_sentiment_calibration(updates: list[dict[str, Any]]) -> None:
+    """Persist calibrated confidence fields without changing sentiment labels."""
+    if not updates:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE news_items SET
+                    raw_sentiment_score          = %s,
+                    calibrated_sentiment_score   = %s,
+                    calibrated_sentiment_scores  = %s,
+                    calibration_method           = %s
+                WHERE id = %s
+                """,
+                [
+                    (
+                        u.get("raw_sentiment_score"),
+                        u.get("calibrated_sentiment_score"),
+                        psycopg2.extras.Json(u.get("calibrated_sentiment_scores")),
+                        u.get("calibration_method"),
+                        u["id"],
+                    )
+                    for u in updates
+                ],
+            )
+            logger.info(f"Updated {cur.rowcount} sentiment calibration fields")
 
 
 # ---------------------------------------------------------------------------
@@ -403,6 +453,216 @@ def bulk_update_ner(updates: list[dict[str, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Entity mentions (Sprint 1: multilingual NER track, lives alongside the
+# legacy news_items.entities JSONB column. Sprint 2 fills wikidata_qid;
+# Sprint 5 reads position_in_article for collocation windows.)
+# ---------------------------------------------------------------------------
+
+
+def fetch_for_entity_extraction(
+    date_str: str,
+    country_code: str,
+) -> list[dict[str, Any]]:
+    """Return rows the entity_extraction step should process for one day."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, title, summary, article_text, cleaned_article_text,
+                       cleaned_title, cleaned_summary
+                FROM news_items
+                WHERE collected_date = %s
+                  AND country_code = %s
+                ORDER BY id
+                """,
+                (date_str, country_code),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def bulk_insert_entity_mentions(
+    mentions: list[dict[str, Any]],
+    article_ids: list[int],
+) -> int:
+    """Replace and bulk-insert mentions for *article_ids*.
+
+    Idempotent re-run: we DELETE every existing mention for the article
+    IDs touched in this batch, then insert the fresh set. Same shape as
+    ``bulk_update_ner`` (callers pass the article IDs they're rewriting),
+    so re-processing a day never duplicates rows.
+    """
+    if not article_ids:
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                "DELETE FROM entity_mentions WHERE article_id = ANY(%s)",
+                (list(article_ids),),
+            )
+            if not mentions:
+                logger.info(
+                    f"Cleared entity_mentions for {len(article_ids)} articles "
+                    "(no new mentions to insert)"
+                )
+                return 0
+            rows = [
+                (
+                    m["article_id"],
+                    m["country_code"],
+                    m["collected_date"],
+                    m["entity_text"],
+                    m["entity_type"],
+                    m.get("wikidata_qid"),
+                    m.get("canonical"),
+                    m.get("resolution_confidence"),
+                    m.get("resolver_method"),
+                    m.get("position_in_article"),
+                )
+                for m in mentions
+            ]
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO entity_mentions
+                    (article_id, country_code, collected_date, entity_text,
+                     entity_type, wikidata_qid, canonical, resolution_confidence,
+                     resolver_method, position_in_article)
+                VALUES %s
+                """,
+                rows,
+            )
+            # ``execute_values`` runs N INSERT batches under the hood (one
+            # per ``page_size`` chunk) and ``cur.rowcount`` only reflects
+            # the last batch — so it under-counts when ``len(rows) >
+            # page_size``. There's no ON CONFLICT clause here, so every
+            # row in ``rows`` is inserted; ``len(rows)`` is the truthful
+            # count for both the return value and the log line.
+            inserted = len(rows)
+            logger.info(
+                f"Inserted {inserted} entity mentions across "
+                f"{len(article_ids)} articles"
+            )
+            return inserted
+
+
+def fetch_unresolved_entity_mentions(
+    date_str: str,
+    country_code: str,
+    limit: int = 1000,
+    include_normalized: bool = False,
+) -> list[dict[str, Any]]:
+    """Return mentions that still need the resolver/backfill step."""
+    normalized_filter = "OR resolver_method = 'normalized'" if include_normalized else ""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT id, entity_text, entity_type, canonical, wikidata_qid
+                FROM entity_mentions
+                WHERE collected_date = %s
+                  AND country_code = %s
+                  AND (
+                    canonical IS NULL
+                    OR resolver_method IS NULL
+                    {normalized_filter}
+                  )
+                ORDER BY id
+                LIMIT %s
+                """,
+                (date_str, country_code, limit),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def bulk_update_entity_resolution(updates: list[dict[str, Any]]) -> None:
+    if not updates:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                UPDATE entity_mentions SET
+                    canonical             = %s,
+                    wikidata_qid          = %s,
+                    resolution_confidence = %s,
+                    resolver_method       = %s
+                WHERE id = %s
+                """,
+                [
+                    (
+                        u.get("canonical"),
+                        u.get("wikidata_qid"),
+                        u.get("resolution_confidence"),
+                        u.get("resolver_method"),
+                        u["id"],
+                    )
+                    for u in updates
+                ],
+            )
+            logger.info(f"Updated {cur.rowcount} entity resolution fields")
+
+
+def fetch_entity_resolution_cache(
+    normalized_text: str,
+    entity_type: str,
+    country_code: str,
+) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT normalized_text, entity_type, country_code, canonical,
+                       wikidata_qid, confidence, resolver_method
+                FROM entity_resolution_cache
+                WHERE normalized_text = %s
+                  AND entity_type = %s
+                  AND country_code = %s
+                """,
+                (normalized_text, entity_type, country_code),
+            )
+            row = cur.fetchone()
+            return dict(row) if row else None
+
+
+@retry_on_connection_loss()
+def upsert_entity_resolution_cache(rows: list[dict[str, Any]]) -> None:
+    if not rows:
+        return
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.executemany(
+                """
+                INSERT INTO entity_resolution_cache (
+                    normalized_text, entity_type, country_code, canonical,
+                    wikidata_qid, confidence, resolver_method
+                )
+                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (normalized_text, entity_type, country_code)
+                DO UPDATE SET
+                    canonical       = EXCLUDED.canonical,
+                    wikidata_qid    = EXCLUDED.wikidata_qid,
+                    confidence      = EXCLUDED.confidence,
+                    resolver_method = EXCLUDED.resolver_method,
+                    updated_at      = NOW()
+                """,
+                [
+                    (
+                        r["normalized_text"],
+                        r["entity_type"],
+                        r["country_code"],
+                        r.get("canonical"),
+                        r.get("wikidata_qid"),
+                        r.get("confidence"),
+                        r.get("resolver_method"),
+                    )
+                    for r in rows
+                ],
+            )
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 
@@ -412,7 +672,7 @@ def fetch_for_clustering(date_str: str, country_code: str = "TR") -> list[dict[s
             cur.execute(
                 """
                 SELECT id, cleaned_title, cleaned_summary, cleaned_article_text, is_turkish,
-                       source_name, entities, sentiment_label
+                       source_name, category, canonical_category, entities, sentiment_label
                 FROM news_items
                 WHERE collected_date = %s
                   AND country_code = %s
@@ -578,11 +838,78 @@ def fetch_all_for_api(date_str: str, country_code: str = "TR") -> list[dict[str,
                 SELECT
                     id, title, source_name, published_date, link,
                     is_turkish, sentiment_label, sentiment_score,
+                    calibrated_sentiment_score,
                     entities, cluster_id, cluster_title, cluster_keywords
                 FROM news_items
                 WHERE collected_date = %s
                   AND country_code = %s
                 ORDER BY id
+                """,
+                (date_str, country_code),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+def fetch_top_entities(
+    date_str: str,
+    country_code: str = "TR",
+    limit: int = 10,
+) -> dict[str, list[str]]:
+    """Return top canonical entity names from the entity_mentions table."""
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                WITH grouped AS (
+                    SELECT
+                        entity_type,
+                        COALESCE(NULLIF(canonical, ''), entity_text) AS name,
+                        COUNT(*) AS mention_count,
+                        ROW_NUMBER() OVER (
+                            PARTITION BY entity_type
+                            ORDER BY COUNT(*) DESC, COALESCE(NULLIF(canonical, ''), entity_text)
+                        ) AS rank
+                    FROM entity_mentions
+                    WHERE collected_date = %s
+                      AND country_code = %s
+                      AND entity_type IN ('PER', 'ORG', 'LOC')
+                    GROUP BY entity_type, COALESCE(NULLIF(canonical, ''), entity_text)
+                )
+                SELECT entity_type, name, mention_count
+                FROM grouped
+                WHERE rank <= %s
+                ORDER BY entity_type, mention_count DESC, name
+                """,
+                (date_str, country_code, limit),
+            )
+            result: dict[str, list[str]] = {"PER": [], "ORG": [], "LOC": []}
+            for row in cur.fetchall():
+                result.setdefault(row["entity_type"], []).append(row["name"])
+            return result
+
+
+def fetch_entity_resolution_audit_rows(
+    date_str: str,
+    country_code: str,
+) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    entity_text,
+                    entity_type,
+                    COALESCE(NULLIF(canonical, ''), entity_text) AS canonical,
+                    wikidata_qid,
+                    resolver_method,
+                    resolution_confidence,
+                    COUNT(*) AS mention_count
+                FROM entity_mentions
+                WHERE collected_date = %s
+                  AND country_code = %s
+                GROUP BY entity_text, entity_type, COALESCE(NULLIF(canonical, ''), entity_text),
+                         wikidata_qid, resolver_method, resolution_confidence
+                ORDER BY mention_count DESC, canonical, entity_text
                 """,
                 (date_str, country_code),
             )

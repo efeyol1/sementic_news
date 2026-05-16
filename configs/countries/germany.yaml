@@ -23,11 +23,45 @@ sentiment:
     neutral:  "neutrale Nachricht"
 
 ner:
-  # The current NER module still uses the Turkish model globally. Keep this
-  # disabled at config level until Phase 7/10 wires model selection per country.
+  # The legacy ``src.analysis.ner`` module hard-codes the Turkish NER model
+  # and writes into ``news_items.entities``. Leave it off for Germany — the
+  # new multilingual entity track below replaces it for non-TR countries.
   enabled: false
   model: null
   keep_labels: [PER, ORG, LOC]
+
+entity_narrative:
+  # Sprint 1 of the entity-centric narrative track. Writes one row per
+  # detected mention into ``entity_mentions``. Wikidata linking arrives in
+  # Sprint 2; collocations in Sprint 5.
+  enabled: true
+  ner_model: Davlan/bert-base-multilingual-cased-ner-hrl
+  keep_labels: [PER, ORG, LOC, MISC]
+  aliases:
+    people:
+      Recep Tayyip Erdoğan:
+        wikidata_qid: Q39259
+        aliases:
+          - erdoğan
+          - recep tayyip erdoğan
+          - cumhurbaşkanı erdoğan
+          - präsident erdoğan
+      Donald Trump:
+        wikidata_qid: Q22686
+        aliases:
+          - trump
+          - donald trump
+          - präsident trump
+      Angela Merkel:
+        wikidata_qid: Q567
+        aliases:
+          - merkel
+          - angela merkel
+          - kanzlerin merkel
+    organizations: {}
+  wikidata:
+    enabled: false
+    min_confidence: 0.85
 
 clustering:
   enabled: true
@@ -58,6 +92,7 @@ clustering:
     - an
     - auf
     - aus
+    - als
     - zu
     - zum
     - zur
@@ -69,15 +104,47 @@ clustering:
     - werden
     - hat
     - haben
+    - hatte
+    - hatten
     - nach
     - bei
     - über
+    - unter
+    - gegen
+    - vor
+    - seit
+    - so
+    - wie
+    - auch
+    - nicht
+    - noch
+    - nur
+    - schon
+    - wieder
+    - sich
+    - er
+    - sie
+    - es
+    - wir
+    - ihr
+    - dass
+    - wenn
+    - weil
     - mehr
+    - neue
+    - neuer
+    - neues
+    - neuen
+    - aktuell
     - deutschland
     - deutsche
     - deutschen
+    - deutschlands
     - jahr
     - jahre
+    - jahren
+    - euro
+    - prozent
     - heute
 
 embeddings:
@@ -152,3 +219,115 @@ sources:
     urls:
       - "https://rss.dw.com/xml/rss-de-all"
       - "https://rss.dw.com/xml/rss-de-news"
+
+  - name: DER SPIEGEL
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.spiegel.de/schlagzeilen/index.rss"
+
+  - name: DER SPIEGEL
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.spiegel.de/politik/deutschland/index.rss"
+
+  - name: DER SPIEGEL
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.spiegel.de/ausland/index.rss"
+
+  - name: DER SPIEGEL
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.spiegel.de/wirtschaft/index.rss"
+
+  - name: DER SPIEGEL
+    type: rss
+    enabled: true
+    canonical_category: science_technology
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.spiegel.de/wissenschaft/index.rss"
+
+  - name: ZEIT ONLINE
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 10
+    urls:
+      - "https://newsfeed.zeit.de/index"
+
+  - name: ZEIT ONLINE
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://newsfeed.zeit.de/politik/index"
+
+  - name: ZEIT ONLINE
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://newsfeed.zeit.de/wirtschaft/index"
+
+  - name: ZDFheute
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.zdf.de/rss/zdf/nachrichten"
+
+  - name: FAZ.NET
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.faz.net/rss/aktuell"
+
+  # Disabled after live validation: the ZEIT Wissen registry URL returned
+  # HTTP 404 / malformed XML on 2026-05-14.
+  - name: ZEIT ONLINE
+    type: rss
+    enabled: false
+    canonical_category: science_technology
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://newsfeed.zeit.de/wissen/index"

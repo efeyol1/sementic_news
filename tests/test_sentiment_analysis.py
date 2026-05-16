@@ -171,6 +171,80 @@ def test_analyze_rejects_scoped_write_without_production_backend(monkeypatch):
         sentiment.analyze(only_with_body=True)
 
 
+def test_zero_shot_predict_uses_country_candidate_labels(monkeypatch):
+    import src.analysis.sentiment as sentiment
+
+    monkeypatch.delenv("SENTIMENT_MODEL_ID", raising=False)
+    monkeypatch.delenv("SENTIMENT_BACKEND", raising=False)
+    captured = {}
+
+    def fake_pipe(text, candidate_labels, multi_label):
+        captured["text"] = text
+        captured["candidate_labels"] = candidate_labels
+        captured["multi_label"] = multi_label
+        return {
+            "labels": ["gute Nachricht", "sachliche Nachricht", "schlechte Nachricht"],
+            "scores": [0.7, 0.2, 0.1],
+        }
+
+    result = sentiment._predict(
+        "ein test",
+        fake_pipe,
+        lang="de",
+        candidate_labels={
+            "positive": "gute Nachricht",
+            "negative": "schlechte Nachricht",
+            "neutral": "sachliche Nachricht",
+        },
+    )
+
+    assert captured == {
+        "text": "ein test",
+        "candidate_labels": [
+            "gute Nachricht",
+            "schlechte Nachricht",
+            "sachliche Nachricht",
+        ],
+        "multi_label": False,
+    }
+    assert result["sentiment_label"] == "positive"
+    assert result["sentiment_scores"] == {
+        "positive": 0.7,
+        "neutral": 0.2,
+        "negative": 0.1,
+    }
+
+
+def test_zero_shot_candidate_labels_fall_back_to_language_map():
+    import src.analysis.sentiment as sentiment
+
+    assert sentiment._candidate_labels("de") == sentiment.SENTIMENT_LABELS["de"]
+
+
+def test_sentiment_calibration_preserves_label_and_reduces_low_margin_confidence():
+    from src.analysis.sentiment_calibration import calibrate_sentiment
+
+    result = calibrate_sentiment(
+        {"positive": 0.91, "negative": 0.86, "neutral": 0.03},
+        sentiment_label="positive",
+    )
+
+    assert result["calibration_method"] == "margin_heuristic_v1"
+    assert 0 <= result["calibrated_sentiment_score"] <= 1
+    assert result["calibrated_sentiment_score"] < 0.91
+
+
+def test_sentiment_calibration_keeps_high_margin_confidence_high():
+    from src.analysis.sentiment_calibration import calibrate_sentiment
+
+    result = calibrate_sentiment(
+        {"positive": 0.97, "negative": 0.02, "neutral": 0.01},
+        sentiment_label="positive",
+    )
+
+    assert result["calibrated_sentiment_score"] == 0.97
+
+
 def test_fetch_processed_by_date_orders_body_rescore_by_oldest_analysis(monkeypatch):
     import src.db.queries as queries
 

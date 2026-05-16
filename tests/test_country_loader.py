@@ -55,8 +55,37 @@ def test_load_germany_config_normalizes_sources():
     cfg = country_loader.load_country_config("DE")
     assert isinstance(cfg["sources"], list) and len(cfg["sources"]) >= 2
     assert all(src["urls"] for src in cfg["sources"])
-    assert {src["name"] for src in cfg["sources"]} >= {"tagesschau", "Deutsche Welle"}
+    assert {src["name"] for src in cfg["sources"]} >= {
+        "tagesschau",
+        "Deutsche Welle",
+        "DER SPIEGEL",
+        "ZEIT ONLINE",
+        "ZDFheute",
+        "FAZ.NET",
+    }
     assert cfg["ner"]["enabled"] is False
+
+
+def test_germany_production_sources_declare_discovery_metadata():
+    cfg = country_loader.load_country_config("germany")
+    new_sources = [
+        src for src in cfg["sources"]
+        if src["name"] in {"DER SPIEGEL", "ZEIT ONLINE", "ZDFheute", "FAZ.NET"}
+    ]
+
+    assert len([src for src in new_sources if src.get("enabled", True)]) >= 10
+    for src in new_sources:
+        assert src["canonical_category"]
+        assert src["discovery_role"] in {"general_discovery", "category"}
+        assert isinstance(src["min_expected_items"], int)
+        assert src["min_expected_items"] > 0
+
+    disabled = [
+        src for src in new_sources
+        if src["name"] == "ZEIT ONLINE"
+        and src["canonical_category"] == "science_technology"
+    ]
+    assert disabled and disabled[0]["enabled"] is False
 
 
 def test_load_by_country_code():

@@ -17,6 +17,19 @@ load_dotenv()
 
 _pool: psycopg2.pool.ThreadedConnectionPool | None = None
 
+_CONNECTION_LOSS_SIGNATURES = (
+    "ssl syscall",
+    "could not receive data from server",
+    "server closed the connection",
+    "connection reset by peer",
+    "can't assign requested address",
+)
+
+
+def _is_connection_loss(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return any(signature in message for signature in _CONNECTION_LOSS_SIGNATURES)
+
 
 def _get_pool() -> psycopg2.pool.ThreadedConnectionPool:
     global _pool
@@ -108,13 +121,17 @@ def retry_on_connection_loss(
             for attempt in range(1, max_attempts + 1):
                 try:
                     return fn(*args, **kwargs)
-                except (psycopg2.OperationalError, psycopg2.InterfaceError) as exc:
+                except (psycopg2.DatabaseError, psycopg2.InterfaceError) as exc:
+                    if not _is_connection_loss(exc):
+                        raise
                     last_exc = exc
                     if attempt >= max_attempts:
                         raise
+                    short_message = " ".join(str(exc).split())[:240]
                     logger.warning(
                         f"DB connection lost in {fn.__name__} "
-                        f"(attempt {attempt}/{max_attempts}): {exc.__class__.__name__}. "
+                        f"(attempt {attempt}/{max_attempts}, "
+                        f"{exc.__class__.__name__}: {short_message}). "
                         "Recreating pool and retrying."
                     )
                     if _pool is not None:

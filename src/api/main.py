@@ -21,6 +21,7 @@ from src.db.queries import (
     fetch_drift_history,
     fetch_latest_drift_report,
     fetch_sentiment_trend,
+    fetch_top_entities,
 )
 from src.db.schema import init_db
 
@@ -150,6 +151,7 @@ class NewsItem(BaseModel):
     published_date: str = Field(..., examples=["2026-04-20T07:30:00+00:00"])
     sentiment_label: str | None = Field(None, examples=["positive"])
     sentiment_score: float | None = Field(None, examples=[0.977])
+    calibrated_sentiment_score: float | None = Field(None, examples=[0.812])
     entities: dict[str, list[str]] | None = Field(None)
     link: str | None = Field(None)
 
@@ -288,12 +290,14 @@ def today(
         if n else {"positive": 0.0, "negative": 0.0, "neutral": 0.0}
     )
 
-    entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
-    for item in turkish:
-        for label, words in (item.get("entities") or {}).items():
-            if label in entity_agg:
-                entity_agg[label].update(words)
-    top_entities = {label: [w for w, _ in ctr.most_common(10)] for label, ctr in entity_agg.items()}
+    top_entities = fetch_top_entities(target, country_code=cc)
+    if not any(top_entities.values()):
+        entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
+        for item in turkish:
+            for label, words in (item.get("entities") or {}).items():
+                if label in entity_agg:
+                    entity_agg[label].update(words)
+        top_entities = {label: [w for w, _ in ctr.most_common(10)] for label, ctr in entity_agg.items()}
 
     source_counts = Counter(i["source_name"] for i in items)
 
@@ -390,6 +394,7 @@ def topic(
             "published_date": str(i.get("published_date", "")),
             "sentiment_label": i.get("sentiment_label"),
             "sentiment_score": i.get("sentiment_score"),
+            "calibrated_sentiment_score": i.get("calibrated_sentiment_score"),
             "entities": i.get("entities"),
             "link": i.get("link"),
         }
@@ -436,8 +441,11 @@ def source_comparison(
         sources[src]["total"] += 1
         if item.get("sentiment_label"):
             sources[src]["sentiment_counts"][item["sentiment_label"]] += 1
-        if item.get("sentiment_score") is not None:
-            sources[src]["scores"].append(item["sentiment_score"])
+        score = item.get("calibrated_sentiment_score")
+        if score is None:
+            score = item.get("sentiment_score")
+        if score is not None:
+            sources[src]["scores"].append(score)
 
     result = {}
     for src, data in sorted(sources.items()):

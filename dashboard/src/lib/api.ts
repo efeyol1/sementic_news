@@ -43,6 +43,7 @@ export interface NewsItem {
   link?: string;
   sentiment_label: string;
   sentiment_score: number;
+  calibrated_sentiment_score?: number | null;
   entities: { PER: string[]; ORG: string[]; LOC: string[] };
 }
 

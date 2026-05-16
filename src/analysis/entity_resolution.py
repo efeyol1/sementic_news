@@ -1,0 +1,251 @@
+"""Entity resolution backfill for ``entity_mentions``.
+
+Local aliases are authoritative and run first. Wikidata linking is optional and
+fail-soft; unresolved mentions keep a display canonical without a QID.
+"""
+
+from __future__ import annotations
+
+import argparse
+import json
+import sys
+import urllib.parse
+import urllib.request
+from datetime import date
+from typing import Any
+
+from loguru import logger
+
+from src.analysis.entity_canonicalization import (
+    CanonicalEntity,
+    canonicalize_mention,
+    normalize_entity_text,
+)
+from src.config import load_country_config
+from src.db.queries import (
+    bulk_update_entity_resolution,
+    fetch_entity_resolution_cache,
+    fetch_unresolved_entity_mentions,
+    upsert_entity_resolution_cache,
+)
+
+_WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+_TYPE_KEYWORDS = {
+    "PER": ("human", "person", "politician", "president", "chancellor"),
+    "ORG": ("organization", "company", "party", "institution", "agency"),
+    "LOC": ("city", "country", "state", "municipality", "place"),
+}
+
+
+def resolve_entities_batch(
+    date_str: str | None = None,
+    country_config: dict[str, Any] | None = None,
+    limit: int = 1000,
+) -> int:
+    if country_config is None:
+        raise ValueError("country_config is required for entity resolution")
+    date_str = date_str or date.today().isoformat()
+    country_code = country_config["country_code"]
+    cfg = country_config.get("entity_narrative") or {}
+    wikidata_cfg = cfg.get("wikidata") or {}
+    wikidata_enabled = bool(wikidata_cfg.get("enabled", False))
+    min_confidence = float(wikidata_cfg.get("min_confidence", 0.85))
+
+    mentions = fetch_unresolved_entity_mentions(
+        date_str,
+        country_code=country_code,
+        limit=limit,
+        include_normalized=wikidata_enabled,
+    )
+    if not mentions:
+        logger.info(f"No unresolved entity mentions for {date_str} [{country_code}]")
+        return 0
+
+    updates: list[dict[str, Any]] = []
+    cache_rows: list[dict[str, Any]] = []
+    for mention in mentions:
+        result = _resolve_one(
+            mention,
+            country_config=country_config,
+            wikidata_enabled=wikidata_enabled,
+            min_confidence=min_confidence,
+        )
+        updates.append(
+            {
+                "id": mention["id"],
+                "canonical": result.canonical,
+                "wikidata_qid": result.wikidata_qid,
+                "resolution_confidence": result.confidence,
+                "resolver_method": result.resolver_method,
+            }
+        )
+        cache_rows.append(
+            {
+                "normalized_text": normalize_entity_text(
+                    mention["entity_text"],
+                    country_config.get("language"),
+                ),
+                "entity_type": mention["entity_type"],
+                "country_code": country_code,
+                "canonical": result.canonical,
+                "wikidata_qid": result.wikidata_qid,
+                "confidence": result.confidence,
+                "resolver_method": result.resolver_method,
+            }
+        )
+
+    bulk_update_entity_resolution(updates)
+    upsert_entity_resolution_cache(cache_rows)
+    logger.info(
+        f"entity_resolution done — {len(updates)} mentions for {date_str} "
+        f"[{country_code}], wikidata_enabled={wikidata_enabled}"
+    )
+    return len(updates)
+
+
+def _resolve_one(
+    mention: dict[str, Any],
+    country_config: dict[str, Any],
+    wikidata_enabled: bool,
+    min_confidence: float,
+) -> CanonicalEntity:
+    local = canonicalize_mention(
+        mention["entity_text"],
+        mention["entity_type"],
+        country_config,
+    )
+    if local.resolver_method == "local_alias":
+        return local
+
+    normalized = normalize_entity_text(mention["entity_text"], country_config.get("language"))
+    cached = fetch_entity_resolution_cache(
+        normalized,
+        mention["entity_type"],
+        country_config["country_code"],
+    )
+    if cached:
+        return CanonicalEntity(
+            canonical=cached.get("canonical") or local.canonical,
+            wikidata_qid=cached.get("wikidata_qid"),
+            confidence=float(cached.get("confidence") or 0.0),
+            resolver_method=cached.get("resolver_method") or "cache",
+        )
+
+    if not wikidata_enabled:
+        return local
+
+    try:
+        wikidata = _resolve_wikidata(
+            mention["entity_text"],
+            mention["entity_type"],
+            country_config,
+            min_confidence=min_confidence,
+        )
+    except Exception as exc:
+        logger.warning(f"Wikidata entity resolution failed soft for {mention['entity_text']!r}: {exc}")
+        return local
+    return wikidata or local
+
+
+def _resolve_wikidata(
+    text: str,
+    entity_type: str,
+    country_config: dict[str, Any],
+    min_confidence: float,
+    timeout: float = 5.0,
+) -> CanonicalEntity | None:
+    language = country_config.get("language") or "en"
+    params = urllib.parse.urlencode(
+        {
+            "action": "wbsearchentities",
+            "format": "json",
+            "language": language,
+            "uselang": language,
+            "limit": 5,
+            "search": text,
+        }
+    )
+    req = urllib.request.Request(
+        f"{_WIKIDATA_API}?{params}",
+        headers={"User-Agent": "semantic-news-entity-resolution/0.1"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as resp:
+        payload = json.loads(resp.read().decode("utf-8"))
+
+    candidates = payload.get("search") or []
+    if not candidates:
+        return None
+
+    scored = [
+        (_score_candidate(candidate, text, entity_type, country_config), candidate)
+        for candidate in candidates
+    ]
+    scored.sort(key=lambda item: item[0], reverse=True)
+    score, candidate = scored[0]
+    if score < min_confidence:
+        return None
+    return CanonicalEntity(
+        canonical=candidate.get("label") or text,
+        wikidata_qid=candidate.get("id"),
+        confidence=round(score, 4),
+        resolver_method="wikidata",
+    )
+
+
+def _score_candidate(
+    candidate: dict[str, Any],
+    text: str,
+    entity_type: str,
+    country_config: dict[str, Any],
+) -> float:
+    language = country_config.get("language")
+    normalized_text = normalize_entity_text(text, language)
+    label = normalize_entity_text(candidate.get("label") or "", language)
+    description = normalize_entity_text(candidate.get("description") or "", language)
+    aliases = [
+        normalize_entity_text(alias, language)
+        for alias in (candidate.get("aliases") or [])
+        if alias
+    ]
+
+    score = 0.0
+    if label == normalized_text:
+        score += 0.55
+    elif normalized_text in aliases:
+        score += 0.50
+    elif label and (label in normalized_text or normalized_text in label):
+        score += 0.35
+
+    type_keywords = _TYPE_KEYWORDS.get(str(entity_type).upper(), ())
+    if any(keyword in description for keyword in type_keywords):
+        score += 0.15
+
+    country_terms = {
+        normalize_entity_text(country_config.get("country_name") or "", language),
+        normalize_entity_text(country_config.get("country_slug") or "", language),
+        normalize_entity_text(country_config.get("country_code") or "", language),
+    }
+    if any(term and term in description for term in country_terms):
+        score += 0.10
+
+    if candidate.get("id"):
+        score += 0.05
+    return min(1.0, score)
+
+
+def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Resolve entity_mentions to canonical names/QIDs.")
+    parser.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
+    parser.add_argument("--country", required=True, help="Country slug or ISO code")
+    parser.add_argument("--limit", type=int, default=1000)
+    args = parser.parse_args(argv)
+    if args.limit < 1:
+        parser.error("--limit must be positive")
+    return args
+
+
+if __name__ == "__main__":
+    args = _parse_args()
+    cfg = load_country_config(args.country)
+    resolve_entities_batch(date_str=args.date, country_config=cfg, limit=args.limit)
+    sys.exit(0)

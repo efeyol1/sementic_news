@@ -67,9 +67,14 @@ def _mock_db(monkeypatch):
         _record("fetch_available_dates", country_code=country_code)
         return ["2026-04-20"]
 
+    def fake_fetch_top_entities(date_str, country_code="TR", limit=10):
+        _record("fetch_top_entities", date_str=date_str, country_code=country_code, limit=limit)
+        return {"PER": ["Ali"], "ORG": ["TBMM"], "LOC": ["Ankara"]}
+
     monkeypatch.setattr(api_module, "fetch_all_for_api", fake_fetch_all_for_api)
     monkeypatch.setattr(api_module, "fetch_cluster_summaries", fake_fetch_cluster_summaries)
     monkeypatch.setattr(api_module, "fetch_available_dates", fake_fetch_available_dates)
+    monkeypatch.setattr(api_module, "fetch_top_entities", fake_fetch_top_entities)
     monkeypatch.setattr(api_module, "init_db", lambda: None)
 
 
