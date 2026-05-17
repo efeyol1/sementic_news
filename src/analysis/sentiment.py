@@ -37,6 +37,7 @@ import torch
 from loguru import logger
 from transformers import pipeline
 
+from src.analysis.sentiment_calibration import calibrate_sentiment
 from src.analysis.text_inputs import build_sentiment_text
 from src.db.queries import bulk_update_sentiment, fetch_processed_by_date
 
@@ -102,13 +103,13 @@ def _is_finetuned_mode() -> bool:
     return bool(os.getenv("SENTIMENT_MODEL_ID")) or _is_onnx_mode()
 
 
-def _active_model_id() -> str:
+def _active_model_id(zero_shot_model: str | None = None) -> str:
     """Identifier logged to MLflow. ONNX mode prefixes the source repo so a
     backend switch is visible in the experiment history."""
     if _is_onnx_mode():
         source = os.getenv("SENTIMENT_MODEL_ID") or _DEFAULT_FINETUNED_MODEL_ID
         return f"onnx_int8:{source}"
-    return os.getenv("SENTIMENT_MODEL_ID") or _ZERO_SHOT_MODEL
+    return os.getenv("SENTIMENT_MODEL_ID") or zero_shot_model or _ZERO_SHOT_MODEL
 
 
 def _onnx_dir() -> Path:
@@ -143,11 +144,11 @@ def _load_onnx_pipeline():
     return pipe
 
 
-def _load_pipeline():
+def _load_pipeline(zero_shot_model: str | None = None):
     if _is_onnx_mode():
         return _load_onnx_pipeline()
     device = 0 if torch.cuda.is_available() else -1
-    model_id = _active_model_id()
+    model_id = _active_model_id(zero_shot_model=zero_shot_model)
     if _is_finetuned_mode():
         logger.info(f"Loading fine-tuned model {model_id!r} on {'CUDA' if device == 0 else 'CPU'}")
         pipe = pipeline("text-classification", model=model_id, device=device, top_k=None)
@@ -162,11 +163,28 @@ def _get_labels(lang: str) -> dict[str, str]:
     return SENTIMENT_LABELS.get(lang, SENTIMENT_LABELS["en"])
 
 
+def _candidate_labels(
+    lang: str,
+    candidate_labels: dict[str, str] | None = None,
+) -> dict[str, str]:
+    labels = candidate_labels or _get_labels(lang)
+    missing = [label for label in ("positive", "negative", "neutral") if not labels.get(label)]
+    if missing:
+        raise ValueError(f"candidate_labels missing required labels: {missing}")
+    return {label: str(labels[label]) for label in ("positive", "negative", "neutral")}
+
+
 def _build_text(item: dict[str, Any]) -> str:
     return build_sentiment_text(item)
 
 
-def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
+def _predict(
+    text: str,
+    pipe,
+    lang: str,
+    candidate_labels: dict[str, str] | None = None,
+    calibration_enabled: bool = False,
+) -> dict[str, Any]:
     if _is_finetuned_mode():
         # Fine-tuned text-classification pipeline returns list of {label, score} dicts
         # 256 captures title + summary + 800-char body (~230-300 Turkish tokens
@@ -178,13 +196,21 @@ def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
             for r in raw
         }
         top = max(scores, key=lambda k: scores[k])
-        return {
+        result = {
             "sentiment_label": top,
             "sentiment_score": round(scores[top], 6),
             "sentiment_scores": scores,
         }
+        result["raw_sentiment_score"] = result["sentiment_score"]
+        if calibration_enabled:
+            result.update(calibrate_sentiment(scores, sentiment_label=top))
+        else:
+            result["calibrated_sentiment_score"] = None
+            result["calibrated_sentiment_scores"] = None
+            result["calibration_method"] = None
+        return result
     else:
-        label_map = _get_labels(lang)
+        label_map = _candidate_labels(lang, candidate_labels)
         candidate_labels = list(label_map.values())
         result = pipe(text, candidate_labels, multi_label=False)
         reverse_map = {v: k for k, v in label_map.items()}
@@ -193,11 +219,19 @@ def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
             for lbl, score in zip(result["labels"], result["scores"])
         }
         top_canonical = reverse_map[result["labels"][0]]
-        return {
+        result = {
             "sentiment_label": top_canonical,
             "sentiment_score": round(result["scores"][0], 6),
             "sentiment_scores": scores,
         }
+        result["raw_sentiment_score"] = result["sentiment_score"]
+        if calibration_enabled:
+            result.update(calibrate_sentiment(scores, sentiment_label=top_canonical))
+        else:
+            result["calibrated_sentiment_score"] = None
+            result["calibrated_sentiment_scores"] = None
+            result["calibration_method"] = None
+        return result
 
 
 # ---------------------------------------------------------------------------
@@ -205,18 +239,34 @@ def _predict(text: str, pipe, lang: str) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def _to_analyzed(item: dict[str, Any], pipe, lang: str) -> dict[str, Any]:
+def _to_analyzed(
+    item: dict[str, Any],
+    pipe,
+    lang: str,
+    candidate_labels: dict[str, str] | None = None,
+    calibration_enabled: bool = False,
+) -> dict[str, Any]:
     result = {"id": item["id"]}
     if not item.get("is_turkish", True):
         result.update({
             "sentiment_label": None,
             "sentiment_score": None,
             "sentiment_scores": None,
+            "raw_sentiment_score": None,
+            "calibrated_sentiment_score": None,
+            "calibrated_sentiment_scores": None,
+            "calibration_method": None,
             "analyzed_at": None,
         })
         return result
     text = _build_text(item)
-    prediction = _predict(text, pipe, lang)
+    prediction = _predict(
+        text,
+        pipe,
+        lang,
+        candidate_labels=candidate_labels,
+        calibration_enabled=calibration_enabled,
+    )
     result.update(prediction)
     result["analyzed_at"] = datetime.now(timezone.utc).isoformat()
     return result
@@ -231,6 +281,9 @@ def analyze(
     date_str: str | None = None,
     lang: str = DEFAULT_LANG,
     country_code: str = "TR",
+    zero_shot_model: str | None = None,
+    candidate_labels: dict[str, str] | None = None,
+    calibration_enabled: bool = False,
     only_missing: bool = False,
     only_stale_after_body: bool = False,
     only_with_body: bool = False,
@@ -270,10 +323,19 @@ def analyze(
         logger.warning(f"No preprocessed items found for {date_str}")
         return 0
 
-    pipe = _load_pipeline()
+    pipe = _load_pipeline(zero_shot_model=zero_shot_model)
 
     t0 = time.perf_counter()
-    updates: list[dict[str, Any]] = [_to_analyzed(item, pipe, lang) for item in items]
+    updates: list[dict[str, Any]] = [
+        _to_analyzed(
+            item,
+            pipe,
+            lang,
+            candidate_labels=candidate_labels,
+            calibration_enabled=calibration_enabled,
+        )
+        for item in items
+    ]
     duration = time.perf_counter() - t0
 
     bulk_update_sentiment(updates)
@@ -297,7 +359,8 @@ def analyze(
 
     with mlflow.start_run(run_name=f"sentiment-{date_str}"):
         mlflow.log_params({
-            "model_id": _active_model_id(),
+            "model_id": _active_model_id(zero_shot_model=zero_shot_model),
+            "zero_shot_model": zero_shot_model or _ZERO_SHOT_MODEL,
             "finetuned": _is_finetuned_mode(),
             "lang": lang,
             "country_code": country_code,

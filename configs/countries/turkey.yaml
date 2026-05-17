@@ -41,6 +41,37 @@ ner:
   # Subset of HuggingFace NER tags we keep; everything else dropped.
   keep_labels: [PER, ORG, LOC]
 
+entity_narrative:
+  # Sprint 1 of the entity-centric narrative track is rolling out on DE
+  # first; TR stays on the legacy ``ner`` path so the existing TR
+  # baseline (sentiment QA, top-entities dashboard) is bit-identical.
+  # Sprint 4 flips this to ``true`` after the regression check passes.
+  enabled: false
+  ner_model: Davlan/bert-base-multilingual-cased-ner-hrl
+  keep_labels: [PER, ORG, LOC, MISC]
+  aliases:
+    people:
+      Recep Tayyip Erdoğan:
+        wikidata_qid: Q39259
+        aliases:
+          - erdoğan
+          - recep tayyip erdoğan
+          - cumhurbaşkanı erdoğan
+      Donald Trump:
+        wikidata_qid: Q22686
+        aliases:
+          - trump
+          - donald trump
+      Angela Merkel:
+        wikidata_qid: Q567
+        aliases:
+          - merkel
+          - angela merkel
+    organizations: {}
+  wikidata:
+    enabled: false
+    min_confidence: 0.85
+
 clustering:
   enabled: true
   method: kmeans

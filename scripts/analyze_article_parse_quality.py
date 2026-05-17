@@ -2,6 +2,7 @@
 
 Usage:
     python scripts/analyze_article_parse_quality.py --date 2026-05-05
+    python scripts/analyze_article_parse_quality.py --country germany --date 2026-05-05
     python scripts/analyze_article_parse_quality.py --date 2026-05-05 --json
 """
 
@@ -14,6 +15,7 @@ from datetime import date
 from statistics import mean
 from typing import Any
 
+from src.config import load_country_config
 from src.db.queries import fetch_article_parse_quality_rows
 
 _STATUSES = ("parsed", "empty", "fetch_error", "parse_error", "skipped", "unfetched")
@@ -99,10 +101,13 @@ def summarize_rows(
     }
 
 
-def format_summary(summary: dict[str, Any], date_str: str) -> str:
+def format_summary(summary: dict[str, Any], date_str: str, country_code: str | None = None) -> str:
     totals = summary["totals"]
+    heading = f"Article parse quality: {date_str}"
+    if country_code:
+        heading = f"{heading} [{country_code}]"
     lines = [
-        f"Article parse quality: {date_str}",
+        heading,
         "",
         "Totals:",
         f"  total rows: {totals['total']}",
@@ -150,6 +155,7 @@ def format_summary(summary: dict[str, Any], date_str: str) -> str:
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Summarize article body parse quality from PostgreSQL.")
     parser.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
+    parser.add_argument("--country", default="turkey", help="Country slug or ISO code (default: turkey)")
     parser.add_argument("--min-fetched", type=int, default=10)
     parser.add_argument("--min-parsed-pct", type=float, default=85.0)
     parser.add_argument("--json", action="store_true", help="Print machine-readable summary JSON.")
@@ -163,16 +169,18 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    rows = fetch_article_parse_quality_rows(args.date)
+    country_config = load_country_config(args.country)
+    country_code = country_config["country_code"]
+    rows = fetch_article_parse_quality_rows(args.date, country_code=country_code)
     summary = summarize_rows(
         rows,
         min_fetched=args.min_fetched,
         min_parsed_pct=args.min_parsed_pct,
     )
     if args.json:
-        print(json.dumps({"date": args.date, **summary}, ensure_ascii=False, indent=2))
+        print(json.dumps({"date": args.date, "country_code": country_code, **summary}, ensure_ascii=False, indent=2))
     else:
-        print(format_summary(summary, args.date))
+        print(format_summary(summary, args.date, country_code=country_code))
     return 0
 
 

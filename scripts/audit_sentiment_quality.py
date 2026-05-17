@@ -2,6 +2,7 @@
 
 Usage:
     python scripts/audit_sentiment_quality.py --date 2026-05-06
+    python scripts/audit_sentiment_quality.py --country germany --date 2026-05-06
     python scripts/audit_sentiment_quality.py --date 2026-05-06 --json
 """
 
@@ -17,6 +18,7 @@ from decimal import Decimal
 from statistics import mean
 from typing import Any
 
+from src.config import load_country_config
 from src.db.queries import fetch_sentiment_quality_rows
 
 _LABELS = ("negative", "neutral", "positive")
@@ -154,17 +156,68 @@ def _label_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     return {label: counts.get(label, 0) for label in _LABELS}
 
 
-def _avg_scores(rows: list[dict[str, Any]]) -> dict[str, float | None]:
+def _avg_scores(rows: list[dict[str, Any]], field: str = "sentiment_score") -> dict[str, float | None]:
     by_label: dict[str, list[float]] = defaultdict(list)
     for row in rows:
         label = row.get("sentiment_label")
-        score = _as_float(row.get("sentiment_score"))
+        score = _as_float(row.get(field))
         if label in _LABELS and score is not None:
             by_label[str(label)].append(score)
     return {
         label: round(mean(scores), 4) if scores else None
         for label, scores in ((label, by_label[label]) for label in _LABELS)
     }
+
+
+def _margin(row: dict[str, Any]) -> float | None:
+    scores = row.get("sentiment_scores")
+    if not isinstance(scores, dict) or len(scores) < 2:
+        return None
+    values = sorted((_as_float(v) for v in scores.values() if v is not None), reverse=True)
+    if len(values) < 2 or values[0] is None or values[1] is None:
+        return None
+    return values[0] - values[1]
+
+
+def _confidence_summary(rows: list[dict[str, Any]], threshold: float) -> dict[str, Any]:
+    raw_scores = [_as_float(row.get("sentiment_score")) for row in rows]
+    calibrated_scores = [
+        _as_float(row.get("calibrated_sentiment_score"))
+        for row in rows
+        if row.get("calibrated_sentiment_score") is not None
+    ]
+    raw_scores = [score for score in raw_scores if score is not None]
+    return {
+        "raw_avg_confidence": round(mean(raw_scores), 4) if raw_scores else None,
+        "calibrated_avg_confidence": (
+            round(mean(calibrated_scores), 4) if calibrated_scores else None
+        ),
+        "raw_high_confidence_count": sum(1 for score in raw_scores if score >= threshold),
+        "calibrated_high_confidence_count": sum(
+            1 for score in calibrated_scores if score >= threshold
+        ),
+    }
+
+
+def _low_margin_examples(rows: list[dict[str, Any]], max_examples: int) -> list[dict[str, Any]]:
+    examples = []
+    for row in rows:
+        margin = _margin(row)
+        if margin is None or margin > 0.15:
+            continue
+        examples.append(
+            {
+                "id": row.get("id"),
+                "source": row.get("source_name") or "unknown",
+                "label": row.get("sentiment_label"),
+                "raw_score": _as_float(row.get("sentiment_score")),
+                "calibrated_score": _as_float(row.get("calibrated_sentiment_score")),
+                "margin": round(margin, 4),
+                "title": _title(row),
+            }
+        )
+    examples.sort(key=lambda row: (row["margin"], -(row["raw_score"] or 0.0)))
+    return examples[:max_examples]
 
 
 def _suspicious_rows(
@@ -209,6 +262,8 @@ def _suspicious_rows(
 def summarize_rows(
     rows: list[dict[str, Any]],
     min_neutral_pct: float = 5.0,
+    max_positive_pct: float = 45.0,
+    max_mismatch_pct: float = 2.0,
     high_confidence: float = 0.85,
     max_examples: int = 20,
 ) -> dict[str, Any]:
@@ -227,14 +282,22 @@ def summarize_rows(
         min_score=high_confidence,
         max_examples=max_examples,
     )
+    suspicious_total = sum(suspicious_counts.values())
+    suspicious_pct = _pct(suspicious_total, scored)
+    confidence = _confidence_summary(scored_rows, threshold=0.90)
+    low_margin_examples = _low_margin_examples(scored_rows, max_examples=max_examples)
 
     warnings: list[str] = []
     if stale_after_body:
         warnings.append("stale_sentiment_after_body_fetch")
     if scored and label_pct["neutral"] < min_neutral_pct:
         warnings.append("low_neutral_share")
+    if scored and label_pct["positive"] > max_positive_pct:
+        warnings.append("high_positive_share")
     if suspicious_counts:
         warnings.append("high_confidence_label_cue_mismatch")
+    if scored and suspicious_pct > max_mismatch_pct:
+        warnings.append("high_mismatch_rate")
 
     by_source: dict[str, list[dict[str, Any]]] = defaultdict(list)
     for row in rows:
@@ -268,24 +331,35 @@ def summarize_rows(
             "label_counts": label_counts,
             "label_pct": label_pct,
             "avg_scores": _avg_scores(scored_rows),
+            "avg_raw_scores": _avg_scores(scored_rows, field="sentiment_score"),
+            "avg_calibrated_scores": _avg_scores(scored_rows, field="calibrated_sentiment_score"),
+            **confidence,
         },
         "warnings": warnings,
         "sources": sources,
         "suspicious": {
             "counts": dict(suspicious_counts),
+            "total": suspicious_total,
+            "pct_scored": suspicious_pct,
             "examples": suspicious_examples,
         },
+        "low_margin_examples": low_margin_examples,
         "thresholds": {
             "min_neutral_pct": min_neutral_pct,
+            "max_positive_pct": max_positive_pct,
+            "max_mismatch_pct": max_mismatch_pct,
             "high_confidence": high_confidence,
         },
     }
 
 
-def format_summary(summary: dict[str, Any], date_str: str) -> str:
+def format_summary(summary: dict[str, Any], date_str: str, country_code: str | None = None) -> str:
     totals = summary["totals"]
+    heading = f"Sentiment quality audit: {date_str}"
+    if country_code:
+        heading = f"{heading} [{country_code}]"
     lines = [
-        f"Sentiment quality audit: {date_str}",
+        heading,
         "",
         "Totals:",
         f"  total rows: {totals['total']}",
@@ -297,7 +371,12 @@ def format_summary(summary: dict[str, Any], date_str: str) -> str:
         f"  stale after body fetch: {totals['stale_after_body']}",
         f"  label counts: {totals['label_counts']}",
         f"  label pct: {totals['label_pct']}",
-        f"  avg scores: {totals['avg_scores']}",
+        f"  avg raw scores: {totals['avg_raw_scores']}",
+        f"  avg calibrated scores: {totals['avg_calibrated_scores']}",
+        f"  raw avg confidence: {totals['raw_avg_confidence']}",
+        f"  calibrated avg confidence: {totals['calibrated_avg_confidence']}",
+        f"  raw >=0.90 count: {totals['raw_high_confidence_count']}",
+        f"  calibrated >=0.90 count: {totals['calibrated_high_confidence_count']}",
     ]
 
     if summary["warnings"]:
@@ -315,7 +394,11 @@ def format_summary(summary: dict[str, Any], date_str: str) -> str:
         )
 
     suspicious = summary["suspicious"]
-    lines.extend(["", f"Suspicious high-confidence cue mismatches: {suspicious['counts']}"])
+    lines.extend([
+        "",
+        "Suspicious high-confidence cue mismatches: "
+        f"{suspicious['counts']} ({suspicious['pct_scored']}% of scored)",
+    ])
     for row in suspicious["examples"]:
         lines.append(
             "  "
@@ -323,19 +406,36 @@ def format_summary(summary: dict[str, Any], date_str: str) -> str:
             f"{row['reason']} | {row['title']}"
         )
 
+    if summary["low_margin_examples"]:
+        lines.extend(["", "Low-margin scored examples:"])
+        for row in summary["low_margin_examples"]:
+            lines.append(
+                "  "
+                f"{row['id']} | {row['source']} | {row['label']} "
+                f"raw={row['raw_score']} calibrated={row['calibrated_score']} "
+                f"margin={row['margin']} | {row['title']}"
+            )
+
     return "\n".join(lines)
 
 
 def _parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Audit sentiment freshness and label-quality risks.")
     parser.add_argument("--date", default=date.today().isoformat(), metavar="YYYY-MM-DD")
+    parser.add_argument("--country", default="turkey", help="Country slug or ISO code (default: turkey)")
     parser.add_argument("--min-neutral-pct", type=float, default=5.0)
+    parser.add_argument("--max-positive-pct", type=float, default=45.0)
+    parser.add_argument("--max-mismatch-pct", type=float, default=2.0)
     parser.add_argument("--high-confidence", type=float, default=0.85)
     parser.add_argument("--max-examples", type=int, default=20)
     parser.add_argument("--json", action="store_true", help="Print machine-readable summary JSON.")
     args = parser.parse_args()
     if not 0 <= args.min_neutral_pct <= 100:
         parser.error("--min-neutral-pct must be between 0 and 100")
+    if not 0 <= args.max_positive_pct <= 100:
+        parser.error("--max-positive-pct must be between 0 and 100")
+    if not 0 <= args.max_mismatch_pct <= 100:
+        parser.error("--max-mismatch-pct must be between 0 and 100")
     if not 0 <= args.high_confidence <= 1:
         parser.error("--high-confidence must be between 0 and 1")
     if args.max_examples < 1:
@@ -345,17 +445,26 @@ def _parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = _parse_args()
-    rows = fetch_sentiment_quality_rows(args.date)
+    country_config = load_country_config(args.country)
+    country_code = country_config["country_code"]
+    rows = fetch_sentiment_quality_rows(args.date, country_code=country_code)
     summary = summarize_rows(
         rows,
         min_neutral_pct=args.min_neutral_pct,
+        max_positive_pct=args.max_positive_pct,
+        max_mismatch_pct=args.max_mismatch_pct,
         high_confidence=args.high_confidence,
         max_examples=args.max_examples,
     )
     if args.json:
-        print(json.dumps({"date": args.date, **summary}, ensure_ascii=False, indent=2, default=str))
+        print(json.dumps(
+            {"date": args.date, "country_code": country_code, **summary},
+            ensure_ascii=False,
+            indent=2,
+            default=str,
+        ))
     else:
-        print(format_summary(summary, args.date))
+        print(format_summary(summary, args.date, country_code=country_code))
     return 0
 
 

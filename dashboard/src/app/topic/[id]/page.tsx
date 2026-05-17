@@ -127,7 +127,8 @@ async function TopicContent({ id, date, country }: { id: number; date: string; c
                   <span className="text-xs text-slate-300">·</span>
                   <span className="text-xs font-medium" style={{ color: sentimentColor(item.sentiment_label) }}>
                     {sentimentLabel(item.sentiment_label)}{" "}
-                    {item.sentiment_score != null && `(${(item.sentiment_score * 100).toFixed(0)}%)`}
+                    {(item.calibrated_sentiment_score ?? item.sentiment_score) != null &&
+                      `(${((item.calibrated_sentiment_score ?? item.sentiment_score) * 100).toFixed(0)}%)`}
                   </span>
                 </div>
               </div>

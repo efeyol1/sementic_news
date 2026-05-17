@@ -14,6 +14,7 @@ def test_pipeline_article_fetch_is_opt_in(monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_articles", lambda **kwargs: calls.append("article_fetch") or {"parsed": 1})
     monkeypatch.setattr(pipeline, "preprocess", lambda **kwargs: calls.append("preprocess") or 1)
     monkeypatch.setattr(pipeline, "analyze", lambda **kwargs: calls.append("sentiment") or 1)
+    monkeypatch.setattr(pipeline, "calibrate_date", lambda **kwargs: calls.append("sentiment_calibration") or 1)
     monkeypatch.setattr(pipeline, "extract_entities", lambda **kwargs: calls.append("ner") or 1)
     monkeypatch.setattr(pipeline, "cluster_topics", lambda **kwargs: calls.append("clustering") or 1)
     monkeypatch.setattr(pipeline, "index_date", lambda **kwargs: calls.append("vector_store") or 1)
@@ -21,6 +22,8 @@ def test_pipeline_article_fetch_is_opt_in(monkeypatch):
 
     pipeline.run(date_str="2026-05-05")
 
+    # ``sentiment_calibration`` only runs when ``sentiment.calibration.enabled``
+    # is true; the default TR config omits the section so it stays off.
     assert calls == [
         "collect",
         "preprocess",
@@ -45,6 +48,7 @@ def test_pipeline_article_fetch_runs_before_preprocess(monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_articles", lambda **kwargs: calls.append("article_fetch") or {"parsed": 1})
     monkeypatch.setattr(pipeline, "preprocess", lambda **kwargs: calls.append("preprocess") or 1)
     monkeypatch.setattr(pipeline, "analyze", lambda **kwargs: calls.append("sentiment") or 1)
+    monkeypatch.setattr(pipeline, "calibrate_date", lambda **kwargs: calls.append("sentiment_calibration") or 1)
     monkeypatch.setattr(pipeline, "extract_entities", lambda **kwargs: calls.append("ner") or 1)
     monkeypatch.setattr(pipeline, "cluster_topics", lambda **kwargs: calls.append("clustering") or 1)
     monkeypatch.setattr(pipeline, "index_date", lambda **kwargs: calls.append("vector_store") or 1)
@@ -63,7 +67,19 @@ def test_pipeline_forwards_country_config_to_steps(monkeypatch):
     monkeypatch.setattr(
         pipeline,
         "load_country_config",
-        lambda country: {"country_code": "DE", "country_slug": "germany", "language": "de"},
+        lambda country: {
+            "country_code": "DE",
+            "country_slug": "germany",
+            "language": "de",
+            "sentiment": {
+                "zero_shot_model": "joeddav/xlm-roberta-large-xnli",
+                "candidate_labels": {
+                    "positive": "positive Nachricht",
+                    "negative": "negative Nachricht",
+                    "neutral": "neutrale Nachricht",
+                },
+            },
+        },
     )
 
     def capture(name):
@@ -73,6 +89,7 @@ def test_pipeline_forwards_country_config_to_steps(monkeypatch):
     monkeypatch.setattr(pipeline, "fetch_articles", capture("article_fetch"))
     monkeypatch.setattr(pipeline, "preprocess", capture("preprocess"))
     monkeypatch.setattr(pipeline, "analyze", capture("sentiment"))
+    monkeypatch.setattr(pipeline, "calibrate_date", capture("sentiment_calibration"))
     monkeypatch.setattr(pipeline, "extract_entities", capture("ner"))
     monkeypatch.setattr(pipeline, "cluster_topics", capture("clustering"))
     monkeypatch.setattr(pipeline, "index_date", capture("vector_store"))
@@ -93,8 +110,13 @@ def test_pipeline_forwards_country_config_to_steps(monkeypatch):
     assert captured["preprocess"]["target_language"] == "de"
     assert captured["sentiment"]["country_code"] == "DE"
     assert captured["sentiment"]["lang"] == "de"
+    assert captured["sentiment"]["zero_shot_model"] == "joeddav/xlm-roberta-large-xnli"
+    assert captured["sentiment"]["candidate_labels"]["neutral"] == "neutrale Nachricht"
+    assert captured["sentiment"]["calibration_enabled"] is False
+    assert "sentiment_calibration" not in captured
     assert captured["ner"]["country_code"] == "DE"
     assert captured["clustering"]["country_code"] == "DE"
+    assert captured["clustering"]["country_config"]["country_slug"] == "germany"
     assert captured["vector_store"]["country_code"] == "DE"
     assert captured["drift"]["country_code"] == "DE"
 
@@ -129,6 +151,7 @@ def test_pipeline_skips_disabled_ner(monkeypatch):
     monkeypatch.setattr(pipeline, "collect_all", lambda **kwargs: calls.append("collect") or 1)
     monkeypatch.setattr(pipeline, "preprocess", lambda **kwargs: calls.append("preprocess") or 1)
     monkeypatch.setattr(pipeline, "analyze", lambda **kwargs: calls.append("sentiment") or 1)
+    monkeypatch.setattr(pipeline, "calibrate_date", lambda **kwargs: calls.append("sentiment_calibration") or 1)
     monkeypatch.setattr(pipeline, "extract_entities", lambda **kwargs: calls.append("ner") or 1)
     monkeypatch.setattr(pipeline, "cluster_topics", lambda **kwargs: calls.append("clustering") or 1)
     monkeypatch.setattr(pipeline, "index_date", lambda **kwargs: calls.append("vector_store") or 1)
@@ -137,7 +160,55 @@ def test_pipeline_skips_disabled_ner(monkeypatch):
     pipeline.run(date_str="2026-05-08", country="germany")
 
     assert "ner" not in calls
-    assert calls == ["collect", "preprocess", "sentiment", "clustering", "vector_store", "drift"]
+    assert calls == [
+        "collect",
+        "preprocess",
+        "sentiment",
+        "clustering",
+        "vector_store",
+        "drift",
+    ]
+
+
+def test_pipeline_runs_calibration_when_flag_enabled(monkeypatch):
+    """``sentiment.calibration.enabled: true`` opts a country into the
+    calibration step. Default-off keeps the TR baseline unchanged; this
+    test guards the opt-in path from regressing."""
+    import src.pipeline as pipeline
+
+    calls: list[str] = []
+    monkeypatch.setattr(
+        pipeline,
+        "load_country_config",
+        lambda country: {
+            "country_code": "TR",
+            "country_slug": "turkey",
+            "language": "tr",
+            "sentiment": {"enabled": True, "calibration": {"enabled": True}},
+        },
+    )
+    monkeypatch.setattr(pipeline, "collect_all", lambda **kwargs: calls.append("collect") or 1)
+    monkeypatch.setattr(pipeline, "preprocess", lambda **kwargs: calls.append("preprocess") or 1)
+    captured_sentiment: dict = {}
+    monkeypatch.setattr(
+        pipeline,
+        "analyze",
+        lambda **kwargs: captured_sentiment.update(kwargs) or calls.append("sentiment") or 1,
+    )
+    monkeypatch.setattr(
+        pipeline,
+        "calibrate_date",
+        lambda **kwargs: calls.append("sentiment_calibration") or 1,
+    )
+    monkeypatch.setattr(pipeline, "extract_entities", lambda **kwargs: calls.append("ner") or 1)
+    monkeypatch.setattr(pipeline, "cluster_topics", lambda **kwargs: calls.append("clustering") or 1)
+    monkeypatch.setattr(pipeline, "index_date", lambda **kwargs: calls.append("vector_store") or 1)
+    monkeypatch.setattr(pipeline, "run_drift_check", lambda **kwargs: calls.append("drift") or {})
+
+    pipeline.run(date_str="2026-05-05")
+
+    assert "sentiment_calibration" in calls
+    assert captured_sentiment["calibration_enabled"] is True
 
 
 def test_pipeline_rejects_finetuned_sentiment_without_country_model(monkeypatch):

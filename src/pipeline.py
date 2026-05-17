@@ -26,8 +26,11 @@ from pathlib import Path
 from loguru import logger
 
 from src.analysis.clustering import cluster_topics
+from src.analysis.entity_extraction import extract_entities_batch
+from src.analysis.entity_resolution import resolve_entities_batch
 from src.analysis.ner import extract_entities
 from src.analysis.sentiment import analyze
+from src.analysis.sentiment_calibration import calibrate_date
 from src.analysis.vector_store import index_date
 from src.config import load_country_config
 from src.data.article_fetcher import fetch_articles
@@ -151,6 +154,10 @@ def run(
         target_language=language,
     )
     if _section_enabled(country_config, "sentiment"):
+        sentiment_cfg = country_config.get("sentiment") or {}
+        calibration_enabled = bool(
+            (sentiment_cfg.get("calibration") or {}).get("enabled", False)
+        )
         _validate_sentiment_backend(country_config)
         _step(
             "sentiment",
@@ -158,7 +165,19 @@ def run(
             date_str=date_str,
             lang=language,
             country_code=country_code,
+            zero_shot_model=sentiment_cfg.get("zero_shot_model"),
+            candidate_labels=sentiment_cfg.get("candidate_labels"),
+            calibration_enabled=calibration_enabled,
         )
+        if calibration_enabled:
+            _step(
+                "sentiment_calibration",
+                calibrate_date,
+                date_str=date_str,
+                country_config=country_config,
+            )
+        else:
+            logger.info("Skipping sentiment_calibration — disabled in country config")
     else:
         logger.info("Skipping sentiment — disabled in country config")
 
@@ -167,6 +186,24 @@ def run(
     else:
         logger.info("Skipping ner — disabled in country config")
 
+    # Entity-narrative track (Sprint 1+). Default false so legacy configs
+    # without the section stay opt-out; ``germany.yaml`` opts in today.
+    if _section_enabled(country_config, "entity_narrative", default=False):
+        _step(
+            "entity_extraction",
+            extract_entities_batch,
+            date_str=date_str,
+            country_config=country_config,
+        )
+        _step_soft(
+            "entity_resolution",
+            resolve_entities_batch,
+            date_str=date_str,
+            country_config=country_config,
+        )
+    else:
+        logger.info("Skipping entity_extraction — disabled in country config")
+
     if _section_enabled(country_config, "clustering"):
         _step(
             "clustering",
@@ -174,6 +211,7 @@ def run(
             date_str=date_str,
             n_clusters=n_clusters,
             country_code=country_code,
+            country_config=country_config,
         )
     else:
         logger.info("Skipping clustering — disabled in country config")

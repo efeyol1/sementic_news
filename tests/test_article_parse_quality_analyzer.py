@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from analyze_article_parse_quality import format_summary, summarize_rows
+import sys
+
+from analyze_article_parse_quality import format_summary, main, summarize_rows
 
 
 def test_summarize_rows_reports_source_quality_and_attention():
@@ -58,3 +60,34 @@ def test_summarize_rows_reports_source_quality_and_attention():
     assert "Article parse quality: 2026-05-05" in text
     assert "Needs attention:" in text
     assert "Bad" in text
+
+
+def test_main_resolves_country_before_fetch(monkeypatch, capsys):
+    import analyze_article_parse_quality as script
+
+    captured = {}
+    monkeypatch.setattr(
+        script,
+        "load_country_config",
+        lambda country: {
+            "country_code": "DE",
+            "country_slug": "germany",
+            "language": "de",
+        },
+    )
+
+    def fake_fetch(date_str, country_code="TR"):
+        captured["date"] = date_str
+        captured["country_code"] = country_code
+        return []
+
+    monkeypatch.setattr(script, "fetch_article_parse_quality_rows", fake_fetch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["prog", "--country", "germany", "--date", "2026-05-08", "--json"],
+    )
+
+    assert main() == 0
+    assert captured == {"date": "2026-05-08", "country_code": "DE"}
+    assert '"country_code": "DE"' in capsys.readouterr().out

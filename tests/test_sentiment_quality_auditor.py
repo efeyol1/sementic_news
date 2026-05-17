@@ -1,8 +1,9 @@
 from __future__ import annotations
 
+import sys
 from datetime import datetime, timezone
 
-from audit_sentiment_quality import format_summary, summarize_rows
+from audit_sentiment_quality import format_summary, main, summarize_rows
 
 
 def test_summarize_rows_flags_stale_low_neutral_and_suspicious_labels():
@@ -61,8 +62,11 @@ def test_summarize_rows_flags_stale_low_neutral_and_suspicious_labels():
     }
     assert "stale_sentiment_after_body_fetch" in summary["warnings"]
     assert "low_neutral_share" in summary["warnings"]
+    assert "high_positive_share" in summary["warnings"]
+    assert "high_mismatch_rate" in summary["warnings"]
     assert "high_confidence_label_cue_mismatch" in summary["warnings"]
     assert summary["suspicious"]["counts"]["positive_with_negative_cue"] == 1
+    assert summary["suspicious"]["pct_scored"] == 50.0
 
     text = format_summary(summary, "2026-05-06")
     assert "Sentiment quality audit: 2026-05-06" in text
@@ -104,3 +108,34 @@ def test_kaza_cue_does_not_collide_with_kazandi():
     ]
     summary = summarize_rows(rows)
     assert summary["suspicious"]["counts"] == {}
+
+
+def test_main_resolves_country_before_fetch(monkeypatch, capsys):
+    import audit_sentiment_quality as script
+
+    captured = {}
+    monkeypatch.setattr(
+        script,
+        "load_country_config",
+        lambda country: {
+            "country_code": "DE",
+            "country_slug": "germany",
+            "language": "de",
+        },
+    )
+
+    def fake_fetch(date_str, country_code="TR"):
+        captured["date"] = date_str
+        captured["country_code"] = country_code
+        return []
+
+    monkeypatch.setattr(script, "fetch_sentiment_quality_rows", fake_fetch)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["prog", "--country", "germany", "--date", "2026-05-08", "--json"],
+    )
+
+    assert main() == 0
+    assert captured == {"date": "2026-05-08", "country_code": "DE"}
+    assert '"country_code": "DE"' in capsys.readouterr().out

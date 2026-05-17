@@ -14,7 +14,8 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sent
 | **Dashboard** | Next.js, Vercel deploy, trend + cluster grid | ✅ V1 |
 | **CI/CD** | GitHub Actions lint+test, Render auto-deploy | ✅ V1 |
 | **MLOps** | MLflow tracking, weekly retrain, ONNX int8 inference, behavioral CheckList | ✅ V1 |
-| **V2 — Multi-country** | Country YAML config, generic pipeline, framing analysis | 🚧 in progress |
+| **V2 — Multi-country omurga** | Country YAML, country-aware DB/pipeline/API/dashboard, Germany pilot | ✅ Phase 0–7 |
+| **V2 — Operasyon & framing** | CI matrix, per-country run reports, framing analizi, quality gate | 🚧 Phase 8–12 |
 
 ## Özellikler
 
@@ -185,52 +186,69 @@ V1 (Turkey-only) pilot ülke modülü olarak stabil. V2'de proje çok ülkeli Av
 
 **Mimari ilke**: Country-specific bilgi **asla** Python kodunda hardcoded olamaz; sadece `configs/countries/*.yaml`. Yeni ülke eklemek = YAML oluştur + RSS source ekle + `python -m src.pipeline --country <name>`.
 
-**Phase 2 done (2026-05-01)**: `configs/countries/turkey.yaml` aktif, `src/config/country_loader.py` slug + ISO code lookup'unu destekler, multi-feed sources (`urls: [list]`) normalize edilir, `rss_collector.py` artık YAML'dan okuyor — RSS_FEEDS sabiti yok. 10 yeni unit test loader'ı validate ediyor.
+### Phase rollout — durum tablosu
 
-**Phase 4 done before Phase 3 (2026-05-08)**: `news_items.country_code` ve `news_items.language` eklendi; derived artifact tabloları (`cluster_summaries`, `drift_reports`) country-scoped hale getirildi.
+| # | Phase | Status | Tag/PR |
+|---|-------|--------|--------|
+| 0 | Repository audit | ✅ done | — |
+| 1 | Stabilize Turkey baseline | ✅ done | — |
+| 2 | Country configuration system (`configs/countries/turkey.yaml`) | ✅ done | `v2-phase-2` |
+| 4 | Country-aware DB schema (`country_code`, `language`) | ✅ done | PR #3 (`43d7eda`) |
+| 3 | Country-aware pipeline (`--country` CLI arg) | ✅ done | PR #4 (`99e952d`) |
+| 5 | Country-aware FastAPI endpoints (`?country=TR`, `/api/countries`) | ✅ done | PR #5 (`b779155`) |
+| 6 | Dashboard country selector + `?country` propagation | ✅ done | PR #6 (`bbfffce`) |
+| 7 | Add Germany (first non-TR) | ✅ done | `germany.yaml` (`2026-05-14`) |
+| 8 | Multi-country GitHub Actions matrix | 🟡 next | — |
+| 9 | Per-country pipeline run reports | pending | — |
+| 10 | Framing analysis foundation | pending | — |
+| 11 | Evaluation & quality control (gold seed + accuracy gate) | 🟡 partial — DE gold seed in progress | `data/qa/sentiment_review_germany_*.csv` |
+| 12 | README + presentation refresh | pending | — |
 
-**Phase 3 done (2026-05-08)**: `src.pipeline --country <slug|code>` ülke config'ini yükler ve `country_code`, `country_slug`, `language` değerlerini collect → article_fetch → preprocess → sentiment → NER → clustering → vector_store → drift boyunca taşır. Default hâlâ `turkey/TR/tr`.
+V2 omurga (Phase 0–7) tamamlandı: yeni bir ülkeyi eklemek için **sadece** `configs/countries/<slug>.yaml` oluşturmak yetiyor; kod değişikliği gerekmiyor. Kalan iş operasyonel sertleştirme (CI matrix, run reports) + ürün katmanı (framing) + kalite ölçümü.
 
-**Germany smoke config added (2026-05-08)**: `configs/countries/germany.yaml` minimal Tagesschau + Deutsche Welle RSS kaynaklarıyla eklendi. Ama Phase 7 hâlâ pending: Almanya kaynak kapsamı, parser kalitesi, sentiment/NER model seçimi ve corpus QA ayrıca yapılacak.
+Git policy: her phase ayrı branch (`v2/phase-N-slug`), main'e PR + merge, sonra `v2-phase-N` tag.
 
-**Source coverage 8.5× artışı (2026-05-02)**: 10 kaynakta multi-category RSS aggregation + 2 kaynakta Google News sitemap handler + 1 kaynakta HTML sitemap scraping. Toplam günlük unique corpus **475 → 4,032 item**. Per-source kazanımlar: Cumhuriyet 100→864 (8.6×), Habertürk 100→718 (7.2×, RSS+sitemap), Hürriyet 75→680 (9.1×), Sözcü 50→523 (10.5×, sitemap), CNN Türk 35→353 (10×), Milliyet 20→315 (15.8×), Yeni Şafak 15→187 (12.5×, html_sitemap), NTV 20→157 (7.9×), Sabah 10→144 (14.4×), TRT Haber 50→91 (1.8×).
+### Next Steps — Phase 8'den itibaren
 
-**3 source type**: 
-- `rss` — feedparser, default
-- `googlenews_sitemap` — Google News namespace-aware sitemap parse, title + tarih inline (Sözcü, Habertürk)
-- `html_sitemap` — plain sitemap → URL listesi → ThreadPool ile her article'ın HTML'inden `<title>` + `og:description` çek (Yeni Şafak; ~200 article ~50s)
+1. **Phase 8 — Multi-country CI matrix.** `daily_pipeline.yml` şu an tek country ile çalışıyor (ima edilen TR default). `strategy.matrix.country: [turkey, germany]` ekle; her job kendi `--country` arg'ı ile koşsun. Bir ülke fail olursa diğeri kararsız kalmasın. Geçiş kriteri: 3 gün üst üste her iki country için run yeşil + dashboard'da DE verisi görünür.
+2. **Phase 9 — Per-country run reports.** `data/reports/{slug}/{date}_run_report.json` ile her pipeline koşusu için yapısal özet (sources_success/failed, articles_collected, sentiment_analyzed, duration_seconds, errors). `src/pipeline.py` sonunda yaz, failure path'inde de mümkünse yaz. Bu, drift dashboard'unun yanına "operational health" görünürlüğü ekler.
+3. **Phase 10 — Framing analizi foundation.** `src/analysis/framing.py` placeholder modülü + future-ready frame skor kolonu (JSONB). İlk aday frame seti: `religious_moral`, `secular_institutional`, `liberal_rights`, `national_identity`, `security_order`, `economic_cost`, `humanitarian`. **Henüz model build etme** — sadece schema, frame taxonomy dokümante, observable-pattern dili kullanma kuralları (etik bölüm).
+4. **Phase 11 — Quality gate.** TR ve DE için gold seed → `accuracy` / `macro_f1` / `neutral_recall` ölçümü. Şu an `scripts/build_sentiment_gold_dataset.py` + `train_reviewed_sentiment.py` + Almanya gold seed (`data/qa/sentiment_review_germany_*.csv`) hazır; eksik olan accuracy gate'in retraining pipeline'a bağlanması (regression olursa model push iptal). Detay alt başlık → [Sentiment QA Workflow](#sentiment-qa-workflow).
+5. **Phase 12 — README + presentation.** Tam rewrite: long-term vision, framing methodology, ethics section, CV/internship-ready görünüm. Phase 10 + 11 sonuçları elde olduktan sonra.
 
-Aynı outlet farklı type'larla listelenince (örn. Habertürk RSS + Habertürk googlenews_sitemap) DB'de `ON CONFLICT(link)` üzerinden dedupe.
+### Yapısal borçlar (Phase'lara paralel)
 
-**Phase rollout**:
+- **Clustering iyileştirmesi**: KMeans k=15 sabit, cluster'lar keskin değil. Body artık embedding'de kullanılıyor ama somut iyileştirme ölçülmedi. Öneri sırası: UMAP + dinamik k → HDBSCAN → BERTopic. Phase 10 öncesi karar verilmeli (cluster'lar framing analizinin girdisi). Bkz. memory `project_clustering_plan.md`.
+- **Sentiment QA country-aware refactor**: Audit/export script'leri Phase 4 sonrası `--country` arg destekliyor ama cue listesi hâlâ TR'ye gömülü (`audit_sentiment_quality.py`). DE için aynı altyapı çalışır ama Türkçe cue'lar DE corpus'unda anlamsız sinyal verir; ya cue'ları YAML'a taşı, ya `src/analysis/cues/{language}.py` ile modülerleştir.
+- **Dashboard UX**: DatePicker `?country` query param'ını koruyor mu test edilmedi (bilinen olası bug). API 404 yerine boş response döndürmesi UX kararı — şu an "veri bulunamadı" mesajı tüm boş durumları aynı gösteriyor.
 
-| # | Phase | Status |
-|---|-------|--------|
-| 0 | Repository audit | ✅ done |
-| 1 | Stabilize Turkey baseline | ✅ done |
-| 2 | Country configuration system (`configs/countries/turkey.yaml`) | ✅ done |
-| 3 | Country-aware pipeline (`--country` CLI arg) | ✅ done |
-| 4 | Country-aware DB schema (`country_code`, `language` columns) | ✅ done |
-| 5 | Country-aware FastAPI endpoints (`?country=TR`, `/api/countries`) | pending |
-| 6 | Dashboard country selector | pending |
-| 7 | Add Germany (first non-TR) | pending |
-| 8 | Multi-country GitHub Actions matrix | pending |
-| 9 | Per-country pipeline run reports | pending |
-| 10 | Framing analysis foundation | pending |
-| 11 | Evaluation & quality control | pending |
-| 12 | README + presentation refresh | pending |
+### Beyond V2 — Olası V3 / Alternatif Yönler
 
-V2 her phase ayrı branch (`v2/phase-N-slug`) + main'e merge sonrası tag (`v2-phase-N`).
+V2 tamamlandığında platform "çok ülkeli framing dashboard". Buradan iki ana ileri yön var; karar V2 Phase 12 sonrası user/research need'e göre verilir:
 
-### Next Steps — Article Body Quality & V2
+**Yön A — Derinleşme (V3a: Analysis depth)**
+- Custom-trained framing classifier (Phase 10 placeholder yerine gerçek model)
+- Cross-country event tracking: aynı olayı (örn. AB göç anlaşması) farklı ülke medyalarında karşılaştır
+- Temporal narrative shift detection (story arc evolution over weeks)
+- Source bias modeling (kaynak başına framing yoğunluk imzası)
+- LLM-based explainability: belirli bir cluster için "şu ülke medyası bu olayı `national_identity` frame'i ile çerçeveliyor, kanıt cümleler: ..." raporu
 
-1. **Article parser quality report** — kaynak bazında `parsed / empty / fetch_error / parse_error` oranlarını çıkar; hangi kaynakta generic parser iyi/kötü çalışıyor netleşsin.
-2. **Source-specific parser improvements** — generic parser zayıf kalan kaynaklara özel selector ekle; öncelik düşük parse başarısı veya stratejik kaynaklar (örn. Sözcü, TRT Haber, Yeni Şafak, Sabah).
-3. **Controlled article backfill** — tek tarih için `--article-limit 100 → 300 → 500` şeklinde kademeli ilerle; her artışta parse status, süre ve DB etkisini ölç.
-4. **Body-aware analysis QA** — body ile clustering daha anlamlı mı, sentiment dağılımı aşırı kayıyor mu, source comparison mantıklı kalıyor mu kontrol et; gerekirse body snippet limitlerini ayarla.
-5. **Daily pipeline rollout** — kalite yeterliyse production daily pipeline'da önce küçük limit ile `--fetch-articles --article-limit 300` aç, sonra ölçerek artır.
-6. **Country-aware DB/pipeline** — `country_code`, `language`, `src.pipeline --country <slug>` ve ardından ilk non-TR ülke.
-7. **Framing foundation** — sentiment'ten ayrı `src/analysis/framing.py`; frame dağılımlarını ülke/kaynak/kategori bazında ölç, API/dashboard katmanına daha sonra taşı.
+**Yön B — Yayılma (V3b: Coverage breadth)**
+- 5+ AB ülkesi (PL, FR, GR, IT, ES)
+- Sosyal medya ekleme (Twitter/X public posts via Academic API, eğer hâlâ erişilebilir; veya Bluesky)
+- TV haberlerinin transcript'lerinden ingestion (YouTube/podcast feed)
+- Multi-modal: görsel framing (haber fotoğraflarından gözlemlenebilir kompozisyon imzaları — risky, etik dikkat)
+- Public API + access tier: araştırmacılar için ücretsiz read-only access
+
+**Yön C — Ürünleşme (V3c: Product)**
+- Newsletter çıktısı: haftalık framing özeti (e-mail otomasyonu)
+- Embeddable widget: araştırmacıların kendi sitelerine takabileceği framing chart
+- Alerts: belirli bir frame'in yoğunluğu eşiği aşınca bildirim
+- B2B: gazete redaksiyonları / akademik kurumlar için detaylı pano
+
+**Karar kriteri**: V2 Phase 12 bittikten sonra hangi yönün **gerçek bir kullanıcı problemini** çözdüğüne bak. Yön A internship/akademik portföy için en güçlü; Yön B veriye doğal genişleme; Yön C ticari iz. Karışım da mümkün ama büyüklüğünden ötürü genelde tek yön seçmek hızlıdır.
+
+Önemli: V3 yönü ne olursa olsun, mimari ilke aynı kalır — **country-specific ya da source-specific bilgi asla Python koduna gömülmez, YAML / config / data layer'da kalır**. Bu kural V2'de korundu, V3'te de korunmalı.
 
 ### Sentiment QA Workflow
 
@@ -247,6 +265,39 @@ python scripts/evaluate_sentiment_review.py data/qa/sentiment_review_2026-05-06.
 Audit'te `stale_after_body`, düşük neutral oranı ve yüksek güvenli bariz cue mismatch örnekleri izlenir. Model kalitesi için asıl gate, manuel doldurulmuş `reviewed_label` üzerinden `accuracy`, `macro_f1` ve özellikle `neutral recall` değerleridir.
 
 `--only-with-body` flag'i body'si olan satırları **mevcut skorlara bakmadan yeniden yazar**; yalnızca günü kasten baştan rescore ederken kullan, normal akışta `--only-missing` ve `--only-stale-after-body` yeterli.
+
+### Germany Production Pilot Runbook
+
+Almanya için Türkçe fine-tuned / ONNX sentiment env'leri kapalı olmalı; bu koşul sağlanmazsa pipeline fail-fast davranır:
+
+```bash
+unset SENTIMENT_MODEL_ID SENTIMENT_BACKEND SENTIMENT_ONNX_DIR
+python -m src.pipeline --country germany --date YYYY-MM-DD
+```
+
+Article body fetch ile pilot koşmak için:
+
+```bash
+unset SENTIMENT_MODEL_ID SENTIMENT_BACKEND SENTIMENT_ONNX_DIR
+python -m src.pipeline --country germany --date YYYY-MM-DD --fetch-articles --article-limit 100
+```
+
+Neon bağlantısı `select 1` aşamasında bile `SSL SYSCALL` / `Connection reset by peer`
+ile düşüyorsa pipeline'ı tekrar denemeden önce Neon status ve console kontrol edilmeli.
+Collect insert kısmen başarılı olduysa Almanya pilot devam komutu:
+
+```bash
+unset SENTIMENT_MODEL_ID SENTIMENT_BACKEND SENTIMENT_ONNX_DIR
+python -m src.pipeline --country germany --date YYYY-MM-DD --skip-collect --fetch-articles --article-limit 100
+```
+
+QA komutları country-aware çalışır; default hâlâ `turkey`:
+
+```bash
+python scripts/analyze_article_parse_quality.py --country germany --date YYYY-MM-DD
+python scripts/audit_sentiment_quality.py --country germany --date YYYY-MM-DD
+python scripts/export_sentiment_review_sample.py --country germany --date YYYY-MM-DD --per-source-label 2
+```
 
 ## Telif ve Veri Notu
 
