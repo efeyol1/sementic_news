@@ -50,7 +50,7 @@ jobs:
         # sentiment step then loads this artifact instead of running PyTorch.
         run: python -m src.serving.onnx_export
 
-      - name: Run pipeline
+      - name: Run pipeline (Turkey)
         # SENTIMENT_BACKEND=onnx_int8 routes _load_pipeline() in
         # src/analysis/sentiment.py to the quantized ORT model. Drift
         # instrumentation runs as the final pipeline step (fail-soft).
@@ -63,7 +63,24 @@ jobs:
           SENTIMENT_BACKEND: onnx_int8
         run: |
           if [ -n "${{ inputs.date }}" ]; then
-            python -m src.pipeline --date "${{ inputs.date }}" --skip-collect
+            python -m src.pipeline --country turkey --date "${{ inputs.date }}" --skip-collect
           else
-            python -m src.pipeline
+            python -m src.pipeline --country turkey
+          fi
+
+      - name: Run pipeline (Germany)
+        # Germany uses zero-shot xlm-roberta sentiment — no fine-tuned
+        # model. SENTIMENT_MODEL_ID / SENTIMENT_BACKEND are deliberately
+        # NOT set: _validate_sentiment_backend() in src/pipeline.py
+        # raises if those env vars leak into a country whose config has
+        # finetuned_model: null. continue-on-error so a DE failure does
+        # not mask the TR run, which has already completed by this point.
+        continue-on-error: true
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m src.pipeline --country germany --date "${{ inputs.date }}" --skip-collect
+          else
+            python -m src.pipeline --country germany
           fi

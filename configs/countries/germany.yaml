@@ -60,8 +60,15 @@ entity_narrative:
           - kanzlerin merkel
     organizations: {}
   wikidata:
-    enabled: false
-    min_confidence: 0.85
+    # Sprint 2: linking ON so the cross-country acceptance target
+    # (≥60% qid fill on FR+DE) is measurable. Fail-soft on API errors.
+    enabled: true
+    # 0.70 calibrated against Sprint 2 multilingual scoring (2026-05-20):
+    # exact label match (0.55) + Wikidata id (0.05) + multilingual type
+    # keyword bonus (0.15) = 0.75 for an unambiguous hit like Merkel.
+    # Bumping back to 0.85 would re-introduce the false-negative regime
+    # observed on the first FR/DE live runs.
+    min_confidence: 0.70
 
 clustering:
   enabled: true
