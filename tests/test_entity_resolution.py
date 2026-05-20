@@ -356,7 +356,6 @@ def test_wikidata_throttle_skips_when_interval_elapsed(monkeypatch):
 
 def test_wikidata_request_retries_on_429_then_succeeds(monkeypatch):
     """429 → backoff → retry → success returns parsed JSON."""
-    import io
     import urllib.error
 
     monkeypatch.setattr(er, "_wikidata_throttle", lambda: None)
