@@ -9,6 +9,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
+import urllib.error
 import urllib.parse
 import urllib.request
 from datetime import date
@@ -30,11 +32,141 @@ from src.db.queries import (
 )
 
 _WIKIDATA_API = "https://www.wikidata.org/w/api.php"
+
+# Substring stems matched against the (normalized, accent-stripped, lowercased)
+# Wikidata description. Keep them as cross-language stems where one form
+# covers several languages: ``politi`` matches politician / politique /
+# Politiker(in) / politico / polityk; ``presi`` matches president / présidente
+# / presidente; etc. Stricter than full words because checks are substring
+# (``keyword in description``) — false positives from wholly unrelated
+# descriptions are rare for news entities.
 _TYPE_KEYWORDS = {
-    "PER": ("human", "person", "politician", "president", "chancellor"),
-    "ORG": ("organization", "company", "party", "institution", "agency"),
-    "LOC": ("city", "country", "state", "municipality", "place"),
+    "PER": (
+        # English
+        "human", "person", "politician", "president", "chancellor",
+        "minister", "leader", "footballer", "actor", "actress", "athlete",
+        "journalist", "musician", "singer", "director", "writer",
+        # Cross-language stems (substring, case-insensitive after normalize)
+        "politi",   # politician, politique, Politiker(in), politico, polityk
+        "presi",    # president, présidente, presidente
+        "prasi",    # Präsident (DE, after umlaut strip)
+        "prezy",    # prezydent (PL)
+        "minist",   # minister, ministre, ministro
+        "premier",  # premier ministre, premierminister
+        "kanzler",  # Kanzler/Kanzlerin, Bundeskanzler(in)
+        "homme d",  # homme d'État / homme d'affaires (FR)
+        "femme d",  # femme d'État (FR)
+        "chanteur", # singer (FR)
+        "chanteuse",
+        "acteur", "actrice",            # FR actor/actress
+        "schauspieler",                 # DE actor
+        "sportler", "spieler",          # DE athlete/player
+        "calciatore",                   # IT footballer
+        "futbolista",                   # ES footballer
+        "deputat", "depute", "deputé",  # deputy/député
+        "diplomat",
+        "ambassad",  # ambassador, ambassadeur, ambasciatore, ambasador
+        "general", "admiral",
+        "konig", "konigin",  # König / Königin (DE)
+        "roi", "reine",      # FR king/queen
+    ),
+    "ORG": (
+        # English
+        "organization", "company", "party", "institution", "agency",
+        "association", "club", "league", "team", "bank", "media", "news",
+        # Cross-language
+        "organisation",                   # FR/DE alt spelling
+        "unternehmen", "konzern", "firma",  # DE company
+        "entreprise", "societe",            # FR (société → societe)
+        "azienda", "compagnia",             # IT
+        "empresa",                          # ES
+        "partei",                           # DE party
+        "parti",                            # FR party
+        "partito", "partido",               # IT/ES party
+        "partia",                           # PL party
+        "verein", "verband",                # DE association
+        "agentur",                          # DE agency
+        "agence", "agenzia", "agencia", "agencja",
+        "institut",                         # institut(e)/Institut(ion)
+        "stiftung",                         # DE foundation
+        "ministerium",                      # DE ministry
+        "klub",                             # PL/TR
+        "liga",                             # DE/IT/ES/PL/TR league
+        "mannschaft", "squadra", "equipe",  # team
+    ),
+    "LOC": (
+        # English
+        "city", "country", "state", "municipality", "place", "region",
+        "province", "town", "village", "island", "continent", "capital",
+        "district", "river", "mountain",
+        # Cross-language
+        "stadt", "ville", "ciudad", "citta",     # city
+        "land", "pays", "paese", "pais", "kraj", "ulke",  # country
+        "staat", "estado", "stato", "etat",      # state (état → etat)
+        "departement", "department",
+        "region", "regione",                     # région → region after strip
+        "gemeinde", "commune", "comune", "municipio",
+        "dorf",                                  # DE village
+        "insel", "ile", "isola", "isla", "wyspa",  # island
+        "ort", "lieu", "luogo", "lugar", "miejsce",  # place
+        "outre mer", "ubersee",                  # FR/DE overseas
+    ),
 }
+
+# Wikimedia "polite client" policy: stay at/under ~1 req/s and use a UA
+# that identifies the project + contact. Stricter than that and the API
+# returns HTTP 429 (observed on first FR/DE live runs on 2026-05-20,
+# where 156 sequential requests with no throttle exhausted the quota).
+_WIKIDATA_USER_AGENT = (
+    "semantic-news/0.2 "
+    "(https://github.com/efeyol1/sementic_news; efeyol11@gmail.com)"
+)
+_WIKIDATA_MIN_INTERVAL = 1.1
+_WIKIDATA_MAX_RETRIES = 3
+_WIKIDATA_BACKOFF_BASE = 2.0
+
+_last_wikidata_call: float = float("-inf")
+
+
+def _wikidata_throttle() -> None:
+    """Block until ``_WIKIDATA_MIN_INTERVAL`` has elapsed since the last call."""
+    global _last_wikidata_call
+    now = time.monotonic()
+    elapsed = now - _last_wikidata_call
+    if elapsed < _WIKIDATA_MIN_INTERVAL:
+        time.sleep(_WIKIDATA_MIN_INTERVAL - elapsed)
+    _last_wikidata_call = time.monotonic()
+
+
+def _wikidata_request(url: str, *, timeout: float) -> dict[str, Any]:
+    """Throttled GET against the Wikidata API with 429 exponential backoff.
+
+    Raises the underlying ``HTTPError`` if retries are exhausted; the caller
+    in ``_resolve_one`` already wraps Wikidata failures in a fail-soft try.
+    """
+    backoff = _WIKIDATA_BACKOFF_BASE
+    last_exc: Exception | None = None
+    for attempt in range(_WIKIDATA_MAX_RETRIES + 1):
+        _wikidata_throttle()
+        req = urllib.request.Request(
+            url, headers={"User-Agent": _WIKIDATA_USER_AGENT}
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+        except urllib.error.HTTPError as exc:
+            last_exc = exc
+            if exc.code == 429 and attempt < _WIKIDATA_MAX_RETRIES:
+                logger.warning(
+                    f"Wikidata 429 — backoff {backoff:.1f}s "
+                    f"(attempt {attempt + 1}/{_WIKIDATA_MAX_RETRIES})"
+                )
+                time.sleep(backoff)
+                backoff *= 2
+                continue
+            raise
+    assert last_exc is not None
+    raise last_exc
 
 
 def resolve_entities_batch(
@@ -165,12 +297,7 @@ def _resolve_wikidata(
             "search": text,
         }
     )
-    req = urllib.request.Request(
-        f"{_WIKIDATA_API}?{params}",
-        headers={"User-Agent": "semantic-news-entity-resolution/0.1"},
-    )
-    with urllib.request.urlopen(req, timeout=timeout) as resp:
-        payload = json.loads(resp.read().decode("utf-8"))
+    payload = _wikidata_request(f"{_WIKIDATA_API}?{params}", timeout=timeout)
 
     candidates = payload.get("search") or []
     if not candidates:

@@ -546,6 +546,37 @@ def bulk_insert_entity_mentions(
             return inserted
 
 
+@retry_on_connection_loss()
+def fetch_top_entity_texts_for_cache(
+    country_code: str,
+    since_date: str,
+    limit: int = 500,
+) -> list[dict[str, Any]]:
+    """Return the most frequent still-unresolved (entity_text, entity_type) pairs.
+
+    Used by the preemptive Wikidata cache warmer: picks high-volume mentions
+    since ``since_date`` that have no QID and were not resolved beyond the
+    deterministic ``normalized`` fallback, so they can be linked ahead of time.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT entity_text, entity_type, COUNT(*) AS mention_count
+                FROM entity_mentions
+                WHERE country_code = %s
+                  AND collected_date >= %s
+                  AND wikidata_qid IS NULL
+                  AND (resolver_method IS NULL OR resolver_method = 'normalized')
+                GROUP BY entity_text, entity_type
+                ORDER BY mention_count DESC
+                LIMIT %s
+                """,
+                (country_code, since_date, limit),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
 def fetch_unresolved_entity_mentions(
     date_str: str,
     country_code: str,
