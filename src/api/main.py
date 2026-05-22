@@ -10,7 +10,6 @@ from loguru import logger
 from prometheus_fastapi_instrumentator import Instrumentator
 from pydantic import BaseModel, Field
 
-from src.analysis.vector_store import find_similar
 from src.api import drift_metrics  # noqa: F401  registers Prometheus collector on import
 from src.api.dependencies import resolve_country
 from src.config.country_loader import list_available_countries
@@ -506,14 +505,29 @@ def sentiment_trend(
     tags=["Analiz"],
     summary="Semantik olarak benzer haberler",
     response_model=SimilarNewsResponse,
-    responses={404: {"description": "Vektör veritabanı boş veya haber bulunamadı"}},
+    responses={
+        404: {"description": "Vektör veritabanı boş veya haber bulunamadı"},
+        503: {"description": "Semantik arama bu deployment'ta kapalı (ML stack yüklü değil)"},
+    },
 )
 def similar_news(
     q: str = Query(..., description="Aranacak haber başlığı veya metin", min_length=5),
     n: int = Query(default=5, ge=1, le=20),
     country_config: dict = Depends(resolve_country),
 ):
-    results = find_similar(q, n=n, country_code=country_config["country_code"])
+    # ML stack (torch/sentence-transformers) lives in the `pipeline` extra,
+    # not in the API's base install — see pyproject.toml. On the lean
+    # Render deployment the import/encode raises ImportError; surface it as
+    # a 503 instead of a 500 so the dashboard can degrade gracefully.
+    try:
+        from src.analysis.vector_store import find_similar
+
+        results = find_similar(q, n=n, country_code=country_config["country_code"])
+    except ImportError:
+        raise HTTPException(
+            status_code=503,
+            detail="Semantik arama bu deployment'ta kapalı — ML bağımlılıkları yüklü değil.",
+        )
     if not results:
         raise HTTPException(status_code=404, detail="Henüz hiç embedding yok — pipeline çalıştırın.")
     return {

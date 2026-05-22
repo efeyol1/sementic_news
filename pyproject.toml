@@ -8,10 +8,12 @@ version = "0.1.0"
 description = "Turkish News Sentiment Analysis Service"
 requires-python = ">=3.10"
 
-# Base = what every entry point needs at runtime: the FastAPI service,
-# the daily pipeline, retraining, and tests. Anything heavier (DVC,
-# MLflow, datasets) lives in an extra so the deployed API image stays
-# small.
+# Base = what the deployed FastAPI service needs to serve precomputed
+# results from Postgres. The ML stack (torch/transformers/sentence-
+# transformers) is intentionally NOT here: it would pull ~400MB into the
+# API at import time and blow past Render's 512MB free tier. All inference
+# happens in the daily pipeline (GitHub Actions) under the `pipeline`
+# extra; the API only reads what the pipeline already wrote to the DB.
 dependencies = [
     "fastapi>=0.111.0",
     "uvicorn[standard]>=0.29.0",
@@ -19,18 +21,20 @@ dependencies = [
     "pydantic>=2.7.0",
     "loguru>=0.7.2",
     "python-dotenv>=1.0.0",
-    "transformers>=4.40.0",
-    "torch>=2.2.0",
-    "sentence-transformers>=3.0.0",
-    "sentencepiece>=0.2.0",
     "psycopg2-binary>=2.9.9",
     "alembic>=1.13.0",
     "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
-# Daily pipeline: RSS collection, preprocessing, clustering, drift.
+# Daily pipeline: RSS collection, preprocessing, NER/sentiment/embedding
+# inference, clustering, drift. Owns the heavy ML stack so the API base
+# install stays light.
 pipeline = [
+    "transformers>=4.40.0",
+    "torch>=2.2.0",
+    "sentence-transformers>=3.0.0",
+    "sentencepiece>=0.2.0",
     "feedparser>=6.0.0",
     "beautifulsoup4>=4.12.0",
     "langdetect>=1.0.9",

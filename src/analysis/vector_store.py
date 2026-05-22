@@ -16,7 +16,6 @@ from datetime import date
 from typing import Any
 
 from loguru import logger
-from sentence_transformers import SentenceTransformer
 
 from src.analysis.text_inputs import build_embedding_text
 from src.db.queries import (
@@ -31,12 +30,18 @@ from src.db.queries import (
 
 _EMBED_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 
-_embed_model: SentenceTransformer | None = None
+# sentence-transformers (and torch) are imported lazily inside
+# _get_embed_model so that merely importing this module — e.g. the API
+# re-exporting find_similar — does not pull the ~400MB ML stack into RAM.
+# Only code paths that actually embed text need it installed.
+_embed_model = None
 
 
-def _get_embed_model() -> SentenceTransformer:
+def _get_embed_model():
     global _embed_model
     if _embed_model is None:
+        from sentence_transformers import SentenceTransformer
+
         _embed_model = SentenceTransformer(_EMBED_MODEL)
     return _embed_model
 
