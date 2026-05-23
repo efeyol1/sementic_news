@@ -84,3 +84,37 @@ jobs:
           else
             python -m src.pipeline --country germany
           fi
+
+      - name: Run pipeline (Italy)
+        # Italy uses zero-shot xlm-roberta sentiment — italy.yaml declares
+        # finetuned_model: null. SENTIMENT_MODEL_ID / SENTIMENT_BACKEND
+        # are deliberately NOT set: _validate_sentiment_backend() at
+        # src/pipeline.py:80 raises if those env vars leak into a country
+        # whose config has finetuned_model: null. continue-on-error so an
+        # IT failure does not mask the TR run, which has already completed.
+        continue-on-error: true
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m src.pipeline --country italy --date "${{ inputs.date }}" --skip-collect
+          else
+            python -m src.pipeline --country italy
+          fi
+
+      - name: Run pipeline (Spain)
+        # Spain uses zero-shot xlm-roberta sentiment — spain.yaml declares
+        # finetuned_model: null. SENTIMENT_MODEL_ID / SENTIMENT_BACKEND
+        # are deliberately NOT set: _validate_sentiment_backend() at
+        # src/pipeline.py:80 raises if those env vars leak into a country
+        # whose config has finetuned_model: null. continue-on-error so an
+        # ES failure does not mask the TR run, which has already completed.
+        continue-on-error: true
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m src.pipeline --country spain --date "${{ inputs.date }}" --skip-collect
+          else
+            python -m src.pipeline --country spain
+          fi

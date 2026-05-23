@@ -69,6 +69,21 @@ _TYPE_KEYWORDS = {
         "general", "admiral",
         "konig", "konigin",  # König / Königin (DE)
         "roi", "reine",      # FR king/queen
+        # Sprint 3 (2026-05-23): expand stems to capture niche IT/ES
+        # entities that were scoring 0.55-0.60 against an unrelated description.
+        "tennista",                       # IT tennis player (Đoković)
+        "scrittor",                       # IT/ES writer (scrittore, escritor)
+        "filosof",                        # FR/IT/ES philosopher (Confucio)
+        "atleta", "atlet",                # athlete
+        "giornalist",                     # IT journalist
+        "periodist",                      # ES journalist
+        "cantante", "cantantes",          # IT/ES singer
+        "musicist", "musico",             # musician
+        "regista", "regissor",            # director (IT/ES/PT)
+        "filosof",                        # philosopher
+        "imprenditor", "empresari",       # IT/ES businessperson
+        "rey", "reina",                   # ES king/queen
+        "principe", "principessa",        # IT prince/princess
     ),
     "ORG": (
         # English
@@ -93,6 +108,20 @@ _TYPE_KEYWORDS = {
         "klub",                             # PL/TR
         "liga",                             # DE/IT/ES/PL/TR league
         "mannschaft", "squadra", "equipe",  # team
+        # Sprint 3 (2026-05-23): government + corporate + religious stems.
+        "ministero", "ministerio",          # IT/ES ministry
+        "governo", "gobierno",              # IT/ES government
+        "parlamento", "parlament",          # parliament
+        "asamblea", "assemblea",            # assembly
+        "corte", "tribunale", "tribunal",   # court (IT/ES/FR)
+        "palazzo", "palacio",               # palace (used for parliament buildings)
+        "banca", "banco",                   # bank (IT/ES)
+        "fundacao", "fundacion",            # foundation (PT/ES)
+        "associazione", "asociacion",       # association (IT/ES)
+        "università", "universita", "universidad", "universite",  # university
+        "iglesia", "chiesa",                # church
+        "procura",                          # IT prosecutor's office
+        "fondazione",                       # IT foundation
     ),
     "LOC": (
         # English
@@ -110,6 +139,17 @@ _TYPE_KEYWORDS = {
         "insel", "ile", "isola", "isla", "wyspa",  # island
         "ort", "lieu", "luogo", "lugar", "miejsce",  # place
         "outre mer", "ubersee",                  # FR/DE overseas
+        # Sprint 3 (2026-05-23): lake/river/coast + street stems for IT/ES news.
+        "lago", "lac", "see",                    # lake (IT/ES/FR/DE)
+        "fiume", "rio", "riviere", "fluss",      # river
+        "monte", "montagne", "berg",             # mountain
+        "mare", "mer", "meer",                   # sea
+        "oceano", "ocean", "ozean",              # ocean
+        "calle", "via", "strada", "rue",         # street
+        "plaza", "piazza", "place",              # square
+        "barrio", "quartier", "quartiere",       # neighborhood
+        "comuna", "comuni",                      # municipality (ES/IT plural)
+        "metropoli",                             # metropolis
     ),
 }
 
