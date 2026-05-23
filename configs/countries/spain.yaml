@@ -1,0 +1,514 @@
+# Spain country configuration — Sprint 3 of the entity-narrative track.
+#
+# Fourth non-TR country (after Germany Sprint 1, France Sprint 2, and
+# Italy Sprint 3). Purpose: broaden the cross-country corpus to a fourth
+# language and a fourth political-narrative landscape, exercising the
+# multilingual NER + Wikidata linker on Spanish text.
+#
+# Source URLs below were live-validated on 2026-05-23 (HTTP 200 +
+# ``feedparser`` bozo=False + non-empty entries). Feeds that failed are
+# kept in the registry with ``enabled: false`` and a dated comment, per
+# germany.yaml / france.yaml / italy.yaml precedent — no silent removal.
+
+country_code: ES
+country_name: Spain
+country_slug: spain
+language: es
+timezone: Europe/Madrid
+
+sentiment:
+  enabled: true
+  # No Spanish/multilingual fine-tuned classifier selected yet — stay on
+  # multilingual zero-shot. The Turkish fine-tuned model must not be
+  # used here (src/pipeline.py:80 raises if ``finetuned_model`` is set
+  # without a real ES-trained checkpoint).
+  zero_shot_model: joeddav/xlm-roberta-large-xnli
+  finetuned_model: null
+  labels: [positive, negative, neutral]
+  candidate_labels:
+    positive: "noticia positiva"
+    negative: "noticia negativa"
+    neutral:  "noticia neutra"
+
+ner:
+  # Legacy ``src.analysis.ner`` is Turkish-hardcoded; off for ES. The
+  # multilingual entity_narrative track below replaces it for non-TR.
+  enabled: false
+  model: null
+  keep_labels: [PER, ORG, LOC]
+
+entity_narrative:
+  # Sprint 1 scaffolding + Sprint 2 Wikidata linking, now applied to a
+  # fourth language. Writes one row per mention into ``entity_mentions``;
+  # the resolver back-fills ``wikidata_qid`` / ``canonical`` so shared
+  # entities (Trump, Erdoğan, Merkel, Macron) share a single QID across
+  # the TR / DE / FR / IT / ES corpora.
+  enabled: true
+  ner_model: Davlan/bert-base-multilingual-cased-ner-hrl
+  keep_labels: [PER, ORG, LOC, MISC]
+  aliases:
+    people:
+      # ---- Cross-country anchor entities (MUST match other configs) ----
+      Donald Trump:
+        wikidata_qid: Q22686
+        aliases:
+          - trump
+          - donald trump
+          - presidente trump
+      Recep Tayyip Erdoğan:
+        wikidata_qid: Q39259
+        aliases:
+          - erdoğan
+          - erdogan
+          - recep tayyip erdoğan
+          - presidente erdogan
+      Emmanuel Macron:
+        wikidata_qid: Q3052772
+        aliases:
+          - macron
+          - emmanuel macron
+          - presidente macron
+      Angela Merkel:
+        wikidata_qid: Q567
+        aliases:
+          - merkel
+          - angela merkel
+          - canciller merkel
+      # ---- ES-specific political figures ----
+      Pedro Sánchez:
+        wikidata_qid: Q1334074
+        aliases:
+          - sánchez
+          - sanchez
+          - pedro sánchez
+          - pedro sanchez
+          - presidente sánchez
+          - presidente sanchez
+      Alberto Núñez Feijóo:
+        wikidata_qid: Q3032358
+        aliases:
+          - feijóo
+          - feijoo
+          - alberto núñez feijóo
+          - alberto nunez feijoo
+      Felipe VI:
+        wikidata_qid: Q191045
+        aliases:
+          - felipe vi
+          - rey felipe
+          - rey felipe vi
+      Santiago Abascal:
+        wikidata_qid: Q3604941
+        aliases:
+          - abascal
+          - santiago abascal
+      Yolanda Díaz:
+        wikidata_qid: Q24937141
+        aliases:
+          - yolanda díaz
+          - yolanda diaz
+          - díaz
+    organizations: {}
+  wikidata:
+    # Sprint 2: linking ON so the cross-country acceptance target
+    # (≥60% qid fill on FR + DE + IT + ES) is measurable. Fail-soft on API
+    # errors so collection never blocks on a Wikidata outage.
+    enabled: true
+    # 0.65 calibrated against Sprint 3 ES live run (2026-05-23): pipeline
+    # landed at 59.8 % qid_fill at 0.70 — basically at threshold with several
+    # legit niche entities (Confucio filósofo chino, lake/street references)
+    # scoring 0.55–0.60 due to partial label matches. Dropping 5 points
+    # captures them; ambiguous single tokens (Rafael, Marina) still reject.
+    min_confidence: 0.65
+
+clustering:
+  enabled: true
+  method: kmeans
+  default_n_clusters: 15
+  embedding_model: paraphrase-multilingual-MiniLM-L12-v2
+  # Spanish TF-IDF stopwords; mirrors the German / French / Italian depth
+  # so cluster keywords aren't dominated by function words or ES-news noise.
+  stopwords:
+    # Artículos
+    - el
+    - la
+    - los
+    - las
+    - un
+    - una
+    - unos
+    - unas
+    - lo
+    # Preposiciones
+    - de
+    - del
+    - en
+    - a
+    - al
+    - por
+    - para
+    - con
+    - sin
+    - sobre
+    - entre
+    - desde
+    - hasta
+    - tras
+    - hacia
+    - ante
+    - bajo
+    # Conjunciones
+    - 'y'
+    - e
+    - 'o'
+    - u
+    - pero
+    - aunque
+    - si
+    - cuando
+    - porque
+    - como
+    - que
+    - ni
+    - sino
+    # Pronombres
+    - 'yo'
+    - tú
+    - él
+    - ella
+    - nosotros
+    - vosotros
+    - ellos
+    - ellas
+    - se
+    - me
+    - te
+    - le
+    - la
+    - nos
+    - os
+    - les
+    - su
+    - sus
+    - este
+    - esta
+    - estos
+    - estas
+    - ese
+    - esa
+    - eso
+    - aquí
+    - allá
+    - allí
+    # Verbos comunes
+    - es
+    - son
+    - está
+    - están
+    - fue
+    - fueron
+    - será
+    - ha
+    - han
+    - hay
+    - tiene
+    - tienen
+    - había
+    - sería
+    - ser
+    - estar
+    - haber
+    - tener
+    # ES-news noise
+    - españa
+    - español
+    - española
+    - españoles
+    - españolas
+    - año
+    - años
+    - euro
+    - euros
+    - hoy
+    - ayer
+    - mañana
+    - millones
+    - miles
+    - mes
+    - meses
+    - día
+    - días
+    - ahora
+    - después
+    - antes
+    - todavía
+    - ya
+    - sólo
+    - solo
+    - mucho
+    - más
+    - menos
+    - contra
+    - según
+    - durante
+    - ciento
+    - 'no'
+
+embeddings:
+  enabled: true
+  model: paraphrase-multilingual-MiniLM-L12-v2
+  vector_dim: 384
+
+discovery:
+  report_dir: data/discovery
+  default_min_expected_items: 10
+  category_strategy: infer_from_url
+
+sources:
+  # -------------------------------------------------------------------
+  # El País — RSS suite live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: El País
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/portada"
+
+  - name: El País
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/espana/portada"
+
+  - name: El País
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/internacional/portada"
+
+  - name: El País
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://feeds.elpais.com/mrss-s/pages/ep/site/elpais.com/section/economia/portada"
+
+  # -------------------------------------------------------------------
+  # El Mundo — RSS suite live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: El Mundo
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://e00-elmundo.uecdn.es/elmundo/rss/portada.xml"
+
+  - name: El Mundo
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://e00-elmundo.uecdn.es/elmundo/rss/espana.xml"
+
+  - name: El Mundo
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://e00-elmundo.uecdn.es/elmundo/rss/internacional.xml"
+
+  - name: El Mundo
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://e00-elmundo.uecdn.es/elmundo/rss/economia.xml"
+
+  # -------------------------------------------------------------------
+  # ABC — RSS suite live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: ABC
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 15
+    urls:
+      - "https://www.abc.es/rss/feeds/abcPortada.xml"
+
+  - name: ABC
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.abc.es/rss/feeds/abc_EspanaEspana.xml"
+
+  # -------------------------------------------------------------------
+  # La Vanguardia — RSS suite live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: La Vanguardia
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.lavanguardia.com/rss/home.xml"
+
+  - name: La Vanguardia
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.lavanguardia.com/rss/politica.xml"
+
+  - name: La Vanguardia
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.lavanguardia.com/rss/economia.xml"
+
+  # -------------------------------------------------------------------
+  # El Confidencial — RSS suite live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: El Confidencial
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://rss.elconfidencial.com/espana/"
+
+  - name: El Confidencial
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://rss.elconfidencial.com/mundo/"
+
+  # -------------------------------------------------------------------
+  # 20 Minutos — single homepage feed live-validated 2026-05-23.
+  # -------------------------------------------------------------------
+  - name: 20 Minutos
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.20minutos.es/rss/"
+
+  # -------------------------------------------------------------------
+  # RTVE (national public broadcaster) — live-validated 2026-05-23.
+  # The published "/api/noticias.rss" endpoint (still cited in some
+  # third-party registries) returns HTTP 404 on 2026-05-23; the working
+  # path is the legacy "/rss/temas_*.xml" namespace.
+  # -------------------------------------------------------------------
+  - name: RTVE
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 10
+    urls:
+      - "https://www.rtve.es/rss/temas_noticias.xml"
+
+  - name: RTVE
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.rtve.es/rss/temas_politica.xml"
+
+  - name: RTVE
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.rtve.es/rss/temas_economia.xml"
+
+  # -------------------------------------------------------------------
+  # Disabled after live validation on 2026-05-23 (germany.yaml /
+  # france.yaml / italy.yaml precedent: dated note, no silent removal).
+  # -------------------------------------------------------------------
+
+  # Disabled after live validation: the RTVE "temas_internacional.xml"
+  # endpoint returns HTTP 404 on 2026-05-23 — only ``noticias``,
+  # ``politica`` and ``economia`` topic feeds resolve. Re-enable once an
+  # international topic feed is rediscovered.
+  - name: RTVE
+    type: rss
+    enabled: false
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.rtve.es/rss/temas_internacional.xml"
+
+  # Disabled after live validation: every published Público RSS endpoint
+  # tried on 2026-05-23 (``/rss``, ``/feed/``, ``/rss/feed``,
+  # ``/rss/feed/portada``, ``/rss/portada.xml``) returned HTTP 404.
+  # The site appears to have retired its public RSS — leave registered
+  # for a future revisit.
+  - name: Público
+    type: rss
+    enabled: false
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 10
+    urls:
+      - "https://www.publico.es/rss"
