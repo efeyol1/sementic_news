@@ -375,6 +375,25 @@ def _score_candidate(
         if alias
     ]
 
+    # Hard reject Wikidata disambiguation pages — surname / cognome /
+    # apellido / family-name entries. They share a label with real
+    # entities ("Djokovic" → Q21146583 cognome before Q5812 Novak; same
+    # for "Rufián", "Confucio") and otherwise pass threshold. The
+    # description is the reliable signal: these pages explicitly
+    # self-identify as a surname / family name in the local language.
+    disambig_stems = (
+        "apellido",       # ES surname
+        "cognome",        # IT surname
+        "surname", "family name",  # EN
+        "nazwisko",       # PL surname
+        "nachname",       # DE surname
+        "nom de famille", # FR family name
+        "page d homonymie", "pagina di disambiguazione",  # disambig page (FR/IT)
+        "disambiguation", "disambiguacion", "begriffsklarung",  # disambig EN/ES/DE
+    )
+    if any(stem in description for stem in disambig_stems):
+        return 0.0
+
     score = 0.0
     if label == normalized_text:
         score += 0.55

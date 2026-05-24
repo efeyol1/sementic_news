@@ -85,12 +85,36 @@ def canonicalize_mention(
     entity_type: str,
     country_config: dict[str, Any],
 ) -> CanonicalEntity:
-    """Return the best local canonical form for one extracted mention."""
+    """Return the best local canonical form for one extracted mention.
+
+    Lookup priority: (1) exact (entity_type, normalized_text) match;
+    (2) type-agnostic fallback — same normalized text under any other
+    aliased type. The fallback exists because the multilingual NER
+    (Davlan/bert-base-multilingual-cased-ner-hrl) intermittently tags
+    well-known people as ORG in news headlines (observed: Trump 80%
+    ORG in DE on 2026-05-23; Musk same). Our YAML alias config is the
+    authoritative type signal — when a name matches, return its
+    configured CanonicalEntity even if NER picked the wrong type.
+    """
     language = country_config.get("language")
     alias_index = build_alias_index(country_config)
-    key = (str(entity_type or "").upper(), normalize_entity_text(entity_text, language))
+    normalized = normalize_entity_text(entity_text, language)
+    upper_type = str(entity_type or "").upper()
+    key = (upper_type, normalized)
     if key in alias_index:
         return alias_index[key]
+
+    # Type-agnostic fallback. Walk the aliased types (PER, ORG) — the
+    # ones populated by build_alias_index — and return the first hit.
+    # No risk of collision in current configs: people vs organizations
+    # are explicit YAML buckets with disjoint names.
+    for alt_type in ("PER", "ORG"):
+        if alt_type == upper_type:
+            continue
+        alt_key = (alt_type, normalized)
+        if alt_key in alias_index:
+            return alias_index[alt_key]
+
     return CanonicalEntity(canonical=display_canonical(entity_text, language=language))
 
 
