@@ -35,10 +35,6 @@ data/chroma/
 .vscode/
 .idea/
 
-# Claude Code memory
-.claude/
-CLAUDE.md
-
 # Docker
 *.log
 
