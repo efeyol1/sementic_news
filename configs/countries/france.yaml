@@ -103,6 +103,17 @@ entity_narrative:
     # Bumping back to 0.85 would re-introduce the false-negative regime
     # observed on the first FR/DE live runs.
     min_confidence: 0.70
+  collocations:
+    # Sprint 5: ±10 token windows lemmatized via spaCy fr_core_news_sm.
+    enabled: true
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: [NOUN, PROPN, VERB, ADJ]
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: spacy
+    spacy_model: fr_core_news_sm
+    stopwords_file: configs/stopwords/fr.yaml
 
 clustering:
   enabled: true

@@ -69,6 +69,20 @@ entity_narrative:
     # Bumping back to 0.85 would re-introduce the false-negative regime
     # observed on the first FR/DE live runs.
     min_confidence: 0.70
+  collocations:
+    # Sprint 5: ±10 token windows around each mention, lemmatized via
+    # spaCy de_core_news_sm, POS-filtered to NOUN/PROPN/VERB/ADJ,
+    # stopword-filtered. Raw counts only — Sprint 6 backfills PMI/LLR
+    # in-place on the same rows.
+    enabled: true
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: [NOUN, PROPN, VERB, ADJ]
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: spacy
+    spacy_model: de_core_news_sm
+    stopwords_file: configs/stopwords/de.yaml
 
 clustering:
   enabled: true
