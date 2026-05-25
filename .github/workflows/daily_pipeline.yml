@@ -118,3 +118,20 @@ jobs:
           else
             python -m src.pipeline --country spain
           fi
+
+      - name: Run pipeline (UK)
+        # UK uses zero-shot xlm-roberta sentiment — uk.yaml declares
+        # finetuned_model: null. SENTIMENT_MODEL_ID / SENTIMENT_BACKEND
+        # are deliberately NOT set: _validate_sentiment_backend() at
+        # src/pipeline.py:80 raises if those env vars leak into a country
+        # whose config has finetuned_model: null. continue-on-error so a
+        # UK failure does not mask the TR run, which has already completed.
+        continue-on-error: true
+        env:
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+        run: |
+          if [ -n "${{ inputs.date }}" ]; then
+            python -m src.pipeline --country uk --date "${{ inputs.date }}" --skip-collect
+          else
+            python -m src.pipeline --country uk
+          fi
