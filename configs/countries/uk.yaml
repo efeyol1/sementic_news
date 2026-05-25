@@ -1,0 +1,463 @@
+# United Kingdom country configuration — Sprint 4 of the entity-narrative track.
+#
+# Fifth non-TR country (after Germany Sprint 1, France Sprint 2, Italy
+# Sprint 3, and Spain). Purpose: bring an English-language corpus into
+# the cross-country narrative platform — English is the highest-resource
+# language for the multilingual NER + Wikidata linker, so this config
+# stress-tests the upper bound of qid_fill.
+#
+# Source URLs below were live-validated on 2026-05-25 (HTTP 200 +
+# ``feedparser`` bozo=False + non-empty entries). Feeds that failed are
+# kept in the registry with ``enabled: false`` and a dated comment, per
+# germany.yaml / france.yaml / italy.yaml precedent — no silent removal.
+
+country_code: GB
+country_name: United Kingdom
+country_slug: uk
+language: en
+timezone: Europe/London
+
+sentiment:
+  enabled: true
+  # No English fine-tuned classifier selected yet — stay on multilingual
+  # zero-shot. The Turkish fine-tuned model must not be used here
+  # (src/pipeline.py:80 raises if ``finetuned_model`` is set without a
+  # real EN-trained checkpoint).
+  zero_shot_model: joeddav/xlm-roberta-large-xnli
+  finetuned_model: null
+  labels: [positive, negative, neutral]
+  candidate_labels:
+    positive: "positive news"
+    negative: "negative news"
+    neutral:  "neutral news"
+
+ner:
+  # Legacy ``src.analysis.ner`` is Turkish-hardcoded; off for GB. The
+  # multilingual entity_narrative track below replaces it for non-TR.
+  enabled: false
+  model: null
+  keep_labels: [PER, ORG, LOC]
+
+entity_narrative:
+  # Sprint 1 scaffolding + Sprint 2 Wikidata linking, now applied to a
+  # fifth language. Writes one row per mention into ``entity_mentions``;
+  # the resolver back-fills ``wikidata_qid`` / ``canonical`` so shared
+  # entities (Trump, Erdoğan, Merkel, Macron) share a single QID across
+  # the TR / DE / FR / IT / ES / GB corpora.
+  enabled: true
+  ner_model: Davlan/bert-base-multilingual-cased-ner-hrl
+  keep_labels: [PER, ORG, LOC, MISC]
+  aliases:
+    people:
+      # ---- Cross-country anchor entities (MUST match other configs) ----
+      Donald Trump:
+        wikidata_qid: Q22686
+        aliases:
+          - trump
+          - donald trump
+          - president trump
+      Recep Tayyip Erdoğan:
+        wikidata_qid: Q39259
+        aliases:
+          - erdoğan
+          - erdogan
+          - recep tayyip erdoğan
+          - president erdogan
+      Emmanuel Macron:
+        wikidata_qid: Q3052772
+        aliases:
+          - macron
+          - emmanuel macron
+          - president macron
+      Angela Merkel:
+        wikidata_qid: Q567
+        aliases:
+          - merkel
+          - angela merkel
+      # ---- UK-specific political figures ----
+      Keir Starmer:
+        wikidata_qid: Q14571
+        aliases:
+          - starmer
+          - keir starmer
+          - prime minister starmer
+          - sir keir starmer
+          - pm starmer
+      Rishi Sunak:
+        wikidata_qid: Q15903
+        aliases:
+          - sunak
+          - rishi sunak
+      Boris Johnson:
+        wikidata_qid: Q180589
+        aliases:
+          - boris johnson
+          - boris
+          - johnson
+      Nigel Farage:
+        wikidata_qid: Q360894
+        aliases:
+          - farage
+          - nigel farage
+      Charles III:
+        wikidata_qid: Q43274
+        aliases:
+          - king charles
+          - charles iii
+          - king charles iii
+          - the king
+      Rachel Reeves:
+        wikidata_qid: Q3306081
+        aliases:
+          - reeves
+          - rachel reeves
+          - chancellor reeves
+      Kemi Badenoch:
+        wikidata_qid: Q13129254
+        aliases:
+          - badenoch
+          - kemi badenoch
+    organizations: {}
+  wikidata:
+    # Sprint 4: linking ON so the cross-country acceptance target
+    # (≥60% qid_fill on FR + DE + IT + ES + GB) is measurable. Fail-soft on
+    # API errors so collection never blocks on a Wikidata outage.
+    enabled: true
+    # EN keeps 0.70 vs IT/ES 0.65 — Wikidata English descriptions are
+    # the richest of any language, so partial label matches resolve at
+    # higher confidence and we don't need the 0.65 floor that IT/ES used
+    # to admit niche partial matches. Lowering below 0.70 here would
+    # admit surname-disambig false positives (e.g. "Johnson" mapping to
+    # Boris vs LBJ vs Magic Johnson on weak partial matches).
+    min_confidence: 0.70
+
+clustering:
+  enabled: true
+  method: kmeans
+  default_n_clusters: 15
+  embedding_model: paraphrase-multilingual-MiniLM-L12-v2
+  # English TF-IDF stopwords; mirrors the German / French / Italian /
+  # Spanish depth so cluster keywords aren't dominated by function words
+  # or UK-news noise.
+  stopwords:
+    # Articles
+    - the
+    - a
+    - an
+    # Prepositions
+    - of
+    - in
+    - on
+    - at
+    - by
+    - for
+    - with
+    - from
+    - to
+    - into
+    - about
+    - over
+    - under
+    # Conjunctions
+    - and
+    - or
+    - but
+    - if
+    - when
+    - while
+    - because
+    - although
+    - however
+    - so
+    - than
+    - then
+    # Pronouns
+    - i
+    - you
+    - he
+    - she
+    - it
+    - we
+    - they
+    - this
+    - that
+    - these
+    - those
+    - his
+    - her
+    - its
+    - their
+    - them
+    - our
+    - your
+    # Common verbs
+    - is
+    - are
+    - was
+    - were
+    - be
+    - been
+    - being
+    - have
+    - has
+    - had
+    - do
+    - does
+    - did
+    - will
+    - would
+    - could
+    - should
+    - can
+    - may
+    - might
+    - must
+    # UK-news noise
+    - uk
+    - britain
+    - british
+    - england
+    - english
+    - london
+    - year
+    - years
+    - said
+    - says
+    - new
+    - also
+    - percent
+    - per
+    - cent
+    - mr
+    - ms
+    - mrs
+
+embeddings:
+  enabled: true
+  model: paraphrase-multilingual-MiniLM-L12-v2
+  vector_dim: 384
+
+discovery:
+  report_dir: data/discovery
+  default_min_expected_items: 10
+  category_strategy: infer_from_url
+
+sources:
+  # -------------------------------------------------------------------
+  # BBC News — RSS suite live-validated 2026-05-25.
+  # -------------------------------------------------------------------
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "http://feeds.bbci.co.uk/news/rss.xml"
+
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "http://feeds.bbci.co.uk/news/uk/rss.xml"
+
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "http://feeds.bbci.co.uk/news/world/rss.xml"
+
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "http://feeds.bbci.co.uk/news/business/rss.xml"
+
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "http://feeds.bbci.co.uk/news/politics/rss.xml"
+
+  - name: BBC News
+    type: rss
+    enabled: true
+    canonical_category: science_technology
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "http://feeds.bbci.co.uk/news/technology/rss.xml"
+
+  # -------------------------------------------------------------------
+  # The Guardian — RSS suite live-validated 2026-05-25.
+  # -------------------------------------------------------------------
+  - name: The Guardian
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 20
+    urls:
+      - "https://www.theguardian.com/uk/rss"
+
+  - name: The Guardian
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "https://www.theguardian.com/politics/rss"
+
+  - name: The Guardian
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "https://www.theguardian.com/world/rss"
+
+  - name: The Guardian
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "https://www.theguardian.com/business/rss"
+
+  # -------------------------------------------------------------------
+  # Sky News — RSS suite live-validated 2026-05-25. Sky home/uk feeds
+  # return ~8-10 entries per scrape; min_expected_items floored at 8.
+  # -------------------------------------------------------------------
+  - name: Sky News
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 8
+    urls:
+      - "https://feeds.skynews.com/feeds/rss/home.xml"
+
+  - name: Sky News
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 8
+    urls:
+      - "https://feeds.skynews.com/feeds/rss/uk.xml"
+
+  - name: Sky News
+    type: rss
+    enabled: true
+    canonical_category: politics_governance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://feeds.skynews.com/feeds/rss/politics.xml"
+
+  - name: Sky News
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://feeds.skynews.com/feeds/rss/business.xml"
+
+  # -------------------------------------------------------------------
+  # The Independent — RSS suite live-validated 2026-05-25.
+  # -------------------------------------------------------------------
+  - name: The Independent
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 15
+    urls:
+      - "https://www.independent.co.uk/news/uk/rss"
+
+  - name: The Independent
+    type: rss
+    enabled: true
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 15
+    urls:
+      - "https://www.independent.co.uk/news/world/rss"
+
+  # -------------------------------------------------------------------
+  # Channel 4 News — RSS live-validated 2026-05-25.
+  # -------------------------------------------------------------------
+  - name: Channel 4 News
+    type: rss
+    enabled: true
+    canonical_category: other
+    category_strategy: fixed
+    discovery_role: general_discovery
+    min_expected_items: 10
+    urls:
+      - "https://www.channel4.com/news/feed"
+
+  # -------------------------------------------------------------------
+  # Financial Times — UK section RSS live-validated 2026-05-25. Volume
+  # is lean (~9 entries) since the section is curated; min floored at 8.
+  # -------------------------------------------------------------------
+  - name: Financial Times
+    type: rss
+    enabled: true
+    canonical_category: economy_finance
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 8
+    urls:
+      - "https://www.ft.com/uk?format=rss"
+
+  # -------------------------------------------------------------------
+  # Disabled after live validation on 2026-05-25 (germany.yaml /
+  # france.yaml / italy.yaml precedent: dated note, no silent removal).
+  # -------------------------------------------------------------------
+
+  # Disabled after live validation: HTTP 401 Forbidden on 2026-05-25.
+  # Reuters now gates the public RSS endpoint; a paid API key or a
+  # different mirror would be needed. Re-enable once a working endpoint
+  # is rediscovered.
+  - name: Reuters UK
+    type: rss
+    enabled: false
+    canonical_category: world_geopolitics
+    category_strategy: fixed
+    discovery_role: category
+    min_expected_items: 10
+    urls:
+      - "https://www.reuters.com/world/uk/rss"

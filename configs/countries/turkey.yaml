@@ -42,11 +42,12 @@ ner:
   keep_labels: [PER, ORG, LOC]
 
 entity_narrative:
-  # Sprint 1 of the entity-centric narrative track is rolling out on DE
-  # first; TR stays on the legacy ``ner`` path so the existing TR
-  # baseline (sentiment QA, top-entities dashboard) is bit-identical.
-  # Sprint 4 flips this to ``true`` after the regression check passes.
-  enabled: false
+  # Sprint 4 activation (2026-05-25): entity-narrative track ON.
+  # TR's legacy `ner` path stays enabled in parallel (news_items.entities
+  # column for the existing top-entities dashboard); the new entity_narrative
+  # populates entity_mentions table. Both DB paths run; legacy ner stays
+  # untouched until Sprint 6+ when it can be retired.
+  enabled: true
   ner_model: Davlan/bert-base-multilingual-cased-ner-hrl
   keep_labels: [PER, ORG, LOC, MISC]
   aliases:
@@ -67,10 +68,55 @@ entity_narrative:
         aliases:
           - merkel
           - angela merkel
+      Ekrem İmamoğlu:
+        wikidata_qid: Q19818562
+        aliases:
+          - imamoğlu
+          - ekrem imamoğlu
+          - ibb başkanı imamoğlu
+      Kemal Kılıçdaroğlu:
+        wikidata_qid: Q3196140
+        aliases:
+          - kılıçdaroğlu
+          - kemal kılıçdaroğlu
+          - chp lideri
+      Mansur Yavaş:
+        wikidata_qid: Q60849148
+        aliases:
+          - mansur yavaş
+          - ankara büyükşehir başkanı
+      Devlet Bahçeli:
+        wikidata_qid: Q707015
+        aliases:
+          - bahçeli
+          - devlet bahçeli
+          - mhp lideri
+      Meral Akşener:
+        wikidata_qid: Q15727088
+        aliases:
+          - akşener
+          - meral akşener
+      Ali Babacan:
+        wikidata_qid: Q336518
+        aliases:
+          - babacan
+          - ali babacan
+      Ahmet Davutoğlu:
+        wikidata_qid: Q386723
+        aliases:
+          - davutoğlu
+          - ahmet davutoğlu
+    # TR alias org coverage is Sprint 5+ work.
     organizations: {}
   wikidata:
-    enabled: false
-    min_confidence: 0.85
+    # Sprint 4: wikidata linking ON for TR. Uses the same throttled
+    # resolver fixed in Sprint 2 (1.1s rate limit + 429 backoff +
+    # multilingual _TYPE_KEYWORDS).
+    enabled: true
+    # 0.65 matches IT/ES Sprint 3 calibration. TR is multilingual NER
+    # (Davlan) + Wikidata uselang=tr. Partial-label and disambig stems
+    # behave similarly to the IT/ES corpus, so 0.65 is the right band.
+    min_confidence: 0.65
 
 clustering:
   enabled: true

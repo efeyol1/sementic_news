@@ -84,6 +84,10 @@ _TYPE_KEYWORDS = {
         "imprenditor", "empresari",       # IT/ES businessperson
         "rey", "reina",                   # ES king/queen
         "principe", "principessa",        # IT prince/princess
+        # Sprint 4 (2026-05-25): EN-specific PER stems for UK rollout.
+        # Avoided "king" / "mp" / "sir" / "dame" — substring collisions with
+        # "looking" / "campaign" / "desire" / "Notre-Dame" pollute scoring.
+        "prime minister", "lord", "queen", "duchess", "duke",
     ),
     "ORG": (
         # English
@@ -122,6 +126,13 @@ _TYPE_KEYWORDS = {
         "iglesia", "chiesa",                # church
         "procura",                          # IT prosecutor's office
         "fondazione",                       # IT foundation
+        # Sprint 4 (2026-05-25): EN-specific ORG stems for UK rollout.
+        # Avoided "inc" — substring collisions with "include" / "incident"
+        # would over-trigger. "plc" / "ltd" are short but distinctive enough
+        # to only appear inside company descriptions.
+        "broadcaster", "broadcasting", "corporation",
+        "plc", "ltd", "network", "trust", "foundation", "charity",
+        "regulator", "watchdog",
     ),
     "LOC": (
         # English
@@ -398,7 +409,11 @@ def _score_candidate(
     if label == normalized_text:
         score += 0.55
     elif normalized_text in aliases:
-        score += 0.50
+        # Sprint 4 (2026-05-25): alias match weight 0.50 → 0.55 to match
+        # exact-label weight. Wikidata aliases are curated equivalents
+        # (e.g. "Boris Johnson" alias of "Alexander Boris de Pfeffel Johnson"),
+        # so penalising them under label match was the wrong default.
+        score += 0.55
     elif label and (label in normalized_text or normalized_text in label):
         score += 0.35
 
