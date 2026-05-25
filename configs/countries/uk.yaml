@@ -130,6 +130,19 @@ entity_narrative:
     # admit surname-disambig false positives (e.g. "Johnson" mapping to
     # Boris vs LBJ vs Magic Johnson on weak partial matches).
     min_confidence: 0.70
+  collocations:
+    # Sprint 5: ±10 token windows lemmatized via spaCy en_core_web_sm.
+    # EN is the richest spaCy model — highest expected qid_fill on Trump
+    # collocates and best baseline for the cross-country Jaccard test.
+    enabled: true
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: [NOUN, PROPN, VERB, ADJ]
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: spacy
+    spacy_model: en_core_web_sm
+    stopwords_file: configs/stopwords/en.yaml
 
 clustering:
   enabled: true

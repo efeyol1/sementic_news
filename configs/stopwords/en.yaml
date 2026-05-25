@@ -1,0 +1,103 @@
+# English stopwords for the Sprint 5 collocation extractor.
+#
+# Seeded from configs/countries/uk.yaml::clustering.stopwords (2026-05-25)
+# and kept independent so PMI tuning (Sprint 6+) does not silently drift
+# the clustering pipeline. The collocation step reads via
+# ``text_processing.load_stopwords``.
+#
+# Note: ``on`` is intentionally quoted — bare ``on`` parses as the
+# YAML boolean ``true``.
+stopwords:
+  - the
+  - a
+  - an
+  - of
+  - in
+  - "on"
+  - at
+  - by
+  - for
+  - with
+  - from
+  - to
+  - into
+  - about
+  - over
+  - under
+  - and
+  - or
+  - but
+  - if
+  - when
+  - while
+  - because
+  - although
+  - however
+  - so
+  - than
+  - then
+  - i
+  - you
+  - he
+  - she
+  - it
+  - we
+  - they
+  - this
+  - that
+  - these
+  - those
+  - his
+  - her
+  - its
+  - their
+  - them
+  - our
+  - your
+  - is
+  - are
+  - was
+  - were
+  - be
+  - been
+  - being
+  - have
+  - has
+  - had
+  - do
+  - does
+  - did
+  - will
+  - would
+  - could
+  - should
+  - can
+  - may
+  - might
+  - must
+  - uk
+  - britain
+  - british
+  - england
+  - english
+  - london
+  - year
+  - years
+  - said
+  - says
+  - new
+  - also
+  - percent
+  - per
+  - cent
+  - mr
+  - ms
+  - mrs
+  - say
+  - get
+  - go
+  - make
+  - take
+  - come
+  - know
+  - think
