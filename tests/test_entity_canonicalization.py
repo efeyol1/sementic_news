@@ -52,3 +52,32 @@ def test_normalization_folds_diacritics_punctuation_and_titles():
 
     assert normalize_entity_text("Cumhurbaşkanı Erdoğan'ın", "tr") == "erdogan in"
     assert normalize_entity_text("KANZLERIN MERKEL", "de") == "merkel"
+
+
+def test_type_agnostic_alias_fallback_overrides_ner_misclassification():
+    """Sprint 4 prep (2026-05-23): the multilingual NER sometimes tags
+    well-known people (Trump, Erdoğan) as ORG in headlines. When an alias
+    matches the normalized text under PER, the PER mapping wins even if
+    the caller passed ORG — the YAML alias bucket is authoritative.
+
+    Quantified before fix: Trump was 8/10 ORG in DE on the 7 days ending
+    2026-05-23 → Q22686 never linked despite the local alias being present.
+    """
+    from src.analysis.entity_canonicalization import canonicalize_mention
+
+    cfg = _cfg()
+    # NER says ORG, but "trump" is a PER alias → should still return Q22686.
+    result = canonicalize_mention("Trump", "ORG", cfg)
+    assert result.canonical == "Donald Trump"
+    assert result.wikidata_qid == "Q22686"
+    assert result.resolver_method == "local_alias"
+
+    # Same for Erdoğan as ORG.
+    result = canonicalize_mention("Erdoğan", "ORG", cfg)
+    assert result.canonical == "Recep Tayyip Erdoğan"
+    assert result.wikidata_qid == "Q39259"
+
+    # A genuinely-unknown text gets no fallback — falls through to display.
+    result = canonicalize_mention("Some Unknown Body", "ORG", cfg)
+    assert result.wikidata_qid is None
+    assert result.resolver_method == "normalized"

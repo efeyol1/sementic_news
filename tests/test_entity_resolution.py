@@ -435,3 +435,52 @@ def test_wikidata_request_propagates_non_429_immediately(monkeypatch):
     assert excinfo.value.code == 500
     assert attempts["n"] == 1
     assert sleeps == []  # no backoff for non-429
+
+
+# ---------------------------------------------------------------------------
+# Surname / disambiguation-page hard reject (Sprint 4 prep, 2026-05-23).
+# Wikidata search for single-token mentions like "Djokovic", "Rufián",
+# "Confucio" returns a surname/disambiguation page (description "cognome"
+# / "apellido" / "family name") before the real person. Without this guard
+# those pages pass the threshold and pollute QIDs.
+# ---------------------------------------------------------------------------
+
+
+def test_score_candidate_rejects_surname_disambig_page_it():
+    cfg = _country_config()
+    cfg["language"] = "it"
+    score = er._score_candidate(
+        {"id": "Q21146583", "label": "Djokovic", "description": "cognome"},
+        "Djokovic",
+        "PER",
+        cfg,
+    )
+    assert score == 0.0
+
+
+def test_score_candidate_rejects_surname_disambig_page_es():
+    cfg = _country_config()
+    cfg["language"] = "es"
+    score = er._score_candidate(
+        {"id": "Q63118159", "label": "Rufián", "description": "apellido"},
+        "rufián",
+        "PER",
+        cfg,
+    )
+    assert score == 0.0
+
+
+def test_score_candidate_still_accepts_real_person_after_disambig_filter():
+    """The filter must not eat real person entries whose description happens
+    to mention things like 'cognome'/'apellido' incidentally. Real-person
+    descriptions don't start with or equal those bare stems."""
+    cfg = _country_config()
+    cfg["language"] = "it"
+    score = er._score_candidate(
+        {"id": "Q5812", "label": "Novak Đoković", "description": "tennista serbo"},
+        "Đoković",
+        "PER",
+        cfg,
+    )
+    # Should NOT be 0 — passes through the normal scoring path.
+    assert score > 0.0
