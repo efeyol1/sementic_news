@@ -17,6 +17,17 @@ and this project adheres to a sprint-based versioning scheme (`v2-phase-N`,
   `DATA_PROVENANCE.md`, `DATA_LICENSE.md`, `PRIVACY.md`. Country YAML schema
   gains `license` field per source. New `/about` API endpoint with ethics
   disclaimer.
+- Sprint 6: PMI + log-likelihood (Dunning 1993) backfill module
+  (`src/analysis/collocation_stats.py`) — fills the six NULL columns Sprint 5
+  reserved on `entity_collocations`. New DB helpers in `src/db/queries.py`
+  (`fetch_collocations_for_stats`, `fetch_entity_mention_counts`,
+  `bulk_update_collocation_stats`). New pipeline soft step `entity_pmi` runs
+  immediately after `entity_collocations`. `entity_total` column carries the
+  distinct mention count from `entity_mentions` (separate from the
+  lemma-weighted `cooccurrence_with_entity_total` marginal), giving Sprint 7/8
+  an "entity prominence" signal alongside PMI.
+- Sprint 6: TR collocations activated (`turkey.yaml::entity_narrative.collocations.enabled`
+  flipped to `true`) using the surface-form lemmatizer as the agreed baseline.
 
 ### Changed
 - `README.md` rewritten to reflect V2 multi-country reality (6 countries: TR,

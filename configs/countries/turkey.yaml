@@ -118,12 +118,14 @@ entity_narrative:
     # behave similarly to the IT/ES corpus, so 0.65 is the right band.
     min_confidence: 0.65
   collocations:
-    # Sprint 5 keeps TR collocations OFF: the surface-form fallback
-    # (no spaCy TR model) collapses inflected variants only partially,
-    # so PMI's top-K would be noisy. Sprint 6 flips this to true after
-    # evaluating zeyrek as the TR morphology backend; until then the
-    # TurkishSurfaceLemmatizer is exercised only by unit tests.
-    enabled: false
+    # Sprint 6 (2026-05-28): TR collocations ON with the surface-form
+    # lemmatizer as the agreed baseline. Suffix-strip + lowercase
+    # collapses common inflected variants and is good enough for PMI's
+    # signal-to-noise ratio at the daily-aggregation level. A heavier
+    # morphology backend (zeyrek) was discussed during Sprint 5 planning
+    # but kept out of scope; if top-K quality is poor in production it
+    # will be revisited in Sprint 6.5/7 — not blocking this sprint.
+    enabled: true
     window: 10
     respect_sentence_boundary: true
     keep_pos: []  # surface-form lemmatizer emits POS='X', so no filter

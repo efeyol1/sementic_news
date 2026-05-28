@@ -26,6 +26,7 @@ from pathlib import Path
 from loguru import logger
 
 from src.analysis.clustering import cluster_topics
+from src.analysis.collocation_stats import compute_collocation_stats_batch
 from src.analysis.collocations import extract_collocations_batch
 from src.analysis.entity_extraction import extract_entities_batch
 from src.analysis.entity_resolution import resolve_entities_batch
@@ -212,6 +213,16 @@ def run(
             _step_soft(
                 "entity_collocations",
                 extract_collocations_batch,
+                date_str=date_str,
+                country_config=country_config,
+            )
+            # Sprint 6: backfill PMI / LLR / totals over the same slice.
+            # Implicit gate — runs whenever extraction is on; no separate
+            # config flag (downstream consumers in Sprint 7/8 always want
+            # the stats so a config to disable would just create dead data).
+            _step_soft(
+                "entity_pmi",
+                compute_collocation_stats_batch,
                 date_str=date_str,
                 country_config=country_config,
             )
