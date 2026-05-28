@@ -26,6 +26,7 @@ from pathlib import Path
 from loguru import logger
 
 from src.analysis.clustering import cluster_topics
+from src.analysis.collocations import extract_collocations_batch
 from src.analysis.entity_extraction import extract_entities_batch
 from src.analysis.entity_resolution import resolve_entities_batch
 from src.analysis.ner import extract_entities
@@ -201,6 +202,23 @@ def run(
             date_str=date_str,
             country_config=country_config,
         )
+        # Sprint 5: per-mention collocation extraction. Soft so a spaCy
+        # model load failure in one country does not block clustering or
+        # downstream steps for the rest of the daily run.
+        collocations_cfg = (
+            (country_config.get("entity_narrative") or {}).get("collocations") or {}
+        )
+        if collocations_cfg.get("enabled", False):
+            _step_soft(
+                "entity_collocations",
+                extract_collocations_batch,
+                date_str=date_str,
+                country_config=country_config,
+            )
+        else:
+            logger.info(
+                "Skipping entity_collocations — disabled in country config"
+            )
     else:
         logger.info("Skipping entity_extraction — disabled in country config")
 

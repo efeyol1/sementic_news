@@ -120,6 +120,17 @@ entity_narrative:
     # scoring 0.55–0.60 due to partial label matches. Dropping 5 points
     # captures them; ambiguous single tokens (Rafael, Marina) still reject.
     min_confidence: 0.65
+  collocations:
+    # Sprint 5: ±10 token windows lemmatized via spaCy es_core_news_sm.
+    enabled: true
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: [NOUN, PROPN, VERB, ADJ]
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: spacy
+    spacy_model: es_core_news_sm
+    stopwords_file: configs/stopwords/es.yaml
 
 clustering:
   enabled: true

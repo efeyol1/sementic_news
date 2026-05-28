@@ -694,6 +694,120 @@ def upsert_entity_resolution_cache(rows: list[dict[str, Any]]) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Entity collocations (Sprint 5: lemma cooccurrence counts; Sprint 6 PMI)
+# ---------------------------------------------------------------------------
+
+
+def fetch_for_collocation_extraction(
+    date_str: str,
+    country_code: str,
+) -> list[dict[str, Any]]:
+    """Return one row per (mention, article) pair the collocation step
+    should process for one day.
+
+    Joins ``entity_mentions`` to ``news_items`` so the extractor can
+    rebuild the exact NER input string with
+    :func:`src.analysis.text_inputs.build_ner_text`. Only mentions with
+    a non-NULL ``position_in_article`` (the HuggingFace NER ``start``
+    offset into that same string) are returned; older rows without a
+    position can't be windowed.
+
+    Mentions without a resolved canonical fall back to ``entity_text``
+    so the row is still addressable. ``wikidata_qid`` is kept nullable.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    em.id                  AS mention_id,
+                    em.article_id          AS article_id,
+                    em.entity_text         AS entity_text,
+                    em.entity_type         AS entity_type,
+                    em.wikidata_qid        AS wikidata_qid,
+                    COALESCE(em.canonical, em.entity_text) AS canonical,
+                    em.position_in_article AS position_in_article,
+                    em.country_code        AS country_code,
+                    em.collected_date      AS collected_date,
+                    ni.title               AS title,
+                    ni.summary             AS summary,
+                    ni.article_text        AS article_text,
+                    ni.cleaned_title       AS cleaned_title,
+                    ni.cleaned_summary     AS cleaned_summary,
+                    ni.cleaned_article_text AS cleaned_article_text
+                FROM entity_mentions em
+                JOIN news_items ni ON ni.id = em.article_id
+                WHERE em.collected_date = %s
+                  AND em.country_code   = %s
+                  AND em.position_in_article IS NOT NULL
+                ORDER BY em.article_id, em.position_in_article
+                """,
+                (date_str, country_code),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def bulk_upsert_entity_collocations(
+    rows: list[dict[str, Any]],
+    country_code: str,
+    date_str: str,
+) -> int:
+    """Replace one (country_code, collected_date) slice with *rows*.
+
+    Idempotent: DELETE the day's existing collocations for the country,
+    then INSERT the freshly aggregated rows. Mirrors
+    :func:`bulk_insert_entity_mentions` but keys on (country, date)
+    instead of article_id because the aggregate is computed across all
+    articles for the day.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM entity_collocations
+                WHERE country_code = %s AND collected_date = %s
+                """,
+                (country_code, date_str),
+            )
+            if not rows:
+                logger.info(
+                    f"Cleared entity_collocations for {country_code} "
+                    f"{date_str} (no new rows to insert)"
+                )
+                return 0
+            tuples = [
+                (
+                    country_code,
+                    date_str,
+                    r.get("wikidata_qid"),
+                    r["canonical"],
+                    r["entity_type"],
+                    r["lemma"],
+                    r["pos"],
+                    r["cooccurrence_count"],
+                )
+                for r in rows
+            ]
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO entity_collocations
+                    (country_code, collected_date, wikidata_qid, canonical,
+                     entity_type, lemma, pos, cooccurrence_count)
+                VALUES %s
+                """,
+                tuples,
+            )
+            inserted = len(tuples)
+            logger.info(
+                f"Inserted {inserted} entity collocations for "
+                f"{country_code} {date_str}"
+            )
+            return inserted
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 

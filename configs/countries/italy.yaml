@@ -111,6 +111,17 @@ entity_narrative:
     # label matches scoring 0.55–0.60. Dropping 5 points captures them
     # while ambiguous single-token mentions (Marina, Rafael) still reject.
     min_confidence: 0.65
+  collocations:
+    # Sprint 5: ±10 token windows lemmatized via spaCy it_core_news_sm.
+    enabled: true
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: [NOUN, PROPN, VERB, ADJ]
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: spacy
+    spacy_model: it_core_news_sm
+    stopwords_file: configs/stopwords/it.yaml
 
 clustering:
   enabled: true

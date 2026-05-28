@@ -35,6 +35,18 @@ jobs:
         # ~16 min (PyTorch xlm-roberta) to ~4 min.
         run: pip install -e ".[pipeline,serving,dev]"
 
+      - name: Download spaCy language models
+        # Sprint 5: collocation extraction needs a per-language spaCy
+        # ``sm`` model for EN/DE/FR/IT/ES. Each is ~12-15 MB. Models are
+        # not pinned as pip deps because they're versioned independently
+        # of the spaCy library; ``python -m spacy download`` resolves
+        # the matching wheel.
+        run: |
+          for model in en_core_web_sm de_core_news_sm fr_core_news_sm \
+                       it_core_news_sm es_core_news_sm; do
+            python -m spacy download "$model"
+          done
+
       - name: Cache HuggingFace models
         uses: actions/cache@v4
         with:

@@ -117,6 +117,20 @@ entity_narrative:
     # (Davlan) + Wikidata uselang=tr. Partial-label and disambig stems
     # behave similarly to the IT/ES corpus, so 0.65 is the right band.
     min_confidence: 0.65
+  collocations:
+    # Sprint 5 keeps TR collocations OFF: the surface-form fallback
+    # (no spaCy TR model) collapses inflected variants only partially,
+    # so PMI's top-K would be noisy. Sprint 6 flips this to true after
+    # evaluating zeyrek as the TR morphology backend; until then the
+    # TurkishSurfaceLemmatizer is exercised only by unit tests.
+    enabled: false
+    window: 10
+    respect_sentence_boundary: true
+    keep_pos: []  # surface-form lemmatizer emits POS='X', so no filter
+    min_lemma_length: 3
+    min_cooccurrence_count: 2
+    lemmatizer: surface
+    stopwords_file: configs/stopwords/tr.yaml
 
 clustering:
   enabled: true
