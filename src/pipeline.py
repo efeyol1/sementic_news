@@ -28,6 +28,7 @@ from loguru import logger
 from src.analysis.clustering import cluster_topics
 from src.analysis.collocation_stats import compute_collocation_stats_batch
 from src.analysis.collocations import extract_collocations_batch
+from src.analysis.country_profile import compute_country_profile_batch
 from src.analysis.entity_extraction import extract_entities_batch
 from src.analysis.entity_resolution import resolve_entities_batch
 from src.analysis.ner import extract_entities
@@ -223,6 +224,16 @@ def run(
             _step_soft(
                 "entity_pmi",
                 compute_collocation_stats_batch,
+                date_str=date_str,
+                country_config=country_config,
+            )
+            # Sprint 7: roll up the past 7d/30d into entity_country_profile.
+            # Same parent gate as PMI; soft so a single bad day cannot
+            # block clustering. Reads Sprint 6's freshly-filled rows plus
+            # the prior 29 days that earlier crons already filled.
+            _step_soft(
+                "entity_country_profile",
+                compute_country_profile_batch,
                 date_str=date_str,
                 country_config=country_config,
             )

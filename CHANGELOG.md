@@ -28,6 +28,20 @@ and this project adheres to a sprint-based versioning scheme (`v2-phase-N`,
   an "entity prominence" signal alongside PMI.
 - Sprint 6: TR collocations activated (`turkey.yaml::entity_narrative.collocations.enabled`
   flipped to `true`) using the surface-form lemmatizer as the agreed baseline.
+- Sprint 7: rolling 7-day / 30-day entity profile rollup
+  (`src/analysis/country_profile.py`) — aggregates Sprint 6's daily PMI/LLR
+  into per-(entity, country, window) profile rows persisted in
+  `entity_country_profile` (Alembic `0008_entity_country_profile`).
+  Aggregate-first math: sums daily cells over the window, then recomputes
+  PMI/LLR from window-level marginals (avoids the naive double-counting
+  trap of summing daily R(e) marginals). Stores `top_collocates` (top 20
+  by LLR desc → PMI desc → lemma asc) as JSONB, plus `avg_pmi`,
+  `avg_log_likelihood`, `coverage_days` for partial windows. New DB
+  helpers `fetch_entity_collocations_date_range`,
+  `bulk_upsert_entity_country_profile`. Soft pipeline step
+  `entity_country_profile` runs after `entity_pmi` under the same
+  `collocations.enabled` parent gate. Sprint 8 will expose this via
+  `/api/entity/{qid}/profile`.
 
 ### Changed
 - `README.md` rewritten to reflect V2 multi-country reality (6 countries: TR,

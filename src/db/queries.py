@@ -926,6 +926,126 @@ def bulk_update_collocation_stats(
 
 
 # ---------------------------------------------------------------------------
+# Entity country profile (Sprint 7: rolling 7d/30d aggregator)
+# ---------------------------------------------------------------------------
+
+
+def fetch_entity_collocations_date_range(
+    country_code: str,
+    start_date: str,
+    end_date: str,
+) -> list[dict[str, Any]]:
+    """Return ``entity_collocations`` rows in ``[start_date, end_date]``.
+
+    Sprint 7's rolling aggregator reads multiple consecutive days and
+    re-derives window-level marginals (R_w, T_w, N_w) from the raw
+    ``cooccurrence_count`` values. The Sprint-6 per-row stats
+    (``pmi``, ``log_likelihood``, ``cooccurrence_with_entity_total``)
+    are intentionally NOT selected — naively summing them across days
+    would double-count entries that span multiple days. The window
+    stats are recomputed from scratch.
+
+    ``entity_total`` IS returned because it's the Option-B distinct
+    mention count, useful for ``total_mentions`` aggregation; summing
+    daily distinct counts gives an approximation (an entity counted
+    twice if mentioned on two days) which is the documented Sprint 7
+    semantics.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT
+                    collected_date,
+                    canonical,
+                    entity_type,
+                    wikidata_qid,
+                    lemma,
+                    pos,
+                    cooccurrence_count,
+                    entity_total
+                FROM entity_collocations
+                WHERE country_code = %s
+                  AND collected_date BETWEEN %s AND %s
+                ORDER BY collected_date, canonical, entity_type
+                """,
+                (country_code, start_date, end_date),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def bulk_upsert_entity_country_profile(
+    rows: list[dict[str, Any]],
+    country_code: str,
+    end_date: str,
+) -> int:
+    """Replace one (country_code, end_date) slice with *rows*.
+
+    Idempotent: DELETE the day's profile rows for the country, then
+    INSERT the freshly rolled-up entries. Each row carries both 7d and
+    30d windows for the same entity — the aggregator decides what to
+    emit per entity per window.
+
+    ``top_collocates`` is a Python list of dicts; psycopg2 adapts it to
+    a JSONB literal via ``psycopg2.extras.Json``.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                DELETE FROM entity_country_profile
+                WHERE country_code = %s AND end_date = %s
+                """,
+                (country_code, end_date),
+            )
+            if not rows:
+                logger.info(
+                    f"Cleared entity_country_profile for {country_code} "
+                    f"{end_date} (no new rows to insert)"
+                )
+                return 0
+            tuples = [
+                (
+                    country_code,
+                    r["canonical"],
+                    r["entity_type"],
+                    r.get("wikidata_qid"),
+                    r["window_days"],
+                    end_date,
+                    r["coverage_days"],
+                    r["total_cooccurrences"],
+                    r["total_mentions"],
+                    r["cooccurrence_with_entity_total"],
+                    r["window_total"],
+                    r["avg_pmi"],
+                    r["avg_log_likelihood"],
+                    psycopg2.extras.Json(r["top_collocates"]),
+                )
+                for r in rows
+            ]
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                INSERT INTO entity_country_profile
+                    (country_code, canonical, entity_type, wikidata_qid,
+                     window_days, end_date, coverage_days,
+                     total_cooccurrences, total_mentions,
+                     cooccurrence_with_entity_total, window_total,
+                     avg_pmi, avg_log_likelihood, top_collocates)
+                VALUES %s
+                """,
+                tuples,
+            )
+            inserted = len(tuples)
+            logger.info(
+                f"Inserted {inserted} entity_country_profile rows for "
+                f"{country_code} {end_date}"
+            )
+            return inserted
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 
