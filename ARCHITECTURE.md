@@ -1,191 +1,269 @@
-# Semantic News TR — Mimari
+# Semantic News — Architecture
 
-## Büyük Resim
+V2 multi-country media intelligence pipeline. Single Postgres backend serves
+both the daily ingestion+analysis chain and the API layer.
+
+## Big Picture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     GÜNLÜK PIPELINE (04:00 UTC)                 │
-│                                                                 │
-│  RSS Kaynakları (10)                                            │
-│  ──────────────────►  rss_collector  ──► PostgreSQL (Neon)      │
-│                              │                                  │
-│                        preprocessor  (clean, langdetect)        │
-│                              │                                  │
-│                         sentiment    (xlm-roberta zero-shot)    │
-│                              │                                  │
-│                           ner         (bert-turkish-ner)        │
-│                              │                                  │
-│                        clustering    (MiniLM + KMeans)          │
-│                              │                                  │
-│                       vector_store   (MiniLM → pgvector)        │
-└──────────────────────────────┼──────────────────────────────────┘
-                               │ PostgreSQL (Neon)
-                     ┌─────────▼──────────┐
-                     │     FastAPI         │
-                     │  (Render, :8000)    │
-                     └─────────┬──────────┘
-                               │ REST + pgvector similarity
-                     ┌─────────▼──────────┐
-                     │   Next.js Dashboard │
-                     │   (Vercel, :3000)   │
-                     └────────────────────┘
+┌────────────────────────────────────────────────────────────────────┐
+│           DAILY PIPELINE (per country, 04:00 UTC cron)             │
+│                                                                    │
+│  configs/countries/<slug>.yaml                                     │
+│         │                                                          │
+│         │  source registry (RSS / Google News sitemap / HTML)      │
+│         ▼                                                          │
+│   rss_collector  ──► PostgreSQL (news_items, country_code, lang)   │
+│         │                                                          │
+│   preprocessor   (HTML strip, langdetect, char filter)             │
+│         │                                                          │
+│   article_fetcher + article_parser  (opt-in --fetch-articles)      │
+│         │                                                          │
+│   sentiment      (TR: fine-tuned BERT; others: zero-shot XLM-R)    │
+│         │                                                          │
+│   ner            (legacy savasy for TR; Davlan multilingual all)   │
+│         │                                                          │
+│   entity_resolution  (Wikidata Q-ID linking, throttled + cached)   │
+│         │                                                          │
+│   clustering     (MiniLM embeddings + KMeans, per-country stopwords)│
+│         │                                                          │
+│   vector_store   (384-dim → pgvector HNSW)                         │
+│         │                                                          │
+│   drift          (PSI on sentiment distribution, MLflow + reports) │
+└────────────────────────┬───────────────────────────────────────────┘
+                         │ PostgreSQL (Neon, pgvector enabled)
+              ┌──────────▼──────────┐
+              │  FastAPI (Render)   │
+              │  port 8000          │
+              │  ── reads only ──   │
+              └──────────┬──────────┘
+                         │
+              ┌──────────▼──────────┐
+              │   Next.js (Vercel)  │
+              │   port 3000         │
+              │   country selector  │
+              └─────────────────────┘
 ```
 
----
+Six countries are wired today: Turkey, Germany, France, Italy, Spain,
+United Kingdom — see `configs/countries/`. Daily corpus is ~3,853 items
+across all countries (measured 2026-05-02, post-sitemap handler rollout;
+up from ~475 items/day under the pre-V2 RSS-only setup).
 
-## Veri Katmanı
+## Data Layer
 
-### PostgreSQL — `news_items` tablosu
+### `news_items` table
 
-Her haber bir satır. Pipeline adımları sırayla aynı satırı günceller.
+One row per article. Each pipeline step mutates a subset of columns; rows are
+identified by `(link)` (unique) and tagged with `country_code` / `language`.
 
-| Kolon | Tip | Doldurulduğu Adım |
-|-------|-----|-------------------|
-| `collected_date` | DATE | rss_collector |
-| `title, summary, source_name, link` | TEXT | rss_collector |
-| `cleaned_title, cleaned_summary` | TEXT | preprocessor |
-| `is_turkish, char_count` | BOOL/INT | preprocessor |
-| `sentiment_label, sentiment_score` | TEXT/FLOAT | sentiment |
-| `sentiment_scores` | JSONB | sentiment |
-| `entities, entity_count` | JSONB/INT | ner |
-| `cluster_id, cluster_keywords, cluster_title` | INT/JSONB/TEXT | clustering |
+| Column | Type | Step that populates it |
+|---|---|---|
+| `country_code`, `language` | TEXT | rss_collector (from country config) |
+| `collected_date`, `published_at` | DATE / TIMESTAMP | rss_collector |
+| `title`, `summary`, `source_name`, `link` | TEXT | rss_collector |
+| `cleaned_title`, `cleaned_summary` | TEXT | preprocessor |
+| `cleaned_article_text` | TEXT | article_parser (opt-in via `--fetch-articles`) |
+| `article_fetched_at` | TIMESTAMP | article_fetcher |
+| `is_turkish`, `char_count` | BOOL / INT | preprocessor |
+| `sentiment_label`, `sentiment_score`, `sentiment_scores` | TEXT / FLOAT / JSONB | sentiment |
+| `entities`, `entity_count` | JSONB / INT | ner (legacy path, still on for TR) |
+| `cluster_id`, `cluster_keywords`, `cluster_title` | INT / JSONB / TEXT | clustering |
 | `embedding` | vector(384) | vector_store |
 
-### PostgreSQL — `cluster_summaries` tablosu
+### `cluster_summaries` table
 
-Her gün 15 küme özeti: `(date, cluster_id) UNIQUE`, keywords, sentiment dağılımı, kaynak dağılımı.
+Per-day aggregates: `(country_code, date, cluster_id)` unique. Stores
+keywords, sentiment distribution, source distribution.
+
+### `entity_mentions` table (Alembic `0005`)
+
+Multilingual NER output. One row per (article, entity) pair. Includes
+canonical name, raw mention text, entity type, position, and (if resolved)
+`wikidata_qid`.
+
+### `entity_resolution_cache` table (Alembic `0006`)
+
+Wikidata API response cache to avoid re-querying. Throttled at 1.1 s/request
+with 429 backoff in `entity_resolution.py`.
+
+### `entity_collocations` table (Alembic `0007`, Sprint 5)
+
+Per-day co-occurrence pairs between resolved entities, used for narrative
+graph features.
 
 ### pgvector
 
-`embedding vector(384)` kolonu + `HNSW` indeksi. `/api/similar` için cosine similarity sorgusu:
+`embedding vector(384)` + HNSW index. `/api/similar`:
+
 ```sql
 SELECT title, 1 - (embedding <=> $1::vector) AS similarity
-FROM news_items ORDER BY embedding <=> $1::vector LIMIT 5
+FROM news_items
+WHERE country_code = $2
+ORDER BY embedding <=> $1::vector
+LIMIT $3
 ```
 
----
-
-## Pipeline Adımları
+## Pipeline Steps
 
 ### 1. `rss_collector.py`
-- 10 RSS feed → feedparser → normalize
-- `INSERT ... ON CONFLICT (link) DO NOTHING` ile dedup
-- **Çıktı:** ~400-500 satır/gün
+
+Source types supported (declared per-source in country YAML):
+
+- `rss` — feedparser over RSS / Atom; most sources
+- `googlenews_sitemap` — XML sitemap with Google News namespace
+- `html_sitemap` — plain XML sitemap of URLs; scrape `<title>` +
+  `og:description` via BeautifulSoup (15-thread pool)
+
+Deduplication: `INSERT ... ON CONFLICT (link) DO NOTHING`.
 
 ### 2. `preprocessor.py`
-- HTML strip, whitespace normalize, langdetect
-- 10 karakterden kısa olanları DELETE
-- **Çıktı:** ~450 satır (is_turkish=True ~%99)
 
-### 3. `sentiment.py`
-- Model: `joeddav/xlm-roberta-large-xnli` (zero-shot classification)
-- Türkçe etiketler: "olumlu haber" / "olumsuz haber" / "tarafsız haber"
-- Çok dilli: TR/DE/FR/ES/EN SENTIMENT_LABELS dict'i genişlet
-- **Çıktı:** sentiment_label, sentiment_score (0-1), sentiment_scores {pos/neg/neu}
+HTML strip, whitespace normalize, langdetect (writes `is_turkish` flag).
+Articles below a length threshold get dropped (`char_count` filter).
 
-### 4. `ner.py`
-- Model: `savasy/bert-base-turkish-ner-cased`
-- Entity tipleri: PER, ORG, LOC
-- **Çıktı:** ~1700 entity/gün
+### 3. `article_fetcher.py` + `article_parser.py` (opt-in)
 
-### 5. `clustering.py`
-- `paraphrase-multilingual-MiniLM-L12-v2` ile embedding
-- KMeans (n=15), silhouette score MLflow'a log
-- TF-IDF + Türkçe stopword listesi ile küme başlıkları
-- **Çıktı:** cluster_id (0-14) + cluster_summaries tablosu
+Only runs when pipeline is invoked with `--fetch-articles --article-limit N`.
+Downloads article HTML, parses body text into `cleaned_article_text` and
+records `article_fetched_at`. Default daily cron does NOT fetch bodies.
 
-### 6. `vector_store.py`
-- Aynı MiniLM modeli (lazy singleton)
-- `vector(384)` → PostgreSQL pgvector
-- **Çıktı:** her Türkçe habere 384 boyutlu embedding
+### 4. `sentiment.py`
 
----
+Per-country backend selection driven by `configs/countries/<slug>.yaml`:
 
-## API Katmanı
+- **TR (default)**: `efeyol11/bert-turkish-sentiment` (fine-tuned, production).
+  Behavioral CheckList gate blocks retraining if `must-pass` capabilities
+  regress. ONNX int8 backend available for ~3.8× speedup vs PyTorch (see
+  README benchmark).
+- **DE / FR / IT / ES / UK**: `joeddav/xlm-roberta-large-xnli` (multilingual
+  zero-shot, NLI-based). Per-language candidate labels declared in YAML.
+
+Scoped re-score flags: `--only-missing`, `--only-stale-after-body`,
+`--only-with-body`. `max_length = 256`.
+
+### 5. `ner.py` + `entity_extraction.py`
+
+Two NER paths run today:
+
+- **Legacy TR-only** (`ner.py`): `savasy/bert-base-turkish-ner-cased`,
+  populates `news_items.entities` for the legacy top-entities dashboard.
+- **Multilingual** (`entity_extraction.py`):
+  `Davlan/bert-base-multilingual-cased-ner-hrl`, populates `entity_mentions`.
+
+Both are kept in parallel until Sprint 6+ retirement of the legacy path.
+
+### 6. `entity_resolution.py` + `entity_canonicalization.py`
+
+Each `entity_mentions` row goes through resolution:
+
+1. Local alias lookup (country YAML `entity_narrative.aliases`)
+2. `entity_resolution_cache` lookup
+3. Wikidata API call (`uselang=<country lang>`, throttled 1.1 s, 429 backoff)
+4. Confidence threshold (per-country, e.g., TR/IT/ES use 0.65)
+
+The same canonical Wikidata Q-ID (e.g., Trump → Q22686, Erdoğan → Q39259)
+appears in all country YAMLs that mention the person — this is the
+cross-country invariant.
+
+### 7. `clustering.py`
+
+Sentence-transformer embeddings (`paraphrase-multilingual-MiniLM-L12-v2`),
+KMeans (k=15 default, per-country override allowed). Cluster keywords via
+TF-IDF over the per-language stopword list (`configs/stopwords/<lang>.txt`).
+Silhouette score logged to MLflow.
+
+### 8. `vector_store.py`
+
+Same MiniLM model (singleton, cached). Writes `embedding` column. Indexed
+with pgvector HNSW for similarity search.
+
+### 9. `drift.py`
+
+PSI (Population Stability Index) on sentiment distribution, per country,
+day-over-day. Thresholds: `<0.10` stable, `<0.25` moderate, `≥0.25` significant.
+Writes:
+
+- JSON to `data/drift_reports/<country_code>_<date>.json`
+- Postgres drift table
+- MLflow run (`news-drift` experiment)
+- Prometheus gauge (`sentiment_psi`)
+
+## API Layer
 
 ```
 FastAPI (Render)
-├── GET /health                    → liveness probe
-├── GET /api/today?date=           → günlük özet (sentiment, entity, cluster)
-├── GET /api/topic/{id}?date=      → küme detayı + haberler
-├── GET /api/source-comparison     → kaynak bazlı sentiment istatistik
-├── GET /api/similar?q=&n=         → pgvector cosine similarity arama
-└── GET /metrics                   → Prometheus metrikleri
+├── GET /health                          — liveness
+├── GET /about                           — version + ethics disclaimer + governance links
+├── GET /api/countries                   — list of configured countries
+├── GET /api/today?country=&date=        — daily summary
+├── GET /api/topic/{id}?country=&date=   — cluster detail
+├── GET /api/source-comparison?country=  — per-source sentiment
+├── GET /api/similar?q=&country=&n=      — pgvector cosine search
+└── GET /metrics                         — Prometheus
 ```
 
-Startup'ta `init_db()` çağrılır → tablolar yoksa yaratır.
+Startup runs `init_db()` — creates tables if absent. The API installs only
+the base deps (no torch/transformers) to fit Render's 512MB free tier.
 
----
-
-## Dashboard Katmanı
+## Dashboard Layer
 
 ```
 Next.js 14 App Router (Vercel)
-├── /                    → Ana sayfa: istatistik, sentiment, entity cloud, kümeler
-├── /topic/[id]          → Küme detayı: haberler, entity cloud, benzer haberler
-└── /sources             → Kaynak karşılaştırma: heatmap, sentiment dağılımı
+├── /                — daily analytics
+├── /topic/[id]      — cluster detail + related articles
+└── /sources         — source × sentiment heatmap
 ```
 
-API'ye `fetch` ile bağlanır (`NEXT_PUBLIC_API_URL` env var). 5 dakika revalidate.
+The country selector is URL-driven (`?country=DE`) and propagates across
+navigations. Server components fetch from the API; revalidate window is
+~5 minutes.
 
----
-
-## CI/CD
+## CI / CD
 
 ```
 git push main
-    │
-    ├── deploy.yml
-    │   ├── ruff check + pytest (PostgreSQL service container ile)
-    │   └── Render deploy hook → API yeniden deploy
-    │
-    └── Vercel (otomatik Next.js deploy)
+  ├── ci.yml          → ruff + pytest (unit + behavioral)
+  ├── deploy.yml      → Render deploy hook (API)
+  └── Vercel          → automatic Next.js deploy
 
-Cron: daily_pipeline.yml → 04:00 UTC → python -m src.pipeline
-Cron: weekly_retrain.yml → Pazar 02:00 UTC → python -m src.training.retrain
+cron daily_pipeline.yml   04:00 UTC daily
+  └── per-country matrix: python -m src.pipeline --country <slug>
+
+cron weekly_retrain.yml   Sun 02:00 UTC
+  └── python -m src.training.retrain
+      → behavioral gate
+      → if pass: push to HF Hub (efeyol11/bert-turkish-sentiment)
 ```
 
----
+## Technology Choices
 
-## Yol Haritası
+| Decision | Alternative | Why |
+|---|---|---|
+| Fine-tuned BERT (TR) + zero-shot XLM-R (others) | All zero-shot or all fine-tuned | TR has the gold seed to support a fine-tune; non-TR countries don't yet — see `project_v2_phases.md` Phase 11 |
+| pgvector | ChromaDB | One database to operate, not two; Neon supports it natively |
+| Neon Postgres | Supabase / Render PG | Serverless, generous free tier, pgvector built-in |
+| Davlan multilingual NER | Per-country NER models | Cross-country canonical Q-ID joining is the V2 backbone; single model = single failure mode |
+| KMeans clustering | UMAP+HDBSCAN, BERTopic | Open question — see `project_clustering_plan.md`; Phase 10 decision |
+| Next.js App Router | CRA, Vite | Server components fetch API server-side, no CORS, no client API keys |
+| psycopg2 | SQLAlchemy ORM | Queries are simple; ORM overhead unnecessary; direct SQL more transparent |
+| Render API + Vercel Dashboard | Single host | Different tier shapes (heavy API vs static dashboard); zero-config CD on push |
 
-### Kısa Vade (1-2 ay)
+## Open Architectural Questions
 
-| # | Ne | Neden |
-|---|-----|-------|
-| 1 | **Trend grafikleri** — çok günlü sentiment çizgi grafiği | Tek günlük veri yetersiz, örüntü görünmez |
-| 2 | **Date picker UI** — takvim bileşeni | URL ile tarih seçmek kullanıcı dostu değil |
-| 3 | **Türkçe news corpus ile fine-tune** | Zero-shot iyi ama domain-specific model daha hassas |
-| 4 | **Backfill scripti** — geçmiş günleri toplu işle | Tarihsel veri olmadan trend gösterilemez |
+See `README.md` "V2 Roadmap" section and the related Claude memory entries
+for the live decision queue. Major open items:
 
-### Orta Vade (3-6 ay)
+- **Phase 8**: Multi-country GitHub Actions matrix (currently single-country
+  daily cron).
+- **Phase 9**: Per-country run reports (`data/reports/{slug}/{date}_run_report.json`).
+- **Phase 10**: Framing analysis foundation — observable frame intensities,
+  not "country X is Y" claims.
+- **Phase 11**: Country-aware sentiment QA cue lists (currently TR-only).
+- **Clustering replacement**: KMeans → UMAP+HDBSCAN or BERTopic. Decision
+  due before Phase 10.
+- **Sprint 5.5** (this branch): Public release hardening — governance docs,
+  LICENSE, data provenance.
 
-| # | Ne | Neden |
-|---|-----|-------|
-| 5 | **Medya bias skoru** — aynı olayı farklı kaynakların nasıl çerçevelediği | Projenin en özgün katkısı olabilir |
-| 6 | **Entity zaman serisi** — politikacı/kurum sentiment trendi | "Son 30 günde Erdoğan haberleri nasıl değişti?" |
-| 7 | **Real-time modu** — WebSocket ile anlık güncelleme | Breaking news için kritik |
-| 8 | **Avrupa genişlemesi** — DE/FR/ES kaynakları ekle | SENTIMENT_LABELS altyapısı hazır, sadece kaynak ekle |
-
-### Uzun Vade — Projenin Gidebileceği Yer
-
-| Vizyon | Açıklama |
-|--------|----------|
-| **Medya Gözlemevi** | Hangi kaynak hangi konuları öne çıkarıyor, hangi olayları görmezden geliyor? Araştırmacı gazetecilik aracı. |
-| **Haber API as a Service** | Geliştiricilere abonelikle günlük analiz verisi sat — medya şirketleri, akademisyenler, finans firmaları hedef kitle. |
-| **LLM Özet Katmanı** | Her küme için GPT/Claude ile otomatik özet üret. "Bugün Türkiye'de ne oldu?" sorusuna tek paragrafta cevap. |
-| **Alarm Sistemi** | Sentiment aniden negatife dönen konular için bildirim gönder. Kriz erken uyarı sistemi. |
-| **Multi-modal** | Haber görsellerini de analiz et, başlık-görsel tutarsızlığını tespit et. |
-| **Akademik Dataset** | Etiketli Türkçe haber sentiment dataseti yayınla — Türkçe NLP topluluğuna katkı. |
-
----
-
-## Teknoloji Seçim Gerekçeleri
-
-| Karar | Alternatif | Neden bu? |
-|-------|-----------|-----------|
-| Zero-shot (xlm-roberta) | Fine-tuned BERT | Eğitim verisi domain mismatch sorununu ortadan kaldırır |
-| pgvector | ChromaDB | Ayrı servis yok, tek DB yeter; Neon ücretsiz destekliyor |
-| Neon PostgreSQL | Supabase, Render PG | Serverless, generous free tier, pgvector built-in |
-| Next.js App Router | CRA, Vite | Server components → API fetch sunucu tarafında, CORS yok |
-| psycopg2 | SQLAlchemy ORM | Sorgular basit, ORM overkill; direkt SQL daha şeffaf |
+See also: [`SERVICES.md`](SERVICES.md), [`MODEL_CARD.md`](MODEL_CARD.md),
+[`DATA_PROVENANCE.md`](DATA_PROVENANCE.md), [`CHANGELOG.md`](CHANGELOG.md).

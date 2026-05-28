@@ -178,6 +178,11 @@ discovery:
   default_min_expected_items: 10
   category_strategy: infer_from_url
 
+# Per-source data license status. Default "unknown" is supplied by
+# country_loader; override per source with: "unknown" | "robots-allowed"
+# | "restricted" | "feed-public". The authoritative matrix is in
+# DATA_PROVENANCE.md — this YAML field exists so the matrix can be
+# regenerated from configs/ in the future.
 sources:
   - name: tagesschau
     type: rss

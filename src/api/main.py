@@ -219,6 +219,26 @@ class CountryInfo(BaseModel):
     status: str = Field("active", examples=["active"])
 
 
+class AboutLinks(BaseModel):
+    repository: str
+    license: str
+    model_card: str
+    data_provenance: str
+    data_license: str
+    privacy: str
+    contributing: str
+    code_of_conduct: str
+    security: str
+
+
+class AboutResponse(BaseModel):
+    name: str = Field(..., examples=["semantic-news"])
+    version: str = Field(..., examples=["2.0.0"])
+    disclaimer: str
+    disclaimer_tr: str
+    links: AboutLinks
+
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -252,6 +272,50 @@ def _get_clusters(date_str: str, country_code: str = "TR") -> list[dict]:
 @app.get("/health", tags=["Sistem"], response_model=HealthResponse)
 def health():
     return {"status": "ok"}
+
+
+_REPO_URL = "https://github.com/efeyol11/sementic_news"
+_BLOB_BASE = f"{_REPO_URL}/blob/main"
+
+
+@app.get(
+    "/about",
+    tags=["Sistem"],
+    summary="Proje meta, disclaimer ve governance link'leri",
+    response_model=AboutResponse,
+)
+def about():
+    """Public-release disclaimer + governance doc'larına link'ler.
+
+    Bu endpoint kasıtlı olarak DB'ye dokunmaz — repo public olduğu
+    için audit ve compliance araçları statik bir endpoint'ten lisans /
+    veri politikası bilgisine ulaşabilsin diye eklendi.
+    """
+    return {
+        "name": "semantic-news",
+        "version": app.version,
+        "disclaimer": (
+            "Outputs are descriptive signals derived from publicly available "
+            "news content. They are not investment advice, risk ratings, "
+            "factual guarantees, or editorial endorsements."
+        ),
+        "disclaimer_tr": (
+            "Çıktılar, kamuya açık haber içeriğinden türetilmiş betimleyici "
+            "sinyallerdir. Yatırım tavsiyesi, risk derecelendirmesi, "
+            "doğruluk garantisi veya editöryal onay niteliği taşımaz."
+        ),
+        "links": {
+            "repository": _REPO_URL,
+            "license": f"{_BLOB_BASE}/LICENSE",
+            "model_card": f"{_BLOB_BASE}/MODEL_CARD.md",
+            "data_provenance": f"{_BLOB_BASE}/DATA_PROVENANCE.md",
+            "data_license": f"{_BLOB_BASE}/DATA_LICENSE.md",
+            "privacy": f"{_BLOB_BASE}/PRIVACY.md",
+            "contributing": f"{_BLOB_BASE}/CONTRIBUTING.md",
+            "code_of_conduct": f"{_BLOB_BASE}/CODE_OF_CONDUCT.md",
+            "security": f"{_BLOB_BASE}/SECURITY.md",
+        },
+    }
 
 
 @app.get(
