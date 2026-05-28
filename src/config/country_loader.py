@@ -105,6 +105,13 @@ def _normalize_sources(sources: list[dict[str, Any]], filename: str) -> list[dic
         canonical.setdefault("category_strategy", "infer_from_url")
         canonical.setdefault("discovery_role", "auto")
         canonical.setdefault("min_expected_items", 10)
+        # Data licensing status per source. Defaults to "unknown" — most
+        # publishers have not been reviewed individually. Override per
+        # source with one of: "unknown", "robots-allowed", "restricted",
+        # "feed-public". The authoritative inventory lives in
+        # DATA_PROVENANCE.md; this field exists so future automation can
+        # round-trip per-source license between YAML and the matrix.
+        canonical.setdefault("license", "unknown")
 
         if canonical.get("canonical_category") is not None:
             validate_category(canonical["canonical_category"])

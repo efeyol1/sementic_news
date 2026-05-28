@@ -259,6 +259,11 @@ discovery:
 #     veriyor → 11 kategori birleştirip dedupe = ~350 unique item.
 #   - CNN Türk + Yeni Şafak occasionally serve future-dated entries
 #     (publisher embargo / scheduled posts) — clip downstream if needed.
+# Per-source data license status. Default "unknown" is supplied by
+# country_loader; override per source with: "unknown" | "robots-allowed"
+# | "restricted" | "feed-public". The authoritative matrix is in
+# DATA_PROVENANCE.md — this YAML field exists so the matrix can be
+# regenerated from configs/ in the future.
 sources:
   - name: Habertürk
     type: rss

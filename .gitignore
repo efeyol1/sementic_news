@@ -27,6 +27,16 @@ notebooks/*.png
 # Data — chroma replaced by pgvector
 data/chroma/
 
+# Dashboard build artifacts
+*.tsbuildinfo
+dashboard/.next/
+dashboard/node_modules/
+
+# DVC — removed in V2, prevent stragglers
+dvc.lock
+.dvcignore
+.dvc/
+
 # Env
 .env
 *.env
