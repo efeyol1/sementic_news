@@ -808,6 +808,124 @@ def bulk_upsert_entity_collocations(
 
 
 # ---------------------------------------------------------------------------
+# Entity collocation stats (Sprint 6: PMI / log-likelihood backfill)
+# ---------------------------------------------------------------------------
+
+
+def fetch_collocations_for_stats(
+    date_str: str,
+    country_code: str,
+) -> list[dict[str, Any]]:
+    """Return one (country, date) slice of ``entity_collocations`` for PMI.
+
+    Selects the columns Sprint 6's PMI step needs to compute marginals
+    and write back stats. ``id`` is included so the UPDATE keys on the
+    table's primary key (the natural unique constraint would also work
+    but the BIGSERIAL is cheaper to address).
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT id, canonical, entity_type, lemma, pos, cooccurrence_count
+                FROM entity_collocations
+                WHERE country_code = %s AND collected_date = %s
+                ORDER BY id
+                """,
+                (country_code, date_str),
+            )
+            return [dict(row) for row in cur.fetchall()]
+
+
+def fetch_entity_mention_counts(
+    date_str: str,
+    country_code: str,
+) -> dict[tuple[str, str], int]:
+    """Distinct mention count per (canonical, entity_type) for one day.
+
+    Powers the ``entity_total`` column — distinct prominence signal,
+    independent of the lemma-weighted ``cooccurrence_with_entity_total``
+    marginal. Sprint 7's rolling aggregator and Sprint 8's
+    ``/api/entity/{qid}/profile`` consume this value.
+
+    Mentions without a resolved ``canonical`` fall back to ``entity_text``,
+    matching :func:`fetch_for_collocation_extraction`.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                SELECT COALESCE(canonical, entity_text) AS canonical,
+                       entity_type,
+                       COUNT(*) AS mention_count
+                FROM entity_mentions
+                WHERE collected_date = %s AND country_code = %s
+                GROUP BY COALESCE(canonical, entity_text), entity_type
+                """,
+                (date_str, country_code),
+            )
+            return {(c, t): int(n) for c, t, n in cur.fetchall()}
+
+
+@retry_on_connection_loss()
+def bulk_update_collocation_stats(
+    rows: list[dict[str, Any]],
+    country_code: str,
+    date_str: str,
+) -> int:
+    """UPDATE the six Sprint-6 columns for the given collocation rows.
+
+    Uses ``UPDATE … FROM (VALUES %s)`` so a single round trip rewrites
+    every row in the day's slice. ``id`` is the PK and uniquely
+    addresses each row — ``country_code`` / ``date_str`` are accepted
+    only for logging context.
+
+    Rows that came in below the ``min_cooccurrence_count`` threshold are
+    *not* passed here; their stats columns stay NULL.
+    """
+    if not rows:
+        logger.info(
+            f"No collocation stats to update for {country_code} {date_str}"
+        )
+        return 0
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            tuples = [
+                (
+                    r["id"],
+                    r["cooccurrence_with_entity_total"],
+                    r["entity_total"],
+                    r["token_total"],
+                    r["window_total"],
+                    r["pmi"],
+                    r["log_likelihood"],
+                )
+                for r in rows
+            ]
+            psycopg2.extras.execute_values(
+                cur,
+                """
+                UPDATE entity_collocations AS ec SET
+                    cooccurrence_with_entity_total = v.cwet,
+                    entity_total                   = v.et,
+                    token_total                    = v.tt,
+                    window_total                   = v.wt,
+                    pmi                            = v.pmi,
+                    log_likelihood                 = v.llr
+                FROM (VALUES %s) AS v(id, cwet, et, tt, wt, pmi, llr)
+                WHERE ec.id = v.id
+                """,
+                tuples,
+            )
+            updated = len(tuples)
+            logger.info(
+                f"Updated PMI/LLR for {updated} entity_collocations rows "
+                f"({country_code} {date_str})"
+            )
+            return updated
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 
