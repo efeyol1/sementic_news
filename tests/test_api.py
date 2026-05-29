@@ -56,6 +56,45 @@ _FAKE_CLUSTER = {
     "sentiment_distribution": {"positive": 1, "neutral": 0, "negative": 0},
 }
 
+# Sprint 8: entity profile fixtures (DB-row shaped). end_date is a plain
+# string here — the serializer accepts date objects or strings.
+_FAKE_PROFILE_ROW = {
+    "country_code": "DE",
+    "canonical": "Donald Trump",
+    "entity_type": "PER",
+    "wikidata_qid": "Q22686",
+    "window_days": 30,
+    "end_date": "2026-05-29",
+    "coverage_days": 27,
+    "total_mentions": 412,
+    "total_cooccurrences": 5821,
+    "window_total": 103442,
+    "avg_pmi": 2.81,
+    "avg_log_likelihood": 44.3,
+    "top_collocates": [
+        {"lemma": "zoll", "pos": "NOUN", "c11_window": 37, "pmi": 3.42, "llr": 58.1},
+    ],
+}
+
+_FAKE_DIR_ROW = {
+    "canonical": "Donald Trump",
+    "wikidata_qid": "Q22686",
+    "entity_type": "PER",
+    "total_mentions": 412,
+    "total_cooccurrences": 5821,
+    "avg_pmi": 2.81,
+    "avg_log_likelihood": 44.3,
+    "coverage_days": 27,
+}
+
+_FAKE_TL_ROW = {
+    "collected_date": "2026-05-29",
+    "mention_count": 18,
+    "total_cooccurrences": 241,
+    "avg_pmi": 2.6,
+    "avg_log_likelihood": 38.0,
+}
+
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -92,10 +131,63 @@ def _mock_db(monkeypatch):
         _record("fetch_top_entities", date_str=date_str, country_code=country_code, limit=limit)
         return {"PER": ["Ali"], "ORG": ["TBMM"], "LOC": ["Ankara"]}
 
+    def fake_fetch_entity_directory(
+        country_code, window_days, end_date=None, q=None, entity_type=None, limit=50
+    ):
+        _record(
+            "fetch_entity_directory", country_code=country_code,
+            window_days=window_days, q=q, entity_type=entity_type, limit=limit,
+        )
+        return [dict(_FAKE_DIR_ROW)]
+
+    def fake_fetch_latest_profile_end_date(country_code=None):
+        _record("fetch_latest_profile_end_date", country_code=country_code)
+        return "2026-05-29"
+
+    def fake_fetch_entity_profile(
+        country_code, window_days, end_date=None, qid=None, canonical=None
+    ):
+        _record(
+            "fetch_entity_profile", country_code=country_code,
+            window_days=window_days, qid=qid, canonical=canonical,
+        )
+        return dict(_FAKE_PROFILE_ROW)
+
+    def fake_fetch_entity_profiles_all_countries(
+        window_days, end_date=None, qid=None, canonical=None, countries=None
+    ):
+        _record(
+            "fetch_entity_profiles_all_countries", window_days=window_days,
+            qid=qid, canonical=canonical, countries=countries,
+        )
+        de = dict(_FAKE_PROFILE_ROW)
+        fr = dict(_FAKE_PROFILE_ROW)
+        fr["country_code"] = "FR"
+        return [de, fr]
+
+    def fake_fetch_entity_timeline(
+        country_code, start_date, end_date, qid=None, canonical=None
+    ):
+        _record(
+            "fetch_entity_timeline", country_code=country_code,
+            start_date=start_date, end_date=end_date, qid=qid, canonical=canonical,
+        )
+        return [dict(_FAKE_TL_ROW)]
+
     monkeypatch.setattr(api_module, "fetch_all_for_api", fake_fetch_all_for_api)
     monkeypatch.setattr(api_module, "fetch_cluster_summaries", fake_fetch_cluster_summaries)
     monkeypatch.setattr(api_module, "fetch_available_dates", fake_fetch_available_dates)
     monkeypatch.setattr(api_module, "fetch_top_entities", fake_fetch_top_entities)
+    monkeypatch.setattr(api_module, "fetch_entity_directory", fake_fetch_entity_directory)
+    monkeypatch.setattr(
+        api_module, "fetch_latest_profile_end_date", fake_fetch_latest_profile_end_date
+    )
+    monkeypatch.setattr(api_module, "fetch_entity_profile", fake_fetch_entity_profile)
+    monkeypatch.setattr(
+        api_module, "fetch_entity_profiles_all_countries",
+        fake_fetch_entity_profiles_all_countries,
+    )
+    monkeypatch.setattr(api_module, "fetch_entity_timeline", fake_fetch_entity_timeline)
     monkeypatch.setattr(api_module, "init_db", lambda: None)
 
 
@@ -330,3 +422,141 @@ def test_dates_propagates_country_code():
     _FAKE_CALLS.clear()
     client.get("/api/dates?country=turkey")
     assert _FAKE_CALLS["fetch_available_dates"][-1]["country_code"] == "TR"
+
+
+# ---------------------------------------------------------------------------
+# Entity profile endpoints (Sprint 8)
+# ---------------------------------------------------------------------------
+
+
+def test_entity_directory():
+    _FAKE_CALLS.clear()
+    r = client.get(
+        "/api/entities?country=germany&q=trump&entity_type=PER&window_days=7&limit=5"
+    )
+    assert r.status_code == 200
+    data = r.json()
+    assert data["country_code"] == "DE"
+    assert data["window_days"] == 7
+    assert data["end_date"] == "2026-05-29"
+    assert data["entities"][0]["canonical"] == "Donald Trump"
+    call = _FAKE_CALLS["fetch_entity_directory"][-1]
+    assert call["country_code"] == "DE"
+    assert call["q"] == "trump"
+    assert call["entity_type"] == "PER"
+    assert call["window_days"] == 7
+    assert call["limit"] == 5
+
+
+def test_entity_directory_invalid_country():
+    r = client.get("/api/entities?country=mars")
+    assert r.status_code == 404
+
+
+def test_entity_directory_invalid_window():
+    r = client.get("/api/entities?country=germany&window_days=14")
+    assert r.status_code == 400
+
+
+def test_entity_profile_by_qid():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Q22686/profile?country=germany")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["wikidata_qid"] == "Q22686"
+    assert data["country_code"] == "DE"
+    assert data["top_collocates"][0]["lemma"] == "zoll"
+    call = _FAKE_CALLS["fetch_entity_profile"][-1]
+    assert call["qid"] == "Q22686"
+    assert call["canonical"] is None
+    assert call["country_code"] == "DE"
+
+
+def test_entity_profile_by_canonical():
+    """A non-QID ref falls into the canonical branch."""
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Bundestag/profile?country=germany")
+    assert r.status_code == 200
+    call = _FAKE_CALLS["fetch_entity_profile"][-1]
+    assert call["canonical"] == "Bundestag"
+    assert call["qid"] is None
+
+
+def test_entity_profile_window_param():
+    _FAKE_CALLS.clear()
+    client.get("/api/entity/Q22686/profile?country=germany&window_days=7")
+    assert _FAKE_CALLS["fetch_entity_profile"][-1]["window_days"] == 7
+
+
+def test_entity_profile_not_found(monkeypatch):
+    import src.api.main as api_module
+    monkeypatch.setattr(
+        api_module, "fetch_entity_profile", lambda *a, **k: None
+    )
+    r = client.get("/api/entity/Q999999/profile?country=germany")
+    assert r.status_code == 404
+
+
+def test_entity_profile_invalid_country():
+    r = client.get("/api/entity/Q22686/profile?country=mars")
+    assert r.status_code == 404
+
+
+def test_entity_compare_all_countries():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Q22686/compare")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["reference"] == "Q22686"
+    assert {c["country_code"] for c in data["countries"]} == {"DE", "FR"}
+    # No ?countries → resolver gets None (all countries).
+    assert _FAKE_CALLS["fetch_entity_profiles_all_countries"][-1]["countries"] is None
+    assert _FAKE_CALLS["fetch_entity_profiles_all_countries"][-1]["qid"] == "Q22686"
+
+
+def test_entity_compare_country_filter():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Q22686/compare?countries=de,FR")
+    assert r.status_code == 200
+    assert _FAKE_CALLS["fetch_entity_profiles_all_countries"][-1]["countries"] == ["DE", "FR"]
+
+
+def test_entity_compare_invalid_country():
+    r = client.get("/api/entity/Q22686/compare?countries=DE,MARS")
+    assert r.status_code == 400
+    assert "MARS" in r.json()["detail"]
+
+
+def test_entity_compare_not_found(monkeypatch):
+    import src.api.main as api_module
+    monkeypatch.setattr(
+        api_module, "fetch_entity_profiles_all_countries", lambda *a, **k: []
+    )
+    r = client.get("/api/entity/Q999999/compare")
+    assert r.status_code == 404
+
+
+def test_entity_timeline():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Q22686/timeline?country=germany&days=14")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["reference"] == "Q22686"
+    assert data["country_code"] == "DE"
+    pt = data["points"][0]
+    assert pt["date"] == "2026-05-29"
+    assert pt["mention_count"] == 18
+    assert pt["total_cooccurrences"] == 241
+    call = _FAKE_CALLS["fetch_entity_timeline"][-1]
+    assert call["country_code"] == "DE"
+    assert call["qid"] == "Q22686"
+
+
+def test_entity_timeline_canonical_default_country():
+    _FAKE_CALLS.clear()
+    r = client.get("/api/entity/Bundestag/timeline")
+    assert r.status_code == 200
+    call = _FAKE_CALLS["fetch_entity_timeline"][-1]
+    assert call["canonical"] == "Bundestag"
+    assert call["qid"] is None
+    assert call["country_code"] == "TR"  # default country
