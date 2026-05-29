@@ -2,9 +2,13 @@ import type { SentimentCounts } from "@/lib/api";
 
 interface Props {
   counts: SentimentCounts;
+  /** BCP-47 locale for number formatting; defaults to the user's
+   *  navigator locale via `undefined`. Sprint 7.5: callers pass the
+   *  active country's locale so DE/FR thousand separators look native. */
+  locale?: string;
 }
 
-export function SentimentGauge({ counts }: Props) {
+export function SentimentGauge({ counts, locale }: Props) {
   const pos = counts.positive ?? 0;
   const neg = counts.negative ?? 0;
   const neu = counts.neutral ?? 0;
@@ -36,19 +40,19 @@ export function SentimentGauge({ counts }: Props) {
         <div>
           <div className="text-xl font-bold font-mono text-green-600">{positivePct.toFixed(1)}%</div>
           <div className="text-xs text-slate-500">Pozitif</div>
-          <div className="text-xs text-slate-400">{pos.toLocaleString("tr-TR")} haber</div>
+          <div className="text-xs text-slate-400">{pos.toLocaleString(locale)} haber</div>
         </div>
         {showNeutral && (
           <div>
             <div className="text-xl font-bold font-mono text-slate-500">{neutralPct.toFixed(1)}%</div>
             <div className="text-xs text-slate-500">Nötr</div>
-            <div className="text-xs text-slate-400">{neu.toLocaleString("tr-TR")} haber</div>
+            <div className="text-xs text-slate-400">{neu.toLocaleString(locale)} haber</div>
           </div>
         )}
         <div>
           <div className="text-xl font-bold font-mono text-red-500">{negativePct.toFixed(1)}%</div>
           <div className="text-xs text-slate-500">Negatif</div>
-          <div className="text-xs text-slate-400">{neg.toLocaleString("tr-TR")} haber</div>
+          <div className="text-xs text-slate-400">{neg.toLocaleString(locale)} haber</div>
         </div>
       </div>
     </div>

@@ -216,6 +216,7 @@ class CountryInfo(BaseModel):
     slug: str = Field(..., examples=["turkey"])
     name: str = Field(..., examples=["Turkey"])
     language: str = Field(..., examples=["tr"])
+    timezone: str = Field("UTC", examples=["Europe/Istanbul"])
     status: str = Field("active", examples=["active"])
 
 
@@ -339,10 +340,15 @@ def today(
     items = _get_items(target, country_code=cc)
     clusters = fetch_cluster_summaries(target, country_code=cc)
 
-    turkish = [i for i in items if i.get("is_turkish")]
-    n = len(turkish)
+    # Sprint 7.5: country_code already scopes the slice to the country's
+    # pipeline output, so the legacy `is_turkish` post-filter is redundant
+    # for the country case and actively harmful for non-TR countries (the
+    # column name is a misnomer — preprocessor.py:145 sets it to mean
+    # "matches the configured country language"). We compute sentiment +
+    # entity aggregates over the full country slice.
+    n = len(items)
 
-    _counts = Counter(i.get("sentiment_label") for i in turkish if i.get("sentiment_label"))
+    _counts = Counter(i.get("sentiment_label") for i in items if i.get("sentiment_label"))
     sentiment_counts = {
         "positive": _counts.get("positive", 0),
         "negative": _counts.get("negative", 0),
@@ -356,7 +362,7 @@ def today(
     top_entities = fetch_top_entities(target, country_code=cc)
     if not any(top_entities.values()):
         entity_agg: dict[str, Counter] = {"PER": Counter(), "ORG": Counter(), "LOC": Counter()}
-        for item in turkish:
+        for item in items:
             for label, words in (item.get("entities") or {}).items():
                 if label in entity_agg:
                     entity_agg[label].update(words)
@@ -497,9 +503,11 @@ def source_comparison(
         "total": 0, "sentiment_counts": Counter(), "scores": [],
     })
 
+    # Sprint 7.5: items already scoped by country_code via _get_items;
+    # dropping the legacy is_turkish post-filter so non-TR sources
+    # surface (German articles get is_turkish=True in their own pipeline
+    # but we should not gate on a column whose name implies TR-only).
     for item in items:
-        if not item.get("is_turkish"):
-            continue
         src = item["source_name"]
         sources[src]["total"] += 1
         if item.get("sentiment_label"):

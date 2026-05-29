@@ -1,10 +1,11 @@
 import { Suspense } from "react";
 import Link from "next/link";
-import { api, DEFAULT_COUNTRY, todayDate, type SimilarNewsItem } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, findCountry, todayDate, type SimilarNewsItem } from "@/lib/api";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
 import { ArrowLeft, ExternalLink, Hash, Sparkles } from "lucide-react";
-import { sentimentColor, sentimentLabel } from "@/lib/utils";
+import { localeForLanguage, sentimentColor, sentimentLabel } from "@/lib/utils";
+import { buildDashboardUrl } from "@/lib/url";
 
 interface Props {
   params: { id: string };
@@ -12,10 +13,15 @@ interface Props {
 }
 
 async function TopicContent({ id, date, country }: { id: number; date: string; country: string }) {
-  const data = await api.topic(id, date, country).catch(() => null);
+  const [data, countries] = await Promise.all([
+    api.topic(id, date, country).catch(() => null),
+    api.countries().catch(() => []),
+  ]);
   const similarData = data
     ? await api.similar(data.keywords.slice(0, 2).join(" "), 4, country).catch(() => null)
     : null;
+  const meta = findCountry(countries, country);
+  const locale = localeForLanguage(meta?.language);
 
   if (!data) {
     return (
@@ -24,7 +30,7 @@ async function TopicContent({ id, date, country }: { id: number; date: string; c
           <Hash className="w-5 h-5 text-slate-300" />
         </div>
         <p className="text-slate-500 text-sm">Küme #{id} bulunamadı.</p>
-        <Link href="/" className="text-green-600 text-sm hover:underline">
+        <Link href={buildDashboardUrl(undefined, country)} className="text-green-600 text-sm hover:underline">
           ← Ana sayfaya dön
         </Link>
       </div>
@@ -52,7 +58,7 @@ async function TopicContent({ id, date, country }: { id: number; date: string; c
       {/* Back + header */}
       <div>
         <Link
-          href={`/?date=${date}`}
+          href={buildDashboardUrl(date, country)}
           className="inline-flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-800 transition-colors mb-4"
         >
           <ArrowLeft className="w-4 h-4" />
@@ -87,7 +93,7 @@ async function TopicContent({ id, date, country }: { id: number; date: string; c
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="card p-5">
           <h2 className="text-sm font-semibold text-slate-700 mb-4">Duygu Dağılımı</h2>
-          <SentimentGauge counts={data.sentiment_distribution} />
+          <SentimentGauge counts={data.sentiment_distribution} locale={locale} />
         </div>
         <div className="lg:col-span-2 card p-5">
           <h2 className="text-sm font-semibold text-slate-700 mb-4">Öne Çıkan Varlıklar</h2>

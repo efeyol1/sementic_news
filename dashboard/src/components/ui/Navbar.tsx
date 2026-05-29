@@ -23,7 +23,7 @@ export function Navbar() {
             <Globe2 className="w-4 h-4 text-white" />
           </div>
           <span className="font-semibold text-slate-900 text-sm tracking-tight">
-            Semantic News <span className="text-green-600">TR</span>
+            Semantic News
           </span>
         </Link>
 

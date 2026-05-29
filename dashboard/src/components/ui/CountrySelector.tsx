@@ -34,7 +34,14 @@ export function CountrySelector() {
         // renders even if /api/countries is briefly unreachable.
         if (!cancelled) {
           setCountries([
-            { code: "TR", slug: "turkey", name: "Turkey", language: "tr", status: "active" },
+            {
+              code: "TR",
+              slug: "turkey",
+              name: "Turkey",
+              language: "tr",
+              timezone: "Europe/Istanbul",
+              status: "active",
+            },
           ]);
         }
       });

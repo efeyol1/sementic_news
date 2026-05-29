@@ -1,9 +1,10 @@
 "use client";
 
-import { useRouter, usePathname } from "next/navigation";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { Calendar } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { tr } from "date-fns/locale";
+import { preserveQueryParams } from "@/lib/url";
 
 interface Props {
   availableDates: string[];
@@ -13,11 +14,16 @@ interface Props {
 export function DatePicker({ availableDates, currentDate }: Props) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const sorted = [...availableDates].sort((a, b) => b.localeCompare(a));
 
   function handleChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    router.push(`${pathname}?date=${e.target.value}`);
+    // Sprint 7.5: keep ?country (and any other existing param) when
+    // switching dates — the old `?date=…` reset dropped country selection.
+    router.push(
+      preserveQueryParams(pathname, searchParams, { date: e.target.value }),
+    );
   }
 
   function formatDate(iso: string) {

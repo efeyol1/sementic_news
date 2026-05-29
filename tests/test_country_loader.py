@@ -111,11 +111,14 @@ def test_list_available_countries_includes_bundled_configs():
     assert "TR" in codes
     assert "DE" in codes
     tr = next(c for c in countries if c["code"] == "TR")
+    # Sprint 7.5 added the per-country timezone field so the dashboard
+    # can localize without inheriting the legacy Europe/Istanbul default.
     assert tr == {
         "code": "TR",
         "slug": "turkey",
         "name": "Turkey",
         "language": "tr",
+        "timezone": "Europe/Istanbul",
         "status": "active",
     }
     de = next(c for c in countries if c["code"] == "DE")
@@ -124,6 +127,7 @@ def test_list_available_countries_includes_bundled_configs():
         "slug": "germany",
         "name": "Germany",
         "language": "de",
+        "timezone": "Europe/Berlin",
         "status": "active",
     }
 

@@ -1146,7 +1146,6 @@ def fetch_for_indexing(date_str: str, country_code: str = "TR") -> list[dict[str
                 FROM news_items
                 WHERE collected_date = %s
                   AND country_code = %s
-                  AND is_turkish = true
                   AND sentiment_label IS NOT NULL
                 ORDER BY id
                 """,
@@ -1349,8 +1348,7 @@ def fetch_high_confidence_items(
                 """
                 SELECT cleaned_title, cleaned_summary, sentiment_label, sentiment_score
                 FROM news_items
-                WHERE is_turkish = true
-                  AND country_code = %s
+                WHERE country_code = %s
                   AND sentiment_label IS NOT NULL
                   AND sentiment_score >= %s
                 ORDER BY collected_date DESC
@@ -1377,8 +1375,7 @@ def fetch_sentiment_trend(
                     COUNT(*) FILTER (WHERE sentiment_label = 'neutral')  AS neutral,
                     COUNT(*) AS total
                 FROM news_items
-                WHERE is_turkish = true
-                  AND country_code = %s
+                WHERE country_code = %s
                   AND sentiment_label IS NOT NULL
                   AND collected_date >= CURRENT_DATE - %s::int
                 GROUP BY collected_date

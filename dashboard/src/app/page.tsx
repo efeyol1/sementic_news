@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { api, DEFAULT_COUNTRY, todayDate } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, findCountry, todayDate } from "@/lib/api";
 import { StatCard } from "@/components/ui/StatCard";
 import { SentimentGauge } from "@/components/ui/SentimentGauge";
 import { EntityCloud } from "@/components/ui/EntityCloud";
@@ -7,6 +7,7 @@ import { ClusterGrid } from "@/components/ui/ClusterGrid";
 import { SentimentPieChart } from "@/components/charts/SentimentPieChart";
 import { DatePicker } from "@/components/ui/DatePicker";
 import { SentimentTrendChart } from "@/components/charts/SentimentTrendChart";
+import { localeForLanguage } from "@/lib/utils";
 import { Globe2 } from "lucide-react";
 
 interface Props {
@@ -14,10 +15,17 @@ interface Props {
 }
 
 async function DashboardContent({ date, country }: { date: string; country: string }) {
-  const [data, trendData] = await Promise.all([
+  const [data, trendData, countries] = await Promise.all([
     api.today(date, country).catch(() => null),
     api.trend(30, country).catch(() => null),
+    api.countries().catch(() => []),
   ]);
+
+  // Sprint 7.5: format the dashboard header date in the active country's
+  // locale instead of always tr-TR. Falls back to en-US when /api/countries
+  // is briefly unreachable so we never crash on locale lookup.
+  const meta = findCountry(countries, country);
+  const locale = localeForLanguage(meta?.language);
 
   if (!data) {
     return (
@@ -54,7 +62,7 @@ async function DashboardContent({ date, country }: { date: string; country: stri
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Günlük Analiz</h1>
           <p className="text-slate-500 text-sm">
-            {new Date(date + "T12:00:00").toLocaleDateString("tr-TR", {
+            {new Date(date + "T12:00:00").toLocaleDateString(locale, {
               weekday: "long",
               year: "numeric",
               month: "long",
@@ -68,7 +76,7 @@ async function DashboardContent({ date, country }: { date: string; country: stri
       {/* Stat cards */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard label="Toplam Haber" value={data.total_items} iconName="Newspaper" />
-        <StatCard label="Türkçe Haber" value={data.turkish_items} iconName="Globe2" />
+        <StatCard label="Analiz Edilen" value={data.turkish_items} iconName="Globe2" />
         <StatCard
           label="Pozitif Oran"
           value={positivePct}
@@ -92,7 +100,7 @@ async function DashboardContent({ date, country }: { date: string; country: stri
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
             <SentimentPieChart counts={data.sentiment.counts} />
-            <SentimentGauge counts={data.sentiment.counts} />
+            <SentimentGauge counts={data.sentiment.counts} locale={locale} />
           </div>
         </div>
 
@@ -141,7 +149,7 @@ async function DashboardContent({ date, country }: { date: string; country: stri
           </div>
           <span className="text-xs text-slate-400">{data.top_clusters.length} küme</span>
         </div>
-        <ClusterGrid clusters={data.top_clusters} date={date} />
+        <ClusterGrid clusters={data.top_clusters} date={date} country={country} />
       </div>
     </div>
   );
