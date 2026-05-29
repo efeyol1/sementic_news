@@ -1,8 +1,9 @@
 """FastAPI application for Semantic News TR."""
 
+import re
 from collections import Counter, defaultdict
 from contextlib import asynccontextmanager
-from datetime import date
+from datetime import date, timedelta
 
 from fastapi import Depends, FastAPI, HTTPException, Path, Query
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,7 +19,12 @@ from src.db.queries import (
     fetch_available_dates,
     fetch_cluster_summaries,
     fetch_drift_history,
+    fetch_entity_directory,
+    fetch_entity_profile,
+    fetch_entity_profiles_all_countries,
+    fetch_entity_timeline,
     fetch_latest_drift_report,
+    fetch_latest_profile_end_date,
     fetch_sentiment_trend,
     fetch_top_entities,
 )
@@ -240,6 +246,73 @@ class AboutResponse(BaseModel):
     links: AboutLinks
 
 
+# --- Entity profile models (Sprint 8) --------------------------------------
+
+
+class Collocate(BaseModel):
+    """One word that co-occurs with an entity, with its window-level stats."""
+    lemma: str = Field(..., examples=["migration"])
+    pos: str = Field(..., examples=["NOUN"])
+    c11_window: int = Field(..., examples=[37], description="Co-occurrence count in window")
+    pmi: float = Field(..., examples=[3.42])
+    llr: float = Field(..., examples=[58.1], description="Dunning log-likelihood ratio")
+
+
+class EntityProfileResponse(BaseModel):
+    """Rolling-window collocation profile of one entity in one country."""
+    country_code: str = Field(..., examples=["DE"])
+    canonical: str = Field(..., examples=["Donald Trump"])
+    entity_type: str = Field(..., examples=["PER"])
+    wikidata_qid: str | None = Field(None, examples=["Q22686"])
+    window_days: int = Field(..., examples=[30])
+    end_date: str = Field(..., examples=["2026-05-29"])
+    coverage_days: int = Field(..., examples=[27], description="Days the entity appeared in the window")
+    total_mentions: int = Field(..., examples=[412])
+    total_cooccurrences: int = Field(..., examples=[5821])
+    window_total: int = Field(..., examples=[103442])
+    avg_pmi: float | None = Field(None, examples=[2.81])
+    avg_log_likelihood: float | None = Field(None, examples=[44.3])
+    top_collocates: list[Collocate]
+
+
+class EntityDirectoryItem(BaseModel):
+    canonical: str = Field(..., examples=["Donald Trump"])
+    wikidata_qid: str | None = Field(None, examples=["Q22686"])
+    entity_type: str = Field(..., examples=["PER"])
+    total_mentions: int = Field(..., examples=[412])
+    total_cooccurrences: int = Field(..., examples=[5821])
+    avg_pmi: float | None = Field(None, examples=[2.81])
+    coverage_days: int = Field(..., examples=[27])
+
+
+class EntityDirectoryResponse(BaseModel):
+    country_code: str = Field(..., examples=["DE"])
+    window_days: int = Field(..., examples=[30])
+    end_date: str | None = Field(None, examples=["2026-05-29"])
+    entities: list[EntityDirectoryItem]
+
+
+class EntityCompareResponse(BaseModel):
+    """Same entity's profile side by side across countries — the framing view."""
+    reference: str = Field(..., examples=["Q22686"], description="QID or canonical name queried")
+    window_days: int = Field(..., examples=[30])
+    countries: list[EntityProfileResponse]
+
+
+class EntityTimelinePoint(BaseModel):
+    date: str = Field(..., examples=["2026-05-29"])
+    mention_count: int = Field(..., examples=[18])
+    total_cooccurrences: int = Field(..., examples=[241])
+    avg_pmi: float | None = Field(None, examples=[2.6])
+    avg_log_likelihood: float | None = Field(None, examples=[38.0])
+
+
+class EntityTimelineResponse(BaseModel):
+    reference: str = Field(..., examples=["Q22686"])
+    country_code: str = Field(..., examples=["DE"])
+    points: list[EntityTimelinePoint]
+
+
 # ---------------------------------------------------------------------------
 # Data helpers
 # ---------------------------------------------------------------------------
@@ -263,6 +336,51 @@ def _get_clusters(date_str: str, country_code: str = "TR") -> list[dict]:
             detail=f"{date_str} tarihine ait cluster verisi bulunamadı.",
         )
     return clusters
+
+
+# --- Entity profile helpers (Sprint 8) -------------------------------------
+
+_QID_RE = re.compile(r"^Q\d+$")
+
+
+def _ref_filter(ref: str) -> dict[str, str]:
+    """Split an entity ``{ref}`` path param into a qid/canonical query kwarg.
+
+    A Wikidata QID (``Q\\d+``) resolves cross-country; anything else is
+    treated as a canonical name (FastAPI has already URL-decoded it).
+    """
+    if _QID_RE.match(ref):
+        return {"qid": ref}
+    return {"canonical": ref}
+
+
+def _validate_window(window_days: int) -> None:
+    """Only the two windows the Sprint 7 aggregator persists are valid."""
+    if window_days not in (7, 30):
+        raise HTTPException(
+            status_code=400,
+            detail="window_days yalnızca 7 veya 30 olabilir.",
+        )
+
+
+def _serialize_profile(row: dict) -> dict:
+    """Coerce an ``entity_country_profile`` row into an API-shaped dict."""
+    end_date = row["end_date"]
+    return {
+        "country_code": row["country_code"],
+        "canonical": row["canonical"],
+        "entity_type": row["entity_type"],
+        "wikidata_qid": row.get("wikidata_qid"),
+        "window_days": row["window_days"],
+        "end_date": end_date.isoformat() if hasattr(end_date, "isoformat") else str(end_date),
+        "coverage_days": row["coverage_days"],
+        "total_mentions": row["total_mentions"],
+        "total_cooccurrences": row["total_cooccurrences"],
+        "window_total": row["window_total"],
+        "avg_pmi": row.get("avg_pmi"),
+        "avg_log_likelihood": row.get("avg_log_likelihood"),
+        "top_collocates": row.get("top_collocates") or [],
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -660,3 +778,171 @@ def list_countries():
     Python kodu değişmez.
     """
     return list_available_countries()
+
+
+# ---------------------------------------------------------------------------
+# Entity profile endpoints (Sprint 8 — cross-country entity framing)
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/api/entities",
+    tags=["Analiz"],
+    summary="Entity dizini / arama (discovery)",
+    response_model=EntityDirectoryResponse,
+)
+def entity_directory(
+    q: str | None = Query(
+        None, description="Canonical isimde geçen metin (case-insensitive)", min_length=1
+    ),
+    entity_type: str | None = Query(
+        None, description="PER / ORG / LOC", pattern=r"^(PER|ORG|LOC)$"
+    ),
+    window_days: int = Query(default=30, description="Rolling pencere: 7 veya 30"),
+    limit: int = Query(default=50, ge=1, le=200),
+    country_config: dict = Depends(resolve_country),
+):
+    """Bir ülkenin en güncel penceresindeki en çok anılan entity'ler.
+
+    Dashboard'ın entity bulması için (canonical + QID + tür + mention
+    sayısı). QID'i olmayan entity'ler de listelenir. ``total_mentions``
+    sonra ``avg_log_likelihood`` ile sıralı.
+    """
+    _validate_window(window_days)
+    cc = country_config["country_code"]
+    rows = fetch_entity_directory(
+        cc, window_days, q=q, entity_type=entity_type, limit=limit
+    )
+    end_date = fetch_latest_profile_end_date(cc)
+    return {
+        "country_code": cc,
+        "window_days": window_days,
+        "end_date": end_date,
+        "entities": rows,
+    }
+
+
+@app.get(
+    "/api/entity/{ref}/profile",
+    tags=["Analiz"],
+    summary="Tek entity'nin ülke profili (collocation + PMI/LLR)",
+    response_model=EntityProfileResponse,
+    responses={404: {"description": "Entity bu ülke profilinde bulunamadı"}},
+)
+def entity_profile(
+    ref: str = Path(
+        ..., description="Wikidata QID (ör. Q22686) veya canonical isim"
+    ),
+    window_days: int = Query(default=30, description="Rolling pencere: 7 veya 30"),
+    country_config: dict = Depends(resolve_country),
+):
+    """``entity_country_profile``'tan bir satır; end_date = en güncel pencere.
+
+    ``ref`` ``Q\\d+`` ise QID ile, değilse canonical isimle eşlenir (QID'i
+    olmayan entity'ler için). Top-20 collocate window-level PMI/LLR ile döner.
+    """
+    _validate_window(window_days)
+    cc = country_config["country_code"]
+    row = fetch_entity_profile(cc, window_days, **_ref_filter(ref))
+    if not row:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{ref}' için {cc} entity profilinde veri bulunamadı.",
+        )
+    return _serialize_profile(row)
+
+
+@app.get(
+    "/api/entity/{ref}/compare",
+    tags=["Analiz"],
+    summary="Aynı entity'nin ülkeler arası karşılaştırması (framing)",
+    response_model=EntityCompareResponse,
+    responses={
+        400: {"description": "Geçersiz ülke kodu"},
+        404: {"description": "Entity hiçbir ülke profilinde bulunamadı"},
+    },
+)
+def entity_compare(
+    ref: str = Path(..., description="Wikidata QID (ör. Q22686) veya canonical isim"),
+    window_days: int = Query(default=30, description="Rolling pencere: 7 veya 30"),
+    countries: str | None = Query(
+        None,
+        description="Virgülle ayrılmış ISO kodları (ör. DE,FR). Boşsa entity'i içeren tüm ülkeler.",
+    ),
+):
+    """Aynı entity'nin profilini ülkeler arası yan yana getirir.
+
+    QID-öncelikli — cross-country kimlik yalnız Wikidata-linkli entity'lerde
+    sağlam tutar (canonical eşleşme best-effort, birebir string). Ülke
+    pinlenmediyse her ülkenin kendi en güncel penceresi kullanılır.
+    """
+    _validate_window(window_days)
+    code_list: list[str] | None = None
+    if countries:
+        valid = {c["code"] for c in list_available_countries()}
+        code_list = [c.strip().upper() for c in countries.split(",") if c.strip()]
+        invalid = [c for c in code_list if c not in valid]
+        if invalid:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"Geçersiz ülke kodu: {', '.join(invalid)}. "
+                    "Seçenekler için /api/countries'e bakın."
+                ),
+            )
+    rows = fetch_entity_profiles_all_countries(
+        window_days, countries=code_list, **_ref_filter(ref)
+    )
+    if not rows:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{ref}' hiçbir ülkenin entity profilinde bulunamadı.",
+        )
+    return {
+        "reference": ref,
+        "window_days": window_days,
+        "countries": [_serialize_profile(r) for r in rows],
+    }
+
+
+@app.get(
+    "/api/entity/{ref}/timeline",
+    tags=["Analiz"],
+    summary="Entity'nin günlük mention hacmi + salience eğrisi",
+    response_model=EntityTimelineResponse,
+)
+def entity_timeline(
+    ref: str = Path(..., description="Wikidata QID (ör. Q22686) veya canonical isim"),
+    days: int = Query(default=30, ge=7, le=90, description="Kaç günlük geriye"),
+    country_config: dict = Depends(resolve_country),
+):
+    """Günlük ``entity_collocations``'tan mention hacmi + ortalama PMI/LLR.
+
+    Rolling profil yerine günlük tablodan okunur (daha uzun geçmiş). Veri
+    yoksa boş seri döner (404 değil — boş timeline meşrudur).
+    """
+    cc = country_config["country_code"]
+    end = date.today()
+    start = end - timedelta(days=days - 1)
+    rows = fetch_entity_timeline(
+        cc, start.isoformat(), end.isoformat(), **_ref_filter(ref)
+    )
+    points = [
+        {
+            "date": (
+                r["collected_date"].isoformat()
+                if hasattr(r["collected_date"], "isoformat")
+                else str(r["collected_date"])
+            ),
+            "mention_count": int(r["mention_count"] or 0),
+            "total_cooccurrences": int(r["total_cooccurrences"] or 0),
+            "avg_pmi": float(r["avg_pmi"]) if r["avg_pmi"] is not None else None,
+            "avg_log_likelihood": (
+                float(r["avg_log_likelihood"])
+                if r["avg_log_likelihood"] is not None
+                else None
+            ),
+        }
+        for r in rows
+    ]
+    return {"reference": ref, "country_code": cc, "points": points}

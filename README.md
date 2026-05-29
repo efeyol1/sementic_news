@@ -101,7 +101,15 @@ uvicorn src.api.main:app --reload
 | `GET /api/topic/{id}` | Cluster haberleri |
 | `GET /api/source-comparison` | Kaynak bazlı sentiment |
 | `GET /api/similar?q=...` | Semantik benzer haberler (pgvector) |
+| `GET /api/entities` | Entity dizini / arama (canonical + QID) |
+| `GET /api/entity/{ref}/profile` | Entity'nin ülke profili (collocation + PMI/LLR) |
+| `GET /api/entity/{ref}/compare` | Aynı entity'nin ülkeler arası karşılaştırması |
+| `GET /api/entity/{ref}/timeline` | Entity'nin günlük mention hacmi + salience eğrisi |
 | `GET /metrics` | Prometheus metrikleri |
+
+> Entity endpoint'lerinde `{ref}` bir Wikidata QID (`Q22686`) ya da canonical
+> isimdir; tümü `?country=` (default `turkey`) parametresini destekler, `compare`
+> ise doğası gereği çok-ülkelidir (opsiyonel `?countries=DE,FR`).
 
 ## Dashboard
 

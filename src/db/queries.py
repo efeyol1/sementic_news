@@ -1046,6 +1046,209 @@ def bulk_upsert_entity_country_profile(
 
 
 # ---------------------------------------------------------------------------
+# Entity profile reads (Sprint 8 — API serving layer)
+# ---------------------------------------------------------------------------
+
+# Columns served by the profile endpoints; kept in one place so the three
+# profile readers below stay in sync.
+_PROFILE_COLS = """
+    country_code, canonical, entity_type, wikidata_qid,
+    window_days, end_date, coverage_days,
+    total_cooccurrences, total_mentions, window_total,
+    avg_pmi, avg_log_likelihood, top_collocates
+"""
+
+
+def fetch_latest_profile_end_date(country_code: str | None = None) -> str | None:
+    """Most recent ``entity_country_profile.end_date`` (optionally per country).
+
+    Sprint 8's profile endpoints default ``end_date`` to the freshest rolling
+    window the Sprint 7 aggregator produced. Returns an ISO date string or
+    ``None`` when no profile rows exist yet.
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            if country_code:
+                cur.execute(
+                    "SELECT MAX(end_date) FROM entity_country_profile "
+                    "WHERE country_code = %s",
+                    (country_code,),
+                )
+            else:
+                cur.execute("SELECT MAX(end_date) FROM entity_country_profile")
+            row = cur.fetchone()
+    if not row or row[0] is None:
+        return None
+    return row[0].isoformat()
+
+
+def fetch_entity_profile(
+    country_code: str,
+    window_days: int,
+    end_date: str | None = None,
+    qid: str | None = None,
+    canonical: str | None = None,
+) -> dict[str, Any] | None:
+    """One ``entity_country_profile`` row for an entity in one country/window.
+
+    Looked up by ``qid`` (Wikidata QID, uses ``idx_ecp_qid_window``) when
+    given, else by ``canonical`` text (``idx_ecp_country_end_canonical``).
+    ``end_date`` defaults to the country's most recent window. ``top_collocates``
+    comes back as a Python ``list[dict]`` (JSONB) and ``end_date`` as a
+    ``datetime.date`` — the API serializer stringifies it.
+    """
+    if not qid and not canonical:
+        raise ValueError("fetch_entity_profile needs either qid or canonical")
+    if end_date is None:
+        end_date = fetch_latest_profile_end_date(country_code)
+        if end_date is None:
+            return None
+    clause, param = (
+        ("wikidata_qid = %s", qid) if qid else ("canonical = %s", canonical)
+    )
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT {_PROFILE_COLS}
+                FROM entity_country_profile
+                WHERE country_code = %s AND window_days = %s AND end_date = %s
+                  AND {clause}
+                ORDER BY total_mentions DESC
+                LIMIT 1
+                """,
+                (country_code, window_days, end_date, param),
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+def fetch_entity_profiles_all_countries(
+    window_days: int,
+    end_date: str | None = None,
+    qid: str | None = None,
+    canonical: str | None = None,
+    countries: list[str] | None = None,
+) -> list[dict[str, Any]]:
+    """Same entity's profile across every country (Sprint 8 ``/compare``).
+
+    QID-primary: cross-country identity only holds for Wikidata-linked
+    entities, so a ``canonical`` lookup matches the literal string per country
+    and is best-effort. When ``end_date`` is omitted, ``DISTINCT ON`` picks
+    each country's *own* latest window (countries can lag a day); pass an
+    explicit ``end_date`` to pin a single date. ``countries`` (ISO codes)
+    narrows the result.
+    """
+    if not qid and not canonical:
+        raise ValueError(
+            "fetch_entity_profiles_all_countries needs either qid or canonical"
+        )
+    clause, param = (
+        ("wikidata_qid = %s", qid) if qid else ("canonical = %s", canonical)
+    )
+    params: list[Any] = [window_days, param]
+    sql = f"""
+        SELECT DISTINCT ON (country_code) {_PROFILE_COLS}
+        FROM entity_country_profile
+        WHERE window_days = %s AND {clause}
+    """
+    if end_date is not None:
+        sql += " AND end_date = %s"
+        params.append(end_date)
+    if countries:
+        sql += " AND country_code = ANY(%s)"
+        params.append(countries)
+    sql += " ORDER BY country_code, end_date DESC, total_mentions DESC"
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def fetch_entity_directory(
+    country_code: str,
+    window_days: int,
+    end_date: str | None = None,
+    q: str | None = None,
+    entity_type: str | None = None,
+    limit: int = 50,
+) -> list[dict[str, Any]]:
+    """Top entities for a country's latest window (Sprint 8 ``/api/entities``).
+
+    Ranked by ``total_mentions`` then ``avg_log_likelihood``. ``q`` filters
+    canonical names (case-insensitive substring); ``entity_type`` restricts to
+    PER/ORG/LOC. Powers the dashboard's entity discovery/search.
+    """
+    if end_date is None:
+        end_date = fetch_latest_profile_end_date(country_code)
+        if end_date is None:
+            return []
+    params: list[Any] = [country_code, window_days, end_date]
+    sql = """
+        SELECT canonical, wikidata_qid, entity_type, coverage_days,
+               total_mentions, total_cooccurrences, avg_pmi, avg_log_likelihood
+        FROM entity_country_profile
+        WHERE country_code = %s AND window_days = %s AND end_date = %s
+    """
+    if q:
+        sql += " AND canonical ILIKE %s"
+        params.append(f"%{q}%")
+    if entity_type:
+        sql += " AND entity_type = %s"
+        params.append(entity_type)
+    sql += (
+        " ORDER BY total_mentions DESC, avg_log_likelihood DESC NULLS LAST "
+        "LIMIT %s"
+    )
+    params.append(limit)
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def fetch_entity_timeline(
+    country_code: str,
+    start_date: str,
+    end_date: str,
+    qid: str | None = None,
+    canonical: str | None = None,
+) -> list[dict[str, Any]]:
+    """Per-day mention volume + salience for an entity (Sprint 8 ``/timeline``).
+
+    Reads daily ``entity_collocations`` (not the rolling profile — it carries
+    deeper history) over ``[start_date, end_date]``. ``entity_total`` is
+    constant across a day's lemma rows, so ``MAX`` recovers the distinct
+    mention count; cooccurrences sum and PMI/LLR average over the day's
+    collocates. QID-primary, canonical fallback.
+    """
+    if not qid and not canonical:
+        raise ValueError("fetch_entity_timeline needs either qid or canonical")
+    clause, param = (
+        ("wikidata_qid = %s", qid) if qid else ("canonical = %s", canonical)
+    )
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT collected_date,
+                       MAX(entity_total)        AS mention_count,
+                       SUM(cooccurrence_count)  AS total_cooccurrences,
+                       AVG(pmi)                 AS avg_pmi,
+                       AVG(log_likelihood)      AS avg_log_likelihood
+                FROM entity_collocations
+                WHERE country_code = %s
+                  AND collected_date BETWEEN %s AND %s
+                  AND {clause}
+                GROUP BY collected_date
+                ORDER BY collected_date
+                """,
+                (country_code, start_date, end_date, param),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 
