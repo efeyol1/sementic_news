@@ -1,0 +1,35 @@
+# Frame lexicon (Spanish) — Sprint 10 frame bridge. See en.yaml for the
+# contract. Lemmas matched case-insensitively against es_core_news_sm output.
+# Nationality adjectives intentionally excluded.
+frames:
+  economic:
+    [economía, inflación, presupuesto, impuesto, comercio, mercado,
+     crecimiento, deuda, inversión, precio, recesión, desempleo,
+     salario, déficit, moneda, exportación, importación, fiscal, finanza,
+     coste, beneficio, pérdida, interés, bolsa, acción, subsidio, arancel,
+     quiebra]
+  security:
+    [seguridad, amenaza, terror, terrorismo, atentado, policía,
+     criminalidad, defensa, frontera, militar, arma, inteligencia,
+     vigilancia, extremismo, protección, detención, rehén, secuestro,
+     espionaje, contrabando, investigación]
+  identity:
+    [identidad, cultura, religión, valor, nación, nacional, tradición,
+     patrimonio, étnico, fe, laico, lengua, comunidad, pertenencia,
+     patriotismo, soberanía, ciudadano, extranjero, inmigrante,
+     integración, minoría, pueblo, nacionalismo]
+  governance:
+    [gobierno, política, ley, reforma, regulación, parlamento,
+     elección, voto, ministro, legislación, democracia, tribunal,
+     sentencia, administración, sanción, tratado, cumbre, coalición,
+     presidente, diplomático, negociación, acuerdo, referéndum,
+     oposición, diplomacia, reunión]
+  humanitarian:
+    [humanitario, refugiado, asilo, ayuda, derecho, víctima, desplazado,
+     sufrimiento, refugio, vulnerable, migrante, civil, rescate,
+     pobreza, hambre, hambruna, evacuación, catástrofe]
+  conflict:
+    [guerra, conflicto, enfrentamiento, tensión, escalada, violencia,
+     combate, invasión, tregua, tropa, batalla, ofensiva, ataque,
+     hostilidad, milicia, crisis, dron, misil, cohete, bomba,
+     bombardeo, frente, atacar, matar, tanque, obús, asedio]

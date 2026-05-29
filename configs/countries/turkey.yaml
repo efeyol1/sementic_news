@@ -133,6 +133,11 @@ entity_narrative:
     min_cooccurrence_count: 2
     lemmatizer: surface
     stopwords_file: configs/stopwords/tr.yaml
+  frame_bridge:
+    # Sprint 10: top collocate lemmas → 6-frame intensity (economic,
+    # security, identity, governance, humanitarian, conflict) via
+    # configs/frames/tr.yaml. Seed-word baseline; Sprint 12 → classifier.
+    enabled: true
 
 clustering:
   enabled: true

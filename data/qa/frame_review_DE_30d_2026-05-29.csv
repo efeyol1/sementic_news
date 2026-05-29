@@ -1,0 +1,6 @@
+country_code,window_days,end_date,canonical,wikidata_qid,entity_type,top_collocates,predicted_frame,reviewed_frame,review_notes
+DE,30,2026-05-29,Norwegen,Q20,LOC,"frankreich(51.4), schutzschirm(27.7), angebot(10.9), atomar(10.9), nehmen(10.9), nuklear(10.9), rücken(10.9), schlüpfen(10.9), sicherheit(10.9)",security,,
+DE,30,2026-05-29,Georgia,Q1428,LOC,regierung(25.3),governance,,
+DE,30,2026-05-29,Selenskyj,,PER,"bitten(15.3), hilfe(15.3), präsident(15.3), ukrainisch(7.8), usa(7.8)",humanitarian,,
+DE,30,2026-05-29,Isaac Israëls,Q979534,LOC,"gewalt(17.6), un-bericht(17.6), werfen(17.6)",conflict,,
+DE,30,2026-05-29,Benjamin Netanjahu,Q43723,PER,"israel(19.9), libanon(14.8), hisbollah(12.6), angriff(9.8), ausweiten(9.8), erklären(9.8), miliz(9.8), ministerpräsident(9.8), premier(9.8), kündigen(8.4), bürger(4.6), entführung(4.6)",conflict,,

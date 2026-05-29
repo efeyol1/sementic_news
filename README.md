@@ -25,6 +25,7 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sent
 - **Konu kümeleme** — Sentence-transformer embedding + KMeans, 15 küme
 - **Semantik arama** — pgvector cosine similarity, `/api/similar` endpoint
 - **Entity framing** — cross-country collocation profilleri (PMI / log-likelihood); dashboard'da entity arama + ülkeler arası karşılaştırma (`/entities`, `/entity/{ref}`)
+- **Frame bridge** — entity collocate'lerinden 6-çerçeve yoğunluğu (economic / security / identity / governance / humanitarian / conflict) seed-word lexicon ile (`configs/frames/<lang>.yaml`); dashboard entity sayfasında radar paneli. `(entity, ülke)` scope'unda, ülke-geneli iddiası değil
 - **PostgreSQL** — Neon hosted, tüm pipeline verisi kalıcı
 - **MLflow** experiment tracking + model registry
 
@@ -103,7 +104,7 @@ uvicorn src.api.main:app --reload
 | `GET /api/source-comparison` | Kaynak bazlı sentiment |
 | `GET /api/similar?q=...` | Semantik benzer haberler (pgvector) |
 | `GET /api/entities` | Entity dizini / arama (canonical + QID) |
-| `GET /api/entity/{ref}/profile` | Entity'nin ülke profili (collocation + PMI/LLR) |
+| `GET /api/entity/{ref}/profile` | Entity'nin ülke profili (collocation + PMI/LLR + frame yoğunluğu) |
 | `GET /api/entity/{ref}/compare` | Aynı entity'nin ülkeler arası karşılaştırması |
 | `GET /api/entity/{ref}/timeline` | Entity'nin günlük mention hacmi + salience eğrisi |
 | `GET /metrics` | Prometheus metrikleri |

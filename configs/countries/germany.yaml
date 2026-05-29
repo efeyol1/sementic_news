@@ -83,6 +83,9 @@ entity_narrative:
     lemmatizer: spacy
     spacy_model: de_core_news_sm
     stopwords_file: configs/stopwords/de.yaml
+  frame_bridge:
+    # Sprint 10: collocate lemmas → 6-frame intensity via configs/frames/de.yaml.
+    enabled: true
 
 clustering:
   enabled: true

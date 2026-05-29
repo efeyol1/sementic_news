@@ -146,6 +146,9 @@ export interface EntityProfile {
   avg_pmi: number | null;
   avg_log_likelihood: number | null;
   top_collocates: Collocate[];
+  // Sprint 10 frame bridge: L1-normalized 6-frame intensity, or null when
+  // the bridge is off / no collocate matched a frame seed.
+  frame_intensities: Record<string, number> | null;
 }
 
 export interface EntityDirectoryItem {

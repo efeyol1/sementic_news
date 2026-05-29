@@ -273,6 +273,15 @@ class EntityProfileResponse(BaseModel):
     avg_pmi: float | None = Field(None, examples=[2.81])
     avg_log_likelihood: float | None = Field(None, examples=[44.3])
     top_collocates: list[Collocate]
+    frame_intensities: dict[str, float] | None = Field(
+        None,
+        examples=[{"economic": 0.12, "security": 0.41, "conflict": 0.47}],
+        description=(
+            "Sprint 10 frame bridge: L1-normalized 6-frame intensity derived "
+            "from top collocates. Null when the frame bridge is disabled or no "
+            "collocate matched a frame seed — (entity, country) scope only."
+        ),
+    )
 
 
 class EntityDirectoryItem(BaseModel):
@@ -380,6 +389,7 @@ def _serialize_profile(row: dict) -> dict:
         "avg_pmi": row.get("avg_pmi"),
         "avg_log_likelihood": row.get("avg_log_likelihood"),
         "top_collocates": row.get("top_collocates") or [],
+        "frame_intensities": row.get("frame_intensities"),
     }
 
 

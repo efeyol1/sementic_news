@@ -40,6 +40,13 @@ from loguru import logger
 
 from src.analysis.collocation_stats import compute_llr, compute_pmi
 from src.analysis.collocations import is_enabled
+from src.analysis.frame_bridge import (
+    compute_frame_intensities,
+    load_frame_lexicon,
+)
+from src.analysis.frame_bridge import (
+    is_enabled as frame_bridge_enabled,
+)
 from src.config import load_country_config
 from src.db.queries import (
     bulk_upsert_entity_country_profile,
@@ -229,6 +236,21 @@ def compute_country_profile_batch(
             r for r in all_rows if r["collected_date"] >= window_start
         ]
         profile_rows.extend(_aggregate_window(window_rows, window_days))
+
+    # Sprint 10: derive six-frame intensities from each row's top
+    # collocates. Gated per country; when off (or no collocate matches a
+    # frame seed) the column is left NULL — never fabricated.
+    language: str = country_config.get("language") or "en"
+    fb_enabled = frame_bridge_enabled(country_config)
+    frame_lexicon = load_frame_lexicon(language) if fb_enabled else None
+    for row in profile_rows:
+        row["frame_intensities"] = (
+            compute_frame_intensities(
+                row["top_collocates"], language, lexicon=frame_lexicon
+            )
+            if fb_enabled
+            else None
+        )
 
     upserted = bulk_upsert_entity_country_profile(
         profile_rows, country_code, end_date.isoformat()

@@ -1,0 +1,37 @@
+# Frame lexicon (Turkish) — Sprint 10 frame bridge. See en.yaml for the
+# contract. TR collocates are lemmatized by the surface suffix-stripper
+# (TurkishSurfaceLemmatizer), so seeds are given as root/stem forms;
+# matching is case-insensitive. TR recall is structurally lower than the
+# spaCy languages (no derivational morphology) — Sprint 12's classifier is
+# the real fix. Nationality adjectives intentionally excluded.
+frames:
+  economic:
+    [ekonomi, enflasyon, bütçe, vergi, ticaret, piyasa, büyüme, borç,
+     yatırım, fiyat, resesyon, işsizlik, maaş, açık, kur, ihracat,
+     ithalat, mali, finans, maliyet, kâr, zarar, faiz, borsa, hisse,
+     sübvansiyon, gümrük, ciro, zam]
+  security:
+    [güvenlik, tehdit, terör, terörizm, saldırı, polis, suç, savunma,
+     sınır, asker, silah, istihbarat, gözetim, aşırılık, koruma,
+     gözaltı, operasyon, rehin, kaçırma, casusluk, kaçakçılık,
+     soruşturma]
+  identity:
+    [kimlik, kültür, din, değer, millet, milli, gelenek, miras, etnik,
+     inanç, laik, dil, toplum, aidiyet, vatanseverlik, egemenlik,
+     ümmet, vatandaş, yabancı, göçmen, entegrasyon, azınlık, halk,
+     milliyetçilik]
+  governance:
+    [hükümet, politika, yasa, reform, düzenleme, meclis, seçim, oy,
+     bakan, mevzuat, demokrasi, mahkeme, karar, yönetim, yaptırım,
+     anlaşma, zirve, koalisyon, cumhurbaşkanı, başbakan, diplomat,
+     müzakere, mutabakat, referandum, muhalefet, diplomasi, görüşme,
+     kanun]
+  humanitarian:
+    [insani, mülteci, sığınma, yardım, hak, mağdur, yerinden, acı,
+     barınma, kırılgan, göçmen, sivil, kurtarma, yoksulluk, açlık,
+     kıtlık, tahliye, felaket]
+  conflict:
+    [savaş, çatışma, gerilim, tırmanma, şiddet, mücadele, işgal,
+     ateşkes, birlik, muharebe, taarruz, hücum, husumet, milis, kriz,
+     füze, roket, bomba, bombardıman, cephe, saldırmak, öldürmek, tank,
+     obüs, kuşatma]

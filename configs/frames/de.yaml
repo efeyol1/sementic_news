@@ -1,0 +1,42 @@
+# Frame lexicon (German) — Sprint 10 frame bridge. See en.yaml for the
+# contract. Lemmas are lowercased at match time, so capitalization here is
+# irrelevant; spaCy de_core_news_sm lemmas are matched case-insensitively.
+# Expanded 2026-05-29 against the live DE collocate distribution: added the
+# conflict/governance/economic vocabulary that actually surfaces in top-20
+# collocates. Nationality adjectives are deliberately NOT seeded — a
+# nationality is not a frame (Sprint 12 classifier reads context instead).
+frames:
+  economic:
+    [wirtschaft, inflation, haushalt, steuer, handel, markt, wachstum,
+     schulden, investition, preis, rezession, arbeitslosigkeit, lohn,
+     defizit, währung, export, import, finanz, kosten, gewinn, verlust,
+     zins, börse, aktie, konjunktur, subvention, zoll, umsatz]
+  security:
+    [sicherheit, bedrohung, terror, terrorismus, anschlag, polizei,
+     kriminalität, verteidigung, grenze, militär, waffe, geheimdienst,
+     überwachung, extremismus, schutz, festnahme, razzia, entführung,
+     geisel, ermittlung, spionage, schmuggel, cyberangriff]
+  identity:
+    [identität, kultur, religion, wert, nation, national, tradition,
+     erbe, ethnisch, glaube, säkular, sprache, gemeinschaft,
+     zugehörigkeit, patriotismus, souveränität, leitkultur, bürger,
+     ausländer, staatsbürger, einwanderer, integration, minderheit,
+     heimat, volk]
+  governance:
+    [regierung, politik, gesetz, reform, regulierung, parlament, wahl,
+     stimme, minister, gesetzgebung, demokratie, gericht, urteil,
+     verwaltung, sanktion, vertrag, gipfel, koalition, regierungschef,
+     kanzler, präsident, diplomat, verhandlung, einigung, abkommen,
+     rahmenabkommen, referendum, opposition, diplomatie, treffen]
+  humanitarian:
+    [humanitär, flüchtling, asyl, hilfe, recht, opfer, vertrieben,
+     leid, unterkunft, schutzbedürftig, migrant, zivilist, rettung,
+     armut, hunger, hungersnot, evakuierung, vertreibung, katastrophe,
+     hilfsorganisation]
+  conflict:
+    [krieg, konflikt, zusammenstoß, spannung, eskalation, gewalt,
+     kampf, invasion, waffenstillstand, truppe, schlacht, offensive,
+     angriff, feindseligkeit, miliz, krise, drohne, rakete,
+     raketenstellung, bombe, luftangriff, beschuss, gefecht, frontlinie,
+     einschlag, angreifen, attackieren, eskalieren, töten,
+     panzer, granate]

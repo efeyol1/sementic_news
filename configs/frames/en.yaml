@@ -1,0 +1,41 @@
+# Frame lexicon (English) — Sprint 10 frame bridge.
+#
+# Six issue-aligned frames. Each value is a list of LEMMATIZED seed words
+# (singular/base form, lowercased) matched against the lemmas stored in
+# entity_collocations. A collocate lemma that appears in a frame's list
+# contributes its LLR weight to that frame's intensity. Words are kept
+# discriminative — each lemma lives in at most one frame per language.
+# Nationality adjectives are deliberately excluded (a nationality is not a
+# frame). This is the lightweight seed-word version; Sprint 12 elevates it
+# to a fine-tuned Policy Frames Codebook classifier.
+frames:
+  economic:
+    [economy, inflation, budget, tax, trade, market, growth, debt,
+     investment, price, recession, unemployment, wage, deficit, currency,
+     export, import, fiscal, finance, cost, profit, loss, interest, stock,
+     share, gdp, subsidy, tariff, revenue, bankruptcy]
+  security:
+    [security, threat, terror, terrorism, attack, police, crime, defence,
+     border, military, weapon, intelligence, surveillance, extremism,
+     protection, arrest, raid, hostage, kidnapping, espionage, smuggling,
+     cyberattack, investigation, patrol]
+  identity:
+    [identity, culture, religion, value, nation, national, tradition,
+     heritage, ethnic, faith, secular, language, community, belonging,
+     patriotism, sovereignty, citizen, foreigner, immigrant, integration,
+     minority, homeland, people, nationalism]
+  governance:
+    [government, policy, law, reform, regulation, parliament, election,
+     vote, minister, legislation, democracy, court, ruling, bill,
+     administration, sanction, treaty, summit, coalition, president,
+     chancellor, premier, diplomat, negotiation, agreement, referendum,
+     opposition, diplomacy, cabinet]
+  humanitarian:
+    [humanitarian, refugee, asylum, aid, right, victim, displaced,
+     suffering, shelter, relief, vulnerable, migrant, civilian, rescue,
+     poverty, hunger, famine, evacuation, displacement, charity, disaster]
+  conflict:
+    [war, conflict, clash, tension, escalation, violence, fighting,
+     invasion, ceasefire, troop, battle, offensive, strike, hostility,
+     militia, crisis, drone, missile, rocket, bomb, airstrike, shelling,
+     frontline, escalate, kill, wound, tank, grenade, siege]
