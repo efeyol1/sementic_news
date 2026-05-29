@@ -3,14 +3,22 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BarChart3, Globe2 } from "lucide-react";
+import { LayoutDashboard, BarChart3, Network, Globe2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CountrySelector } from "@/components/ui/CountrySelector";
 
 const links = [
   { href: "/", label: "Genel Bakış", icon: LayoutDashboard },
   { href: "/sources", label: "Kaynak Analizi", icon: BarChart3 },
+  { href: "/entities", label: "Entity'ler", icon: Network },
 ];
+
+// "/entities" should stay active while drilling into "/entity/[ref]" too.
+function isActive(pathname: string, href: string): boolean {
+  if (href === "/") return pathname === "/";
+  if (href === "/entities") return pathname.startsWith("/entit");
+  return pathname.startsWith(href);
+}
 
 export function Navbar() {
   const pathname = usePathname();
@@ -32,7 +40,7 @@ export function Navbar() {
             <Link
               key={href}
               href={href}
-              className={cn("nav-item", pathname === href && "active")}
+              className={cn("nav-item", isActive(pathname, href) && "active")}
             >
               <Icon className="w-4 h-4" />
               {label}

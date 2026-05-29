@@ -24,6 +24,7 @@ Türkiye'nin 10 büyük haber kaynağından RSS ile günlük veri toplayıp sent
 - **Named Entity Recognition** — PER / ORG / LOC (`savasy/bert-base-turkish-ner-cased`)
 - **Konu kümeleme** — Sentence-transformer embedding + KMeans, 15 küme
 - **Semantik arama** — pgvector cosine similarity, `/api/similar` endpoint
+- **Entity framing** — cross-country collocation profilleri (PMI / log-likelihood); dashboard'da entity arama + ülkeler arası karşılaştırma (`/entities`, `/entity/{ref}`)
 - **PostgreSQL** — Neon hosted, tüm pipeline verisi kalıcı
 - **MLflow** experiment tracking + model registry
 

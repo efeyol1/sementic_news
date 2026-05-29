@@ -59,6 +59,16 @@ export function buildSourcesUrl(date?: string, country?: string): string {
   return appendParams("/sources", { date, country });
 }
 
+/** `/entities?country=...&q=...` — the entity directory/search page. */
+export function buildEntitiesUrl(country?: string, q?: string): string {
+  return appendParams("/entities", { country, q });
+}
+
+/** `/entity/${ref}?country=...` — entity detail (profile + compare + timeline). */
+export function buildEntityUrl(ref: string, country?: string): string {
+  return appendParams(`/entity/${encodeURIComponent(ref)}`, { country });
+}
+
 function appendParams(
   pathname: string,
   fields: Record<string, string | undefined>,

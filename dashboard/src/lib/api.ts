@@ -122,6 +122,69 @@ export interface TrendResponse {
   points: TrendPoint[];
 }
 
+// --- Entity profiles (Sprint 8 API / Sprint 9 dashboard) -------------------
+
+export interface Collocate {
+  lemma: string;
+  pos: string;
+  c11_window: number;
+  pmi: number;
+  llr: number;
+}
+
+export interface EntityProfile {
+  country_code: string;
+  canonical: string;
+  entity_type: string; // PER | ORG | LOC
+  wikidata_qid: string | null;
+  window_days: number;
+  end_date: string;
+  coverage_days: number;
+  total_mentions: number;
+  total_cooccurrences: number;
+  window_total: number;
+  avg_pmi: number | null;
+  avg_log_likelihood: number | null;
+  top_collocates: Collocate[];
+}
+
+export interface EntityDirectoryItem {
+  canonical: string;
+  wikidata_qid: string | null;
+  entity_type: string;
+  total_mentions: number;
+  total_cooccurrences: number;
+  avg_pmi: number | null;
+  coverage_days: number;
+}
+
+export interface EntityDirectoryResponse {
+  country_code: string;
+  window_days: number;
+  end_date: string | null;
+  entities: EntityDirectoryItem[];
+}
+
+export interface EntityCompareResponse {
+  reference: string;
+  window_days: number;
+  countries: EntityProfile[];
+}
+
+export interface EntityTimelinePoint {
+  date: string;
+  mention_count: number;
+  total_cooccurrences: number;
+  avg_pmi: number | null;
+  avg_log_likelihood: number | null;
+}
+
+export interface EntityTimelineResponse {
+  reference: string;
+  country_code: string;
+  points: EntityTimelinePoint[];
+}
+
 export const api = {
   today: (date?: string, country?: string) =>
     apiFetch<TodayResponse>("/api/today", withCountry(country, date ? { date } : undefined)),
@@ -142,6 +205,42 @@ export const api = {
     apiFetch<TrendResponse>("/api/trend", withCountry(country, { days: String(days) })),
 
   countries: () => apiFetch<CountryInfo[]>("/api/countries"),
+
+  // Entity profile endpoints (Sprint 8). `ref` is a Wikidata QID (Q22686)
+  // or a canonical name — encodeURIComponent handles names with spaces.
+  entities: (
+    opts: { q?: string; entityType?: string; windowDays?: number; limit?: number } = {},
+    country?: string,
+  ) => {
+    const params: Record<string, string> = {};
+    if (opts.q) params.q = opts.q;
+    if (opts.entityType) params.entity_type = opts.entityType;
+    if (opts.windowDays) params.window_days = String(opts.windowDays);
+    if (opts.limit) params.limit = String(opts.limit);
+    return apiFetch<EntityDirectoryResponse>("/api/entities", withCountry(country, params));
+  },
+
+  entityProfile: (ref: string, windowDays = 30, country?: string) =>
+    apiFetch<EntityProfile>(
+      `/api/entity/${encodeURIComponent(ref)}/profile`,
+      withCountry(country, { window_days: String(windowDays) }),
+    ),
+
+  // compare is cross-country by nature — no ?country, optional ?countries=DE,FR.
+  entityCompare: (ref: string, windowDays = 30, countries?: string[]) => {
+    const params: Record<string, string> = { window_days: String(windowDays) };
+    if (countries && countries.length) params.countries = countries.join(",");
+    return apiFetch<EntityCompareResponse>(
+      `/api/entity/${encodeURIComponent(ref)}/compare`,
+      params,
+    );
+  },
+
+  entityTimeline: (ref: string, days = 30, country?: string) =>
+    apiFetch<EntityTimelineResponse>(
+      `/api/entity/${encodeURIComponent(ref)}/timeline`,
+      withCountry(country, { days: String(days) }),
+    ),
 };
 
 export function todayDate(timeZone: string = "Europe/Istanbul"): string {
