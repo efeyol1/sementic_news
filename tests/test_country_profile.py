@@ -345,6 +345,51 @@ def test_total_mentions_sums_entity_total_column(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
+def _country_config_with_frames(language: str = "de") -> dict[str, Any]:
+    cfg = _country_config(language=language)
+    cfg["entity_narrative"]["frame_bridge"] = {"enabled": True}
+    return cfg
+
+
+def test_frame_intensities_populated_when_enabled(monkeypatch):
+    # German lemmas that hit the real configs/frames/de.yaml lexicon:
+    # "krieg" → conflict, "wirtschaft" → economic. A second entity is
+    # needed so the entity↔lemma association (LLR) is non-zero — a
+    # single-entity window is degenerate (every PMI/LLR collapses to 0).
+    end = date(2026, 5, 29)
+    rows = [
+        _daily_row(end, "Trump",  "PER", "krieg",      "NOUN", 8),
+        _daily_row(end, "Trump",  "PER", "wirtschaft", "NOUN", 3),
+        _daily_row(end, "Merkel", "PER", "wirtschaft", "NOUN", 6),
+        _daily_row(end, "Merkel", "PER", "reform",     "NOUN", 4),
+    ]
+    captured = _stub_db(monkeypatch, fetch_rows=rows)
+    cp.compute_country_profile_batch(
+        date_str=end.isoformat(), country_config=_country_config_with_frames("de")
+    )
+    trump_rows = [r for r in captured["upserted"] if r["canonical"] == "Trump"]
+    assert trump_rows
+    for row in trump_rows:
+        fi = row["frame_intensities"]
+        assert fi is not None
+        assert sum(fi.values()) == pytest.approx(1.0)
+        # krieg (conflict) and wirtschaft (economic) both carry weight.
+        assert fi["conflict"] > 0.0 and fi["economic"] > 0.0
+
+
+def test_frame_intensities_none_when_disabled(monkeypatch):
+    # frame_bridge absent (default off) → column left NULL. This is the
+    # TR-baseline-preservation contract for any country that hasn't opted in.
+    end = date(2026, 5, 29)
+    rows = [_daily_row(end, "Trump", "PER", "krieg", "NOUN", 6)]
+    captured = _stub_db(monkeypatch, fetch_rows=rows)
+    cp.compute_country_profile_batch(
+        date_str=end.isoformat(), country_config=_country_config()
+    )
+    for row in captured["upserted"]:
+        assert row["frame_intensities"] is None
+
+
 def test_batch_tr_partial_window_3_of_7_days(monkeypatch):
     # TR was just activated; 3 days of data inside a 30-day window.
     # Both 7d and 30d rows should be emitted with coverage_days = 3.

@@ -1,0 +1,34 @@
+# Frame lexicon (French) — Sprint 10 frame bridge. See en.yaml for the
+# contract. Lemmas matched case-insensitively against fr_core_news_sm output.
+# Nationality adjectives intentionally excluded.
+frames:
+  economic:
+    [économie, inflation, budget, impôt, commerce, marché, croissance,
+     dette, investissement, prix, récession, chômage, salaire, déficit,
+     monnaie, exportation, importation, fiscal, finance, coût, profit,
+     perte, intérêt, bourse, action, subvention, tarif, recette, faillite]
+  security:
+    [sécurité, menace, terreur, terrorisme, attentat, police,
+     criminalité, défense, frontière, militaire, arme, renseignement,
+     surveillance, extrémisme, protection, arrestation, otage, enlèvement,
+     espionnage, contrebande, enquête]
+  identity:
+    [identité, culture, religion, valeur, nation, national, tradition,
+     patrimoine, ethnique, foi, laïque, langue, communauté,
+     appartenance, patriotisme, souveraineté, laïcité, citoyen, étranger,
+     immigré, intégration, minorité, peuple, nationalisme]
+  governance:
+    [gouvernement, politique, loi, réforme, réglementation, parlement,
+     élection, vote, ministre, législation, démocratie, tribunal,
+     décision, administration, sanction, traité, sommet, coalition,
+     président, chancelier, diplomate, négociation, accord, référendum,
+     opposition, diplomatie, réunion]
+  humanitarian:
+    [humanitaire, réfugié, asile, aide, droit, victime, déplacé,
+     souffrance, abri, vulnérable, migrant, civil, sauvetage,
+     pauvreté, faim, famine, évacuation, déplacement, catastrophe]
+  conflict:
+    [guerre, conflit, affrontement, tension, escalade, violence,
+     combat, invasion, cessez-le-feu, troupe, bataille, offensive,
+     frappe, hostilité, milice, crise, drone, missile, roquette, bombe,
+     bombardement, front, attaquer, escalader, tuer, char, obus, siège]

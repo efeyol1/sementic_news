@@ -1021,6 +1021,11 @@ def bulk_upsert_entity_country_profile(
                     r["avg_pmi"],
                     r["avg_log_likelihood"],
                     psycopg2.extras.Json(r["top_collocates"]),
+                    (
+                        psycopg2.extras.Json(r["frame_intensities"])
+                        if r.get("frame_intensities") is not None
+                        else None
+                    ),
                 )
                 for r in rows
             ]
@@ -1032,7 +1037,8 @@ def bulk_upsert_entity_country_profile(
                      window_days, end_date, coverage_days,
                      total_cooccurrences, total_mentions,
                      cooccurrence_with_entity_total, window_total,
-                     avg_pmi, avg_log_likelihood, top_collocates)
+                     avg_pmi, avg_log_likelihood, top_collocates,
+                     frame_intensities)
                 VALUES %s
                 """,
                 tuples,
@@ -1055,7 +1061,7 @@ _PROFILE_COLS = """
     country_code, canonical, entity_type, wikidata_qid,
     window_days, end_date, coverage_days,
     total_cooccurrences, total_mentions, window_total,
-    avg_pmi, avg_log_likelihood, top_collocates
+    avg_pmi, avg_log_likelihood, top_collocates, frame_intensities
 """
 
 
@@ -1204,6 +1210,36 @@ def fetch_entity_directory(
     with get_conn() as conn:
         with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
             cur.execute(sql, params)
+            return [dict(r) for r in cur.fetchall()]
+
+
+def fetch_country_profiles_for_frame_audit(
+    country_code: str,
+    window_days: int,
+    end_date: str | None = None,
+) -> list[dict[str, Any]]:
+    """All profile rows for one (country, window, end_date) — Sprint 10 QA.
+
+    Carries ``top_collocates`` and ``frame_intensities`` so the frame-bridge
+    auditor/exporter can recompute coverage and per-frame distribution without
+    re-running the pipeline. ``end_date`` defaults to the country's freshest
+    window. Returns ``[]`` when no profiles exist.
+    """
+    if end_date is None:
+        end_date = fetch_latest_profile_end_date(country_code)
+        if end_date is None:
+            return []
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT {_PROFILE_COLS}
+                FROM entity_country_profile
+                WHERE country_code = %s AND window_days = %s AND end_date = %s
+                ORDER BY total_mentions DESC
+                """,
+                (country_code, window_days, end_date),
+            )
             return [dict(r) for r in cur.fetchall()]
 
 

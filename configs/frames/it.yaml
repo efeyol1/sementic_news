@@ -1,0 +1,35 @@
+# Frame lexicon (Italian) — Sprint 10 frame bridge. See en.yaml for the
+# contract. Lemmas matched case-insensitively against it_core_news_sm output.
+# Nationality adjectives intentionally excluded.
+frames:
+  economic:
+    [economia, inflazione, bilancio, tassa, commercio, mercato, crescita,
+     debito, investimento, prezzo, recessione, disoccupazione, salario,
+     deficit, valuta, esportazione, importazione, fiscale, finanza, costo,
+     profitto, perdita, interesse, borsa, azione, sussidio, dazio,
+     fallimento]
+  security:
+    [sicurezza, minaccia, terrore, terrorismo, attentato, polizia,
+     criminalità, difesa, confine, militare, arma, intelligence,
+     sorveglianza, estremismo, protezione, arresto, ostaggio, rapimento,
+     spionaggio, contrabbando, indagine]
+  identity:
+    [identità, cultura, religione, valore, nazione, nazionale,
+     tradizione, patrimonio, etnico, fede, laico, lingua, comunità,
+     appartenenza, patriottismo, sovranità, cittadino, straniero,
+     immigrato, integrazione, minoranza, popolo, nazionalismo]
+  governance:
+    [governo, politica, legge, riforma, regolamento, parlamento,
+     elezione, voto, ministro, legislazione, democrazia, tribunale,
+     sentenza, amministrazione, sanzione, trattato, vertice, coalizione,
+     presidente, diplomatico, negoziato, accordo, referendum,
+     opposizione, diplomazia, incontro]
+  humanitarian:
+    [umanitario, rifugiato, asilo, aiuto, diritto, vittima, sfollato,
+     sofferenza, rifugio, vulnerabile, migrante, civile, soccorso,
+     povertà, fame, carestia, evacuazione, catastrofe]
+  conflict:
+    [guerra, conflitto, scontro, tensione, escalation, violenza,
+     combattimento, invasione, tregua, truppa, battaglia, offensiva,
+     attacco, ostilità, milizia, crisi, drone, missile, razzo, bomba,
+     bombardamento, fronte, attaccare, uccidere, carro, obice, assedio]

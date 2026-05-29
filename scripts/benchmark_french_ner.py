@@ -72,7 +72,8 @@ GOLD: list[dict[str, Any]] = [
         "expected": ["Marseille"],
     },
     {
-        "text": "Vladimir Poutine a rencontré Xi Jinping à Moscou pour renforcer les liens entre la Russie et la Chine.",
+        "text": "Vladimir Poutine a rencontré Xi Jinping à Moscou pour "
+        "renforcer les liens entre la Russie et la Chine.",
         "expected": ["Poutine", "Xi Jinping", "Moscou", "Russie", "Chine"],
     },
     {

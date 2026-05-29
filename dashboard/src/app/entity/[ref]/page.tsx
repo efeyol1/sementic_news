@@ -7,6 +7,7 @@ import { buildEntitiesUrl } from "@/lib/url";
 import { CollocateList } from "@/components/ui/CollocateList";
 import { EntityComparePanel } from "@/components/ui/EntityComparePanel";
 import { EntityTimelineChart } from "@/components/charts/EntityTimelineChart";
+import { FrameRadar } from "@/components/charts/FrameRadar";
 import { WindowToggle } from "@/components/ui/WindowToggle";
 
 interface Props {
@@ -146,6 +147,18 @@ async function EntityContent({
               <p className="text-sm text-slate-500 mb-5">Son 30 günde günlük anılma</p>
               <EntityTimelineChart points={timeline?.points ?? []} />
             </div>
+          </div>
+
+          <div className="card p-6">
+            <h2 className="text-base font-semibold text-slate-800 mb-1">
+              Çerçeve Yoğunluğu (Frame Bridge)
+            </h2>
+            <p className="text-sm text-slate-500 mb-5">
+              {meta?.name ?? country} medyasında bu entity'nin top collocate'lerinden
+              türetilen 6 çerçeve dağılımı — yalnızca <span className="font-medium">
+              {head.canonical}</span> için, ülke geneli iddiası değil
+            </p>
+            <FrameRadar intensities={profile.frame_intensities} />
           </div>
         </>
       ) : (
