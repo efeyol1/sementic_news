@@ -28,6 +28,26 @@ and this project adheres to a sprint-based versioning scheme (`v2-phase-N`,
   an "entity prominence" signal alongside PMI.
 - Sprint 6: TR collocations activated (`turkey.yaml::entity_narrative.collocations.enabled`
   flipped to `true`) using the surface-form lemmatizer as the agreed baseline.
+- Sprint 7.5: multi-country migration completion. Backend dropped the
+  legacy `is_turkish` post-filter from `/api/today`, `/api/source-comparison`,
+  `/api/trend` (and the queries that backed `/api/similar`'s embedding
+  index + the weekly retrain), so non-TR countries now report correct
+  sentiment / sources / trend instead of empty results when their
+  pipeline language flag differs from "TR". `turkish_items` field name
+  preserved for dashboard backward compatibility — its semantics widened
+  to "country-pipeline items". `/api/countries` now surfaces each
+  country's `timezone` so the dashboard can localize timestamps.
+  Frontend gained `dashboard/src/lib/url.ts` (`preserveQueryParams`,
+  `buildDashboardUrl`, `buildTopicUrl`, `buildSourcesUrl`) — every
+  link/router push now keeps the `?country` query parameter on date
+  switches, cluster drill-downs, and back navigation. Locale + timezone
+  are pulled from `/api/countries` instead of hard-coded `tr-TR` /
+  `Europe/Istanbul`; new `localeForLanguage()` helper. Brand de-Turkified
+  ("Semantic News" + `<html lang="en">` + Navbar "TR" suffix removed,
+  "Türkçe Haber" stat card → "Analiz Edilen"). New backend regression
+  tests cover `_FAKE_ITEM_DE` (non-target-language items must flow
+  through), `/api/trend` country code propagation, and `/api/countries`
+  timezone field.
 - Sprint 7: rolling 7-day / 30-day entity profile rollup
   (`src/analysis/country_profile.py`) — aggregates Sprint 6's daily PMI/LLR
   into per-(entity, country, window) profile rows persisted in

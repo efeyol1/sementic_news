@@ -94,6 +94,7 @@ export interface CountryInfo {
   slug: string;     // "turkey"
   name: string;     // "Turkey"
   language: string; // "tr"
+  timezone: string; // "Europe/Istanbul" — Sprint 7.5
   status: string;   // "active"
 }
 
@@ -143,9 +144,20 @@ export const api = {
   countries: () => apiFetch<CountryInfo[]>("/api/countries"),
 };
 
-export function todayDate(): string {
-  // toISOString() returns UTC, which lags Türkiye by 3 hours and would point
-  // the dashboard at "tomorrow" or a not-yet-ingested day around midnight TR.
-  // en-CA locale produces YYYY-MM-DD; Europe/Istanbul keeps it in local time.
-  return new Date().toLocaleDateString("en-CA", { timeZone: "Europe/Istanbul" });
+export function todayDate(timeZone: string = "Europe/Istanbul"): string {
+  // toISOString() returns UTC, which lags local time by hours and would
+  // point the dashboard at "tomorrow" or a not-yet-ingested day around
+  // midnight in the user's region. en-CA locale produces YYYY-MM-DD; the
+  // caller's `timeZone` keeps it in the active country's local day.
+  // Sprint 7.5 made this a parameter so non-TR countries (DE/FR/IT/ES/UK)
+  // can pass their own zone — see /api/countries.timezone.
+  return new Date().toLocaleDateString("en-CA", { timeZone });
+}
+
+/** Look up a country by slug from a /api/countries response. */
+export function findCountry(
+  countries: CountryInfo[],
+  slug: string,
+): CountryInfo | undefined {
+  return countries.find((c) => c.slug === slug);
 }

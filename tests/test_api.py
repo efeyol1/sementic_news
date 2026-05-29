@@ -26,6 +26,27 @@ _FAKE_ITEM = {
     "cluster_keywords": ["test", "haber"],
 }
 
+# Sprint 7.5: non-TR fixture pinning that the API no longer post-filters
+# by `is_turkish`. A German pipeline can — in the edge case where
+# langdetect returns the wrong language for a short headline — produce
+# rows with `is_turkish=False`. Pre-Sprint-7.5 those rows were silently
+# dropped from /api/today, /api/source-comparison and /api/trend. The
+# tests below assert they now flow through.
+_FAKE_ITEM_DE = {
+    "id": 2,
+    "title": "Bundeskanzler Test",
+    "source_name": "DER SPIEGEL",
+    "published_date": "2026-04-20T10:00:00+00:00",
+    "link": "https://example.com/de-1",
+    "is_turkish": False,  # langdetect returned a non-target language
+    "sentiment_label": "negative",
+    "sentiment_score": 0.83,
+    "entities": {"PER": ["Merkel"], "ORG": ["Bundestag"], "LOC": ["Berlin"]},
+    "cluster_id": 0,
+    "cluster_title": "Politik · Bundestag",
+    "cluster_keywords": ["test", "politik"],
+}
+
 _FAKE_CLUSTER = {
     "cluster_id": 0,
     "title": "Test · TBMM",
@@ -170,7 +191,104 @@ def test_countries_endpoint_lists_active_countries():
     assert isinstance(data, list)
     assert any(c["slug"] == "turkey" and c["code"] == "TR" for c in data), data
     for c in data:
-        assert {"code", "slug", "name", "language", "status"} <= c.keys()
+        # Sprint 7.5 added timezone — must be present so the dashboard
+        # can localize timestamps without hard-coding Europe/Istanbul.
+        assert {"code", "slug", "name", "language", "timezone", "status"} <= c.keys()
+
+
+def test_countries_endpoint_returns_country_timezone():
+    """Every country YAML declares a timezone; the API must surface it."""
+    r = client.get("/api/countries")
+    assert r.status_code == 200
+    countries = {c["slug"]: c for c in r.json()}
+    assert countries["turkey"]["timezone"] == "Europe/Istanbul"
+    # Sanity: at least one non-TR country surfaces its own zone.
+    non_tr_zones = {
+        c["slug"]: c["timezone"] for c in r.json() if c["slug"] != "turkey"
+    }
+    assert non_tr_zones, "expected ≥1 non-TR country with a timezone"
+    assert all(z and z != "Europe/Istanbul" for z in non_tr_zones.values()), non_tr_zones
+
+
+# ---------------------------------------------------------------------------
+# Multi-country regression: is_turkish filter must not drop non-TR items
+# (Sprint 7.5 — fixes the legacy TR-only post-filter in /api/today,
+# /api/source-comparison; queries.py:fetch_sentiment_trend cleanup is
+# also exercised by the dashboard's /api/trend endpoint)
+# ---------------------------------------------------------------------------
+
+
+def _patch_fetch_all(monkeypatch, items):
+    import src.api.main as api_module
+    monkeypatch.setattr(
+        api_module, "fetch_all_for_api",
+        lambda date_str, country_code="TR": items,
+    )
+
+
+def test_today_counts_non_target_language_items(monkeypatch):
+    """A DE item with `is_turkish=False` must be counted in /api/today."""
+    _patch_fetch_all(monkeypatch, [_FAKE_ITEM_DE])
+    r = client.get("/api/today?date=2026-04-20&country=germany")
+    assert r.status_code == 200
+    data = r.json()
+    assert data["total_items"] == 1
+    # Sprint 7.5: turkish_items kept as legacy field name but now means
+    # "country-pipeline items" — non-TR items count even with
+    # is_turkish=False on the row.
+    assert data["turkish_items"] == 1
+    assert data["sentiment"]["counts"]["negative"] == 1
+
+
+def test_today_top_entities_from_non_target_language_items(monkeypatch):
+    """Entity aggregation must include non-`is_turkish` rows."""
+    import src.api.main as api_module
+    # Force the COALESCE-into-aggregation path by returning empty
+    # fetch_top_entities so /api/today rebuilds entities from items.
+    monkeypatch.setattr(
+        api_module, "fetch_top_entities",
+        lambda date_str, country_code="TR", limit=10: {"PER": [], "ORG": [], "LOC": []},
+    )
+    _patch_fetch_all(monkeypatch, [_FAKE_ITEM_DE])
+    r = client.get("/api/today?date=2026-04-20&country=germany")
+    assert r.status_code == 200
+    top = r.json()["top_entities"]
+    assert "Merkel" in top["PER"]
+    assert "Bundestag" in top["ORG"]
+    assert "Berlin" in top["LOC"]
+
+
+def test_source_comparison_includes_non_target_language_items(monkeypatch):
+    """A DE source must appear in /api/source-comparison even if
+    is_turkish=False on every row."""
+    _patch_fetch_all(monkeypatch, [_FAKE_ITEM_DE])
+    r = client.get("/api/source-comparison?date=2026-04-20&country=germany")
+    assert r.status_code == 200
+    data = r.json()
+    assert "DER SPIEGEL" in data["sources"]
+    assert data["sources"]["DER SPIEGEL"]["total"] == 1
+    assert data["sources"]["DER SPIEGEL"]["sentiment_counts"]["negative"] == 1
+
+
+def test_trend_endpoint_propagates_country_code(monkeypatch):
+    """/api/trend hits fetch_sentiment_trend with the resolved country."""
+    import src.api.main as api_module
+    captured: dict = {}
+
+    def fake_trend(days, country_code="TR"):
+        captured["days"] = days
+        captured["country_code"] = country_code
+        return [
+            {"date": "2026-04-20", "positive": 3, "negative": 2,
+             "neutral": 1, "total": 6},
+        ]
+
+    monkeypatch.setattr(api_module, "fetch_sentiment_trend", fake_trend)
+    r = client.get("/api/trend?days=7&country=germany")
+    assert r.status_code == 200
+    assert captured["country_code"] == "DE"
+    assert captured["days"] == 7
+    assert r.json()["points"][0]["positive"] == 3
 
 
 def test_today_default_country_is_turkey():

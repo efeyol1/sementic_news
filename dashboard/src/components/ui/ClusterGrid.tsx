@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ArrowRight, Layers } from "lucide-react";
+import { buildTopicUrl } from "@/lib/url";
 
 interface Cluster {
   cluster_id: number;
@@ -11,15 +12,18 @@ interface Cluster {
 interface Props {
   clusters: Cluster[];
   date?: string;
+  country?: string;
 }
 
-export function ClusterGrid({ clusters, date }: Props) {
+export function ClusterGrid({ clusters, date, country }: Props) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {clusters.map((cluster) => {
-        const query = date ? `?date=${date}` : "";
+        // Sprint 7.5: country preserved across cluster drill-down so
+        // back navigation lands on the same country dashboard.
+        const href = buildTopicUrl(cluster.cluster_id, date, country);
         return (
-          <Link key={cluster.cluster_id} href={`/topic/${cluster.cluster_id}${query}`}>
+          <Link key={cluster.cluster_id} href={href}>
             <div className="card p-4 hover:border-green-200 hover:shadow-md transition-all group cursor-pointer h-full">
               <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-2.5">

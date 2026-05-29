@@ -184,6 +184,10 @@ def list_available_countries() -> list[dict[str, Any]]:
                 "slug": cfg["country_slug"],
                 "name": cfg["country_name"],
                 "language": cfg["language"],
+                # Sprint 7.5: surface timezone so the dashboard can format
+                # dates and timestamps in the country's local zone instead
+                # of the hard-coded Europe/Istanbul fallback.
+                "timezone": cfg.get("timezone") or "UTC",
                 "status": "active",
             }
         )

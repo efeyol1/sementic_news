@@ -1,7 +1,8 @@
 import { Suspense } from "react";
-import { api, DEFAULT_COUNTRY, todayDate } from "@/lib/api";
+import { api, DEFAULT_COUNTRY, findCountry, todayDate } from "@/lib/api";
 import { SourceHeatmap } from "@/components/charts/SourceHeatmap";
 import { DatePicker } from "@/components/ui/DatePicker";
+import { localeForLanguage } from "@/lib/utils";
 import { BarChart3, TrendingDown, TrendingUp, Minus } from "lucide-react";
 
 interface Props {
@@ -9,10 +10,16 @@ interface Props {
 }
 
 async function SourcesContent({ date, country }: { date: string; country: string }) {
-  const [data, datesData] = await Promise.all([
+  const [data, datesData, countries] = await Promise.all([
     api.sources(date, country).catch(() => null),
     api.dates(country).catch(() => null),
+    api.countries().catch(() => []),
   ]);
+
+  // Sprint 7.5: locale picked off the active country (falls back to en-US
+  // when /api/countries is briefly unreachable).
+  const meta = findCountry(countries, country);
+  const locale = localeForLanguage(meta?.language);
 
   if (!data) {
     return (
@@ -38,8 +45,8 @@ async function SourcesContent({ date, country }: { date: string; country: string
         <div>
           <h1 className="text-2xl font-bold text-slate-900 mb-1">Kaynak Analizi</h1>
           <p className="text-slate-500 text-sm">
-            {new Date(date + "T12:00:00").toLocaleDateString("tr-TR", { year: "numeric", month: "long", day: "numeric" })} —{" "}
-            {sources.length} kaynak, {totalNews.toLocaleString("tr-TR")} haber
+            {new Date(date + "T12:00:00").toLocaleDateString(locale, { year: "numeric", month: "long", day: "numeric" })} —{" "}
+            {sources.length} kaynak, {totalNews.toLocaleString(locale)} haber
           </p>
         </div>
         {datesData && (
@@ -78,7 +85,7 @@ async function SourcesContent({ date, country }: { date: string; country: string
             <Minus className="w-4 h-4 text-slate-400" />
             <span className="text-xs font-medium text-slate-500 uppercase tracking-wider">Toplam</span>
           </div>
-          <div className="text-2xl font-mono font-bold text-slate-800">{totalNews.toLocaleString("tr-TR")}</div>
+          <div className="text-2xl font-mono font-bold text-slate-800">{totalNews.toLocaleString(locale)}</div>
           <div className="text-xs text-slate-400 mt-1">{sources.length} kaynak taranıyor</div>
         </div>
       </div>
