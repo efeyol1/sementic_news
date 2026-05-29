@@ -43,3 +43,20 @@ export function formatNumber(n: number, locale: string = "en-US"): string {
 export function formatPercent(n: number): string {
   return `%${(n * 100).toFixed(1)}`;
 }
+
+// Entity-type chip styling (Sprint 9) — same PER/ORG/LOC colour language as
+// the existing EntityCloud (violet / blue / amber).
+const ENTITY_TYPE_META: Record<string, { label: string; chip: string }> = {
+  PER: { label: "Kişi", chip: "bg-violet-50 text-violet-700 border-violet-200" },
+  ORG: { label: "Kurum", chip: "bg-blue-50 text-blue-700 border-blue-200" },
+  LOC: { label: "Yer", chip: "bg-amber-50 text-amber-700 border-amber-200" },
+};
+
+export function entityTypeMeta(t: string): { label: string; chip: string } {
+  return (
+    ENTITY_TYPE_META[t] ?? {
+      label: t,
+      chip: "bg-slate-50 text-slate-600 border-slate-200",
+    }
+  );
+}
