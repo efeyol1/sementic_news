@@ -13,7 +13,7 @@ from pydantic import BaseModel, Field
 
 from src.api import drift_metrics  # noqa: F401  registers Prometheus collector on import
 from src.api.dependencies import resolve_country
-from src.config.country_loader import list_available_countries
+from src.config.country_loader import list_available_countries, load_country_config
 from src.db.queries import (
     fetch_all_for_api,
     fetch_available_dates,
@@ -320,6 +320,37 @@ class EntityTimelineResponse(BaseModel):
     reference: str = Field(..., examples=["Q22686"])
     country_code: str = Field(..., examples=["DE"])
     points: list[EntityTimelinePoint]
+
+
+class ExplanationCitation(BaseModel):
+    id: str = Field(..., examples=["S1"])
+    source_name: str = Field(..., examples=["Der Spiegel"])
+    date: str = Field(..., examples=["2026-05-29"])
+    link: str | None = None
+    snippet: str
+
+
+class ExplanationClaim(BaseModel):
+    text: str
+    citations: list[str] = Field(default_factory=list, examples=[["S1", "S3"]])
+    metric_refs: list[str] = Field(default_factory=list, examples=[["PMI:krieg=3.4"]])
+
+
+class EntityExplainResponse(BaseModel):
+    """Sprint 11 RAG: grounded natural-language explanation of an entity's
+    framing signals. (entity, country)-scoped — never a country-level claim."""
+    available: bool = True
+    reference: str = Field(..., examples=["Q22686"])
+    country_code: str = Field(..., examples=["DE"])
+    window_days: int = Field(..., examples=[30])
+    end_date: str = Field("", examples=["2026-05-29"])
+    lang: str = Field("tr", examples=["tr"])
+    backend: str = Field("extractive", examples=["anthropic"])
+    cached: bool = False
+    insufficient_evidence: bool = False
+    frame_summary: str = ""
+    claims: list[ExplanationClaim] = Field(default_factory=list)
+    citations: list[ExplanationCitation] = Field(default_factory=list)
 
 
 # ---------------------------------------------------------------------------
@@ -956,3 +987,71 @@ def entity_timeline(
         for r in rows
     ]
     return {"reference": ref, "country_code": cc, "points": points}
+
+
+@app.get(
+    "/api/entity/{ref}/explain",
+    tags=["Analiz"],
+    summary="Entity'nin çerçevelemesinin grounded açıklaması (RAG)",
+    response_model=EntityExplainResponse,
+)
+def entity_explain(
+    ref: str = Path(..., description="Wikidata QID (ör. Q22686) veya canonical isim"),
+    country: str = Query("turkey", description="Country slug veya ISO kodu"),
+    window_days: int = Query(default=30, description="Rolling pencere: 7 veya 30"),
+    lang: str = Query("tr", pattern="^(tr|en)$", description="Çıktı dili"),
+):
+    """Entity'nin framing sinyallerini (top collocate + frame yoğunluğu)
+    gerçek makale alıntılarına dayanarak doğal dilde açıklar.
+
+    Yalnızca ``(entity, ülke)`` kapsamında; ülke-geneli iddiası yapmaz.
+    Gate kapalıysa ``available: false`` döner; profil yoksa 404. Generation
+    hatası asla 500 olmaz — extractive'e düşer.
+    """
+    from src.rag import explain_entity
+    from src.rag.config import is_enabled as rag_enabled
+
+    _validate_window(window_days)
+    try:
+        country_config = load_country_config(country)
+    except (FileNotFoundError, ValueError) as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    cc = country_config["country_code"]
+
+    if not rag_enabled(country_config):
+        return EntityExplainResponse(
+            available=False, reference=ref, country_code=cc,
+            window_days=window_days, lang=lang, backend="none",
+            insufficient_evidence=True,
+        )
+
+    profile = fetch_entity_profile(cc, window_days, **_ref_filter(ref))
+    if profile is None:
+        raise HTTPException(
+            status_code=404,
+            detail=f"'{ref}' için {cc} entity profilinde veri bulunamadı.",
+        )
+
+    try:
+        payload, cached = explain_entity(profile, country_config, lang)
+    except Exception:  # never 500 — degrade gracefully
+        return EntityExplainResponse(
+            available=True, reference=ref, country_code=cc,
+            window_days=window_days, end_date=str(profile.get("end_date", "")),
+            lang=lang, backend="extractive", insufficient_evidence=True,
+        )
+
+    return EntityExplainResponse(
+        available=True,
+        reference=ref,
+        country_code=cc,
+        window_days=window_days,
+        end_date=str(profile.get("end_date", "")),
+        lang=lang,
+        backend=payload["backend"],
+        cached=cached,
+        insufficient_evidence=payload["insufficient_evidence"],
+        frame_summary=payload["frame_summary"],
+        claims=payload["claims"],
+        citations=payload["citations"],
+    )

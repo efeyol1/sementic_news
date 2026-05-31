@@ -1285,6 +1285,140 @@ def fetch_entity_timeline(
 
 
 # ---------------------------------------------------------------------------
+# Entity explanation / RAG (Sprint 11)
+# ---------------------------------------------------------------------------
+
+
+@retry_on_connection_loss()
+def fetch_entity_snippet_rows(
+    country_code: str,
+    start_date: str,
+    end_date: str,
+    qid: str | None = None,
+    canonical: str | None = None,
+    limit: int = 40,
+) -> list[dict[str, Any]]:
+    """Candidate articles mentioning an entity, for RAG snippet extraction.
+
+    One row per article (``DISTINCT ON (ni.id)``) where the entity is
+    mentioned, scoped to ``country_code`` and ``[start_date, end_date]``,
+    recency-ordered and capped to ``limit``. Returns the text columns the
+    retriever needs (`cleaned_article_text` → `cleaned_summary` → `summary`
+    → `title` fallback chain) plus source/link/date for citations and
+    ``position_in_article`` as a snippet locator hint. QID-primary,
+    canonical fallback (same clause pattern as the other entity readers).
+    """
+    if not qid and not canonical:
+        raise ValueError("fetch_entity_snippet_rows needs either qid or canonical")
+    clause, param = (
+        ("em.wikidata_qid = %s", qid) if qid else ("em.canonical = %s", canonical)
+    )
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                f"""
+                SELECT * FROM (
+                    SELECT DISTINCT ON (ni.id)
+                        ni.id                   AS article_id,
+                        ni.title                AS title,
+                        ni.summary              AS summary,
+                        ni.cleaned_summary      AS cleaned_summary,
+                        ni.cleaned_article_text AS cleaned_article_text,
+                        ni.source_name          AS source_name,
+                        ni.link                 AS link,
+                        ni.published_date        AS published_date,
+                        ni.collected_date        AS collected_date,
+                        em.entity_text          AS entity_text,
+                        em.position_in_article   AS position_in_article
+                    FROM entity_mentions em
+                    JOIN news_items ni ON ni.id = em.article_id
+                    WHERE em.country_code = %s
+                      AND em.collected_date BETWEEN %s AND %s
+                      AND {clause}
+                    ORDER BY ni.id, em.position_in_article NULLS LAST
+                ) sub
+                ORDER BY collected_date DESC, article_id DESC
+                LIMIT %s
+                """,
+                (country_code, start_date, end_date, param, limit),
+            )
+            return [dict(r) for r in cur.fetchall()]
+
+
+@retry_on_connection_loss()
+def fetch_explanation_cache(
+    country_code: str,
+    canonical: str,
+    entity_type: str,
+    window_days: int,
+    end_date: str,
+    lang: str,
+) -> dict[str, Any] | None:
+    """One cached ``entity_explanation`` row by its unique identity key.
+
+    Returns the row (incl. ``profile_hash`` + ``explanation`` JSONB) or
+    ``None``. The caller decides hit vs stale by comparing ``profile_hash``
+    against the current profile — this helper only fetches by identity.
+    """
+    with get_conn() as conn:
+        with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            cur.execute(
+                """
+                SELECT profile_hash, backend, model, lang, explanation, created_at
+                FROM entity_explanation
+                WHERE country_code = %s AND canonical = %s AND entity_type = %s
+                  AND window_days = %s AND end_date = %s AND lang = %s
+                """,
+                (country_code, canonical, entity_type, window_days, end_date, lang),
+            )
+            row = cur.fetchone()
+    return dict(row) if row else None
+
+
+@retry_on_connection_loss()
+def upsert_explanation_cache(row: dict[str, Any]) -> None:
+    """Insert or refresh one cached explanation (idempotent on identity key).
+
+    ``row`` keys: country_code, wikidata_qid (nullable), canonical,
+    entity_type, window_days, end_date, profile_hash, backend, model
+    (nullable), lang, explanation (dict → JSONB).
+    """
+    with get_conn() as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                INSERT INTO entity_explanation
+                    (country_code, wikidata_qid, canonical, entity_type,
+                     window_days, end_date, profile_hash, backend, model,
+                     lang, explanation)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (country_code, canonical, entity_type,
+                             window_days, end_date, lang)
+                DO UPDATE SET
+                    wikidata_qid = EXCLUDED.wikidata_qid,
+                    profile_hash = EXCLUDED.profile_hash,
+                    backend      = EXCLUDED.backend,
+                    model        = EXCLUDED.model,
+                    explanation  = EXCLUDED.explanation,
+                    created_at   = NOW()
+                """,
+                (
+                    row["country_code"],
+                    row.get("wikidata_qid"),
+                    row["canonical"],
+                    row["entity_type"],
+                    row["window_days"],
+                    row["end_date"],
+                    row["profile_hash"],
+                    row["backend"],
+                    row.get("model"),
+                    row["lang"],
+                    psycopg2.extras.Json(row["explanation"]),
+                ),
+            )
+
+
+# ---------------------------------------------------------------------------
 # Clustering
 # ---------------------------------------------------------------------------
 
