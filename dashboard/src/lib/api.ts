@@ -188,6 +188,35 @@ export interface EntityTimelineResponse {
   points: EntityTimelinePoint[];
 }
 
+export interface ExplanationClaim {
+  text: string;
+  citations: string[];
+  metric_refs: string[];
+}
+
+export interface ExplanationCitation {
+  id: string;
+  source_name: string;
+  date: string;
+  link: string | null;
+  snippet: string;
+}
+
+export interface EntityExplainResponse {
+  available: boolean;
+  reference: string;
+  country_code: string;
+  window_days: number;
+  end_date: string;
+  lang: string;
+  backend: string;
+  cached: boolean;
+  insufficient_evidence: boolean;
+  frame_summary: string;
+  claims: ExplanationClaim[];
+  citations: ExplanationCitation[];
+}
+
 export const api = {
   today: (date?: string, country?: string) =>
     apiFetch<TodayResponse>("/api/today", withCountry(country, date ? { date } : undefined)),
@@ -243,6 +272,12 @@ export const api = {
     apiFetch<EntityTimelineResponse>(
       `/api/entity/${encodeURIComponent(ref)}/timeline`,
       withCountry(country, { days: String(days) }),
+    ),
+
+  entityExplain: (ref: string, windowDays = 30, country?: string, lang = "tr") =>
+    apiFetch<EntityExplainResponse>(
+      `/api/entity/${encodeURIComponent(ref)}/explain`,
+      withCountry(country, { window_days: String(windowDays), lang }),
     ),
 };
 

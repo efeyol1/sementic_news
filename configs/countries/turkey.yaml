@@ -138,6 +138,9 @@ entity_narrative:
     # security, identity, governance, humanitarian, conflict) via
     # configs/frames/tr.yaml. Seed-word baseline; Sprint 12 → classifier.
     enabled: true
+  rag:
+    # Sprint 11: grounded explanation layer. Off by default (cost control).
+    enabled: false
 
 clustering:
   enabled: true

@@ -4,9 +4,15 @@ services:
     runtime: python
     region: frankfurt
     plan: free
-    buildCommand: pip install .
+    # Sprint 11: install the `rag` extra so the anthropic SDK is present;
+    # without it the /explain endpoint silently falls back to extractive.
+    buildCommand: pip install ".[rag]"
     startCommand: uvicorn src.api.main:app --host 0.0.0.0 --port $PORT
     envVars:
       - key: PYTHON_VERSION
         value: 3.12.0
+      # Sprint 11 RAG — set the value in the Render dashboard (sync: false →
+      # not committed). Absent key → explain endpoint uses extractive fallback.
+      - key: ANTHROPIC_API_KEY
+        sync: false
     autoDeploy: true

@@ -60,6 +60,12 @@ training = [
 serving = [
     "optimum[onnxruntime]>=1.20.0",
 ]
+# Sprint 11: Claude-backed RAG explainability generator. Optional — the
+# extractive fallback runs with zero extra deps, so the API base install
+# stays torch-free and the SDK is only needed where generation is enabled.
+rag = [
+    "anthropic>=0.40.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",

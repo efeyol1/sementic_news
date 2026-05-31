@@ -4,11 +4,41 @@ All notable changes to this project are documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to a sprint-based versioning scheme (`v2-phase-N`,
-`v2-entity-sprint-N`, `v2-sprint-N`).
+`v2-entity-sprint-N`, `v2-sprint-N`). Planned: switch to semantic versioning
+(`1.0.0`) when the first public release is cut (after Sprint 11 / RAG).
 
 ## [Unreleased]
 
 ### Added
+- Sprint 11: **RAG explainability layer** — entity'nin framing sinyallerini
+  (top collocate + frame yoğunluğu) gerçek makale alıntılarına dayanarak
+  grounded doğal dilde açıklar. `src/rag/` (retriever + context + prompts +
+  generator + explain). Generator: **Claude (claude-sonnet-4-6) primary +
+  extractive fallback** (key/SDK yoksa veya API hatası → deterministik,
+  citation'lı extractive; transient fallback cache'lenmez). Grounding guard:
+  yalnız gerçek snippet id'lerine citation; uydurma id düşürülür. Alembic
+  `0010_entity_explanation` (profile_hash invalidation'lı cache tablosu).
+  API `GET /api/entity/{ref}/explain?country=&window=&lang=` (gate→
+  `available:false`, profil yoksa 404, asla 500). Dashboard: lazy "Neden?"
+  paneli (`EntityExplainPanel`). Per-country `entity_narrative.rag` gate
+  (germany ON; cost control). `[rag]` pyproject extra (`anthropic`),
+  `ANTHROPIC_API_KEY`. `(entity, country)` scope — country-level claim yok.
+- Sprint 10: **frame bridge** — entity collocate'lerinden 6 issue-hizalı
+  çerçeve yoğunluğu (`src/analysis/frame_bridge.py`, `configs/frames/<lang>.yaml`)
+  seed-word lexicon ile, LLR ağırlık + L1-norm; eşleşme yoksa NULL (no fabricate).
+  Alembic `0009_frame_intensities` (`entity_country_profile.frame_intensities`
+  JSONB). API: `EntityProfileResponse.frame_intensities` (profile + compare).
+  Dashboard: `FrameRadar` (Recharts) entity sayfasında. Quality gate scriptleri:
+  `audit_frame_bridge.py` + `export_frame_review_sample.py` +
+  `evaluate_frame_review.py` (≥%70 frame ranking gate). CI: `daily_pipeline.yml`
+  per-country matrix (turkey required + 5 optional) + `prepare-db` job + 2. cron;
+  `run_daily.sh` 6-ülke döngüsü. `(entity, country)` scope — country-level claim yok.
+- Sprint 9: dashboard entity sayfaları (`/entities` arama + ranked liste,
+  `/entity/[ref]` profile + CollocateList + EntityComparePanel + timeline +
+  7/30g window toggle).
+- Sprint 8: entity profile API endpoint'leri — `/api/entities` (discovery),
+  `/api/entity/{ref}/profile|compare|timeline` (`{ref}` = QID veya canonical),
+  cross-country compare (per-country latest window).
 - Sprint 5 (in PR review): entity collocations module (`src/analysis/collocations.py`),
   language-keyed stopwords config (`configs/stopwords/`), text-processing helper
   (`src/analysis/text_processing.py`), Alembic migration `0007_entity_collocations`.

@@ -134,6 +134,9 @@ entity_narrative:
   frame_bridge:
     # Sprint 10: collocate lemmas → 6-frame intensity via configs/frames/es.yaml.
     enabled: true
+  rag:
+    # Sprint 11: grounded explanation layer. Off by default (cost control).
+    enabled: false
 
 clustering:
   enabled: true

@@ -8,6 +8,7 @@ import { CollocateList } from "@/components/ui/CollocateList";
 import { EntityComparePanel } from "@/components/ui/EntityComparePanel";
 import { EntityTimelineChart } from "@/components/charts/EntityTimelineChart";
 import { FrameRadar } from "@/components/charts/FrameRadar";
+import { EntityExplainPanel } from "@/components/ui/EntityExplainPanel";
 import { WindowToggle } from "@/components/ui/WindowToggle";
 
 interface Props {
@@ -160,6 +161,8 @@ async function EntityContent({
             </p>
             <FrameRadar intensities={profile.frame_intensities} />
           </div>
+
+          <EntityExplainPanel entityRef={entityRef} country={country} windowDays={windowDays} />
         </>
       ) : (
         <div className="card p-5 text-sm text-slate-500">
