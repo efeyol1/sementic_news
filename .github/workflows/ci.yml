@@ -20,7 +20,9 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install -e ".[dev,pipeline]"
+        # training adds datasets (light, pyarrow-based) so tests/test_retrain_gold.py
+        # can import src.training.retrain; torch is already pulled in by pipeline.
+        run: pip install -e ".[dev,pipeline,training]"
 
       - name: Cache HuggingFace models
         # Behavioral tests load efeyol11/bert-turkish-sentiment (~440MB) every run.

@@ -5,7 +5,13 @@ import json
 from collections import Counter
 from pathlib import Path
 
-from src.training.retrain import (
+import pytest
+
+# src.training.retrain imports `datasets` (a [training]-only dep). Skip the whole
+# module instead of aborting collection where the training stack isn't installed.
+pytest.importorskip("datasets")
+
+from src.training.retrain import (  # noqa: E402  (must follow importorskip)
     _balance_gold,
     _load_gold_dataset,
     _load_human_eval,
