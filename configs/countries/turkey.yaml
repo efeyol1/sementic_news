@@ -144,7 +144,29 @@ entity_narrative:
 
 clustering:
   enabled: true
-  method: kmeans
+  # Cluster-coherence fix: density-based HDBSCAN replaces fixed-k KMeans for
+  # TR. Fixed k=15 over-fragmented single themes (kaza/vefat split across 3
+  # clusters) and forced unrelated items together (magazin + politics). HDBSCAN
+  # picks the cluster count from density and drops genuinely off-topic items as
+  # noise (cluster_id=-1) instead of shoehorning them. Other countries stay on
+  # kmeans until this is validated in production.
+  method: hdbscan
+  # UMAP pre-reduction before HDBSCAN. Without it, HDBSCAN leaves ~75% of the
+  # day's items as noise (high-dim density estimate is unreliable); with it,
+  # noise drops to ~18% and silhouette rises from 0.09 (KMeans) to ~0.58.
+  umap:
+    enabled: true
+    n_components: 10
+    n_neighbors: 15
+    min_dist: 0.0
+  # Minimum items to form a topic. 8 keeps small-but-real same-day stories
+  # (e.g. a single localized event) while filtering one-off noise.
+  min_cluster_size: 8
+  # null → HDBSCAN derives it from min_cluster_size. Raise to be more
+  # conservative (more noise, tighter clusters).
+  min_samples: null
+  cluster_selection_epsilon: 0.0
+  # Retained for the kmeans fallback path; ignored when method: hdbscan.
   default_n_clusters: 15
   embedding_model: paraphrase-multilingual-MiniLM-L12-v2
   # TF-IDF stopword list; Turkish-specific. Other countries supply their

@@ -32,6 +32,8 @@ HF_MODEL_ID = "savasy/bert-base-turkish-ner-cased"
 
 _KEEP_LABELS = {"PER", "ORG", "LOC"}
 
+_SUBWORD_MARKER = "##"
+
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 
 mlflow.set_tracking_uri(f"sqlite:///{_REPO_ROOT / 'mlflow.db'}")
@@ -59,6 +61,21 @@ def _build_text(item: dict[str, Any]) -> str:
     return build_ner_text(item)
 
 
+def _is_subword_artifact(word: str) -> bool:
+    """``##usya``, ``##mgrup`` gibi WordPiece sızıntılarını yakalar.
+
+    ``aggregation_strategy="simple"`` tam kelimeyi (``Rusya``) zaten ayrı bir
+    entity olarak üretiyor; ``##USYA`` parçası onun tekrarı ve entity
+    listelerine / cluster başlıklarına ``Yapay · ##mgrup`` gibi sızıyor. Aynı
+    filtre çok dilli ``entity_extraction`` path'inde de uygulanıyor.
+    """
+    if not word:
+        return True
+    if word.startswith(_SUBWORD_MARKER):
+        return True
+    return any(part.startswith(_SUBWORD_MARKER) for part in word.split())
+
+
 def _extract_entities(text: str, pipe) -> dict[str, list[str]]:
     raw: list[dict] = pipe(text)
     grouped: dict[str, set[str]] = {label: set() for label in _KEEP_LABELS}
@@ -66,7 +83,7 @@ def _extract_entities(text: str, pipe) -> dict[str, list[str]]:
         label = ent.get("entity_group", "")
         if label in _KEEP_LABELS:
             word = ent["word"].strip()
-            if word:
+            if word and not _is_subword_artifact(word):
                 grouped[label].add(word)
     return {label: sorted(words) for label, words in grouped.items()}
 
