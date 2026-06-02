@@ -8,6 +8,7 @@ import { CollocateList } from "@/components/ui/CollocateList";
 import { EntityComparePanel } from "@/components/ui/EntityComparePanel";
 import { EntityTimelineChart } from "@/components/charts/EntityTimelineChart";
 import { FrameRadar } from "@/components/charts/FrameRadar";
+import { FrameRadarMulti } from "@/components/charts/FrameRadarMulti";
 import { EntityExplainPanel } from "@/components/ui/EntityExplainPanel";
 import { WindowToggle } from "@/components/ui/WindowToggle";
 
@@ -40,7 +41,7 @@ async function EntityContent({
   const [profile, compare, timeline, countries] = await Promise.all([
     api.entityProfile(entityRef, windowDays, country).catch(() => null),
     api.entityCompare(entityRef, windowDays).catch(() => null),
-    api.entityTimeline(entityRef, 30, country).catch(() => null),
+    api.entityTimeline(entityRef, windowDays, country).catch(() => null),
     api.countries().catch(() => []),
   ]);
 
@@ -69,6 +70,17 @@ async function EntityContent({
 
   const m = entityTypeMeta(head.entity_type);
   const isQid = /^Q\d+$/.test(entityRef);
+
+  // Cross-country frame overlay: one radar series per country the entity
+  // appears in. Names come from /api/countries; intensities from each
+  // country's compare profile (null when its collocates hit no frame seed).
+  const compareProfiles = compare?.countries ?? [];
+  const frameSeries = compareProfiles.map((p) => ({
+    code: p.country_code,
+    name: countries.find((c) => c.code === p.country_code)?.name ?? p.country_code,
+    intensities: p.frame_intensities,
+  }));
+  const hasMultiFrame = frameSeries.filter((s) => s.intensities).length >= 2;
 
   return (
     <div className="space-y-7">
@@ -145,8 +157,8 @@ async function EntityContent({
               <h2 className="text-base font-semibold text-slate-800 mb-1">
                 Mention Zaman Serisi
               </h2>
-              <p className="text-sm text-slate-500 mb-5">Son 30 günde günlük anılma</p>
-              <EntityTimelineChart points={timeline?.points ?? []} />
+              <p className="text-sm text-slate-500 mb-5">Son {windowDays} günde günlük anılma</p>
+              <EntityTimelineChart points={timeline?.points ?? []} locale={locale} />
             </div>
           </div>
 
@@ -162,7 +174,7 @@ async function EntityContent({
             <FrameRadar intensities={profile.frame_intensities} />
           </div>
 
-          <EntityExplainPanel entityRef={entityRef} country={country} windowDays={windowDays} />
+          <EntityExplainPanel entityRef={entityRef} country={country} windowDays={windowDays} lang={meta?.language === "tr" ? "tr" : "en"} />
         </>
       ) : (
         <div className="card p-5 text-sm text-slate-500">
@@ -177,11 +189,26 @@ async function EntityContent({
           Ülkeler Arası Karşılaştırma
         </h2>
         <p className="text-sm text-slate-500 mb-5">
-          Aynı entity'nin farklı ülke medyalarındaki top collocate'leri — çerçeveleme
-          farkları
+          Aynı entity'nin farklı ülke medyalarında nasıl çerçevelendiği
         </p>
+
+        {hasMultiFrame && (
+          <div className="mb-7">
+            <h3 className="text-sm font-semibold text-slate-700 mb-1">
+              Çerçeve Yoğunluğu
+            </h3>
+            <p className="text-xs text-slate-400 mb-3">
+              6 çerçevenin ülkelere göre dağılımı — üst üste bindirilmiş radar
+            </p>
+            <FrameRadarMulti series={frameSeries} activeCode={activeCode} />
+          </div>
+        )}
+
+        <h3 className="text-sm font-semibold text-slate-700 mb-3">
+          Top Collocate'ler
+        </h3>
         <EntityComparePanel
-          profiles={compare?.countries ?? []}
+          profiles={compareProfiles}
           countries={countries}
           activeCountry={activeCode}
         />

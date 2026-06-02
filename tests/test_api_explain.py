@@ -18,9 +18,13 @@ _PROFILE = {
 }
 
 
-def test_gate_off_returns_available_false():
-    # turkey has rag.enabled: false
-    r = client.get("/api/entity/Q22686/explain", params={"country": "turkey"})
+def test_gate_off_returns_available_false(monkeypatch):
+    monkeypatch.setattr(
+        api_main,
+        "load_country_config",
+        lambda _country: {"country_code": "ZZ", "entity_narrative": {"rag": {"enabled": False}}},
+    )
+    r = client.get("/api/entity/Q22686/explain", params={"country": "disabled-test"})
     assert r.status_code == 200
     assert r.json()["available"] is False
 

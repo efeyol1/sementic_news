@@ -3,7 +3,7 @@
 import { Suspense } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { LayoutDashboard, BarChart3, Network, Globe2 } from "lucide-react";
+import { LayoutDashboard, BarChart3, Network, Globe2, Activity } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { CountrySelector } from "@/components/ui/CountrySelector";
 
@@ -11,6 +11,7 @@ const links = [
   { href: "/", label: "Genel Bakış", icon: LayoutDashboard },
   { href: "/sources", label: "Kaynak Analizi", icon: BarChart3 },
   { href: "/entities", label: "Entity'ler", icon: Network },
+  { href: "/health", label: "Veri Sağlığı", icon: Activity },
 ];
 
 // "/entities" should stay active while drilling into "/entity/[ref]" too.

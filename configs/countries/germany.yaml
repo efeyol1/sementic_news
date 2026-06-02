@@ -87,8 +87,8 @@ entity_narrative:
     # Sprint 10: collocate lemmas → 6-frame intensity via configs/frames/de.yaml.
     enabled: true
   rag:
-    # Sprint 11: Claude-backed grounded explanation of the framing signals.
-    # ON for DE as the pilot; needs ANTHROPIC_API_KEY (else extractive fallback).
+    # Sprint 11: grounded explanation layer for cross-country framing Q&A.
+    # Uses Claude when ANTHROPIC_API_KEY is present; otherwise extractive fallback.
     enabled: true
     model: claude-sonnet-4-6
 
