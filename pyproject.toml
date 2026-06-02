@@ -42,6 +42,14 @@ pipeline = [
     "beautifulsoup4>=4.12.0",
     "langdetect>=1.0.9",
     "scikit-learn>=1.4.0",
+    # Density-based topic clustering (HDBSCAN) + UMAP pre-reduction. Replaces
+    # fixed-k KMeans for countries that opt in via clustering.method: hdbscan
+    # (TR as of the cluster-coherence fix); other countries stay on KMeans.
+    # HDBSCAN on raw 384-dim embeddings leaves ~75% of items as noise (curse of
+    # dimensionality); UMAP→HDBSCAN drops that to ~18% — same pattern BERTopic
+    # uses. UMAP is gated on per country via clustering.umap.enabled.
+    "hdbscan>=0.8.33",
+    "umap-learn>=0.5.5",
     "mlflow>=2.12.0",
     # Sprint 5: per-language tokenization + lemmatization + POS for
     # collocation extraction. Language models are NOT declared here —

@@ -598,7 +598,7 @@ def all_clusters(
     responses={404: {"description": "Belirtilen cluster_id veya tarihe ait veri bulunamadı"}},
 )
 def topic(
-    cluster_id: int = Path(..., description="Küme numarası (0-14)", ge=0, le=14),
+    cluster_id: int = Path(..., description="Küme numarası (HDBSCAN ile değişken sayıda küme)", ge=0),
     date_str: str = Query(
         default=None,
         alias="date",
