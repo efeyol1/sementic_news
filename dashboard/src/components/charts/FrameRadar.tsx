@@ -12,7 +12,8 @@ import {
 
 // Canonical frame order + Turkish labels, kept in sync with
 // src/analysis/frame_bridge.py::FRAME_NAMES and configs/frames/*.yaml.
-const FRAME_LABELS: { key: string; label: string }[] = [
+// Exported so the cross-country FrameRadarMulti shares one source of truth.
+export const FRAME_LABELS: { key: string; label: string }[] = [
   { key: "economic", label: "Ekonomi" },
   { key: "security", label: "Güvenlik" },
   { key: "identity", label: "Kimlik" },

@@ -136,7 +136,7 @@ async function DashboardContent({ date, country }: { date: string; country: stri
               </span>
             </div>
           </div>
-          <SentimentTrendChart points={trendData.points} />
+          <SentimentTrendChart points={trendData.points} locale={locale} />
         </div>
       )}
 

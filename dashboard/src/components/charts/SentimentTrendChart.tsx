@@ -10,21 +10,20 @@ import {
   ResponsiveContainer,
   ReferenceLine,
 } from "recharts";
-import { format, parseISO } from "date-fns";
-import { tr } from "date-fns/locale";
 import type { TrendPoint } from "@/lib/api";
 
 interface Props {
   points: TrendPoint[];
+  locale: string;
 }
 
-function CustomTooltip({ active, payload, label }: any) {
+function CustomTooltip({ active, payload, label, locale }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload as TrendPoint;
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-3 text-xs">
       <p className="font-semibold text-slate-700 mb-1.5">
-        {format(parseISO(d.date), "d MMMM yyyy", { locale: tr })}
+        {new Date(d.date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
       </p>
       <div className="space-y-0.5">
         <div className="flex items-center gap-2">
@@ -55,7 +54,7 @@ function CustomTooltip({ active, payload, label }: any) {
   );
 }
 
-export function SentimentTrendChart({ points }: Props) {
+export function SentimentTrendChart({ points, locale }: Props) {
   if (points.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
@@ -66,7 +65,7 @@ export function SentimentTrendChart({ points }: Props) {
 
   const formatted = points.map((p) => ({
     ...p,
-    label: format(parseISO(p.date), "d MMM", { locale: tr }),
+    label: new Date(p.date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }),
   }));
   const hasNeutral = points.some((p) => (p.neutral ?? 0) > 0);
 
@@ -86,7 +85,7 @@ export function SentimentTrendChart({ points }: Props) {
           axisLine={false}
           tickLine={false}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip locale={locale} />} />
         <ReferenceLine y={0} stroke="#e2e8f0" />
         <Line
           type="monotone"

@@ -9,21 +9,20 @@ import {
   Tooltip,
   ResponsiveContainer,
 } from "recharts";
-import { format, parseISO } from "date-fns";
-import { tr } from "date-fns/locale";
 import type { EntityTimelinePoint } from "@/lib/api";
 
 interface Props {
   points: EntityTimelinePoint[];
+  locale: string;
 }
 
-function CustomTooltip({ active, payload }: any) {
+function CustomTooltip({ active, payload, locale }: any) {
   if (!active || !payload?.length) return null;
   const d = payload[0].payload as EntityTimelinePoint;
   return (
     <div className="bg-white border border-slate-200 rounded-lg shadow-sm p-3 text-xs">
       <p className="font-semibold text-slate-700 mb-1.5">
-        {format(parseISO(d.date), "d MMMM yyyy", { locale: tr })}
+        {new Date(d.date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" })}
       </p>
       <div className="space-y-0.5">
         <div className="flex items-center gap-2">
@@ -50,7 +49,7 @@ function CustomTooltip({ active, payload }: any) {
   );
 }
 
-export function EntityTimelineChart({ points }: Props) {
+export function EntityTimelineChart({ points, locale }: Props) {
   if (points.length === 0) {
     return (
       <div className="flex items-center justify-center h-48 text-slate-400 text-sm">
@@ -61,7 +60,7 @@ export function EntityTimelineChart({ points }: Props) {
 
   const formatted = points.map((p) => ({
     ...p,
-    label: format(parseISO(p.date), "d MMM", { locale: tr }),
+    label: new Date(p.date + "T12:00:00").toLocaleDateString(locale, { day: "numeric", month: "short" }),
   }));
 
   return (
@@ -81,7 +80,7 @@ export function EntityTimelineChart({ points }: Props) {
           tickLine={false}
           allowDecimals={false}
         />
-        <Tooltip content={<CustomTooltip />} />
+        <Tooltip content={<CustomTooltip locale={locale} />} />
         <Line
           type="monotone"
           dataKey="mention_count"

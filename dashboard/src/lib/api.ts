@@ -217,6 +217,43 @@ export interface EntityExplainResponse {
   citations: ExplanationCitation[];
 }
 
+export interface AboutLinks {
+  repository: string; license: string; model_card: string;
+  data_provenance: string; data_license: string; privacy: string;
+  contributing: string; code_of_conduct: string; security: string;
+}
+export interface AboutResponse {
+  name: string; version: string;
+  disclaimer: string; disclaimer_tr: string;
+  links: AboutLinks;
+}
+
+// --- Drift / data-health monitoring (PSI of the daily sentiment mix) --------
+
+export interface DriftRatios {
+  negative: number;
+  neutral: number;
+  positive: number;
+}
+
+export interface DriftReport {
+  date: string;
+  country_code: string;
+  status: string; // "ok" | "insufficient_data"
+  psi: number | null;
+  severity: string; // "stable" | "moderate" | "significant" | "insufficient"
+  baseline_days: number;
+  today_total: number;
+  today_ratios: DriftRatios | null;
+  baseline_ratios: DriftRatios | null;
+  per_class_delta: DriftRatios | null;
+  computed_at?: string; // only present on /api/drift/latest
+}
+
+export interface DriftHistoryResponse {
+  reports: DriftReport[];
+}
+
 export const api = {
   today: (date?: string, country?: string) =>
     apiFetch<TodayResponse>("/api/today", withCountry(country, date ? { date } : undefined)),
@@ -237,6 +274,8 @@ export const api = {
     apiFetch<TrendResponse>("/api/trend", withCountry(country, { days: String(days) })),
 
   countries: () => apiFetch<CountryInfo[]>("/api/countries"),
+
+  about: () => apiFetch<AboutResponse>("/api/about"),
 
   // Entity profile endpoints (Sprint 8). `ref` is a Wikidata QID (Q22686)
   // or a canonical name — encodeURIComponent handles names with spaces.
@@ -278,6 +317,15 @@ export const api = {
     apiFetch<EntityExplainResponse>(
       `/api/entity/${encodeURIComponent(ref)}/explain`,
       withCountry(country, { window_days: String(windowDays), lang }),
+    ),
+
+  driftLatest: (country?: string) =>
+    apiFetch<DriftReport>("/api/drift/latest", withCountry(country)),
+
+  driftHistory: (days = 30, country?: string) =>
+    apiFetch<DriftHistoryResponse>(
+      "/api/drift/history",
+      withCountry(country, { days: String(days) }),
     ),
 };
 
