@@ -47,7 +47,7 @@ def test_load_gold_dataset_excludes_ids_and_filters(tmp_path: Path):
 def test_balance_gold_equalizes_classes(tmp_path: Path):
     csv_path = tmp_path / "gold.csv"
     _write_gold_csv(csv_path, [
-        {"id": "1", "reviewed_label": "neutral", "title": "bakan atama karari yayimlandi bugun", "summary": "resmi gazete"},
+        {"id": "1", "reviewed_label": "neutral", "title": "bakan atama karari yayimlandi", "summary": "resmi gazete"},
         {"id": "2", "reviewed_label": "neutral", "title": "meclis bugun toplandi gundem maddesi", "summary": "oturum"},
         {"id": "3", "reviewed_label": "neutral", "title": "belediye yeni hizmet binasi acti", "summary": "tanitim"},
         {"id": "4", "reviewed_label": "positive", "title": "borsa yukseldi rekor kirdi piyasa", "summary": "yatirim"},
