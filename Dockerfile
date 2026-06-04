@@ -4,7 +4,7 @@ WORKDIR /app
 
 # Single source of truth = pyproject.toml. Copying src/ before install
 # because hatchling needs the package tree present to build the wheel.
-COPY pyproject.toml ./
+COPY pyproject.toml README.md ./
 COPY src/ src/
 RUN pip install --no-cache-dir .
 
